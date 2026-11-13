@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://brandguard.local/contracts/approval.schema.json",
+  "title": "ApprovalRecord",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "content_id",
+    "content_version_id",
+    "state",
+    "hash",
+    "approved_by",
+    "approved_at",
+    "voided_at",
+    "void_diff"
+  ],
+  "properties": {
+    "content_id": { "type": "string", "format": "uuid" },
+    "content_version_id": { "type": "string", "format": "uuid" },
+    "state": {
+      "type": "string",
+      "enum": ["DRAFT", "CHECKS_RUN", "IN_REVIEW", "APPROVED", "VOID"]
+    },
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "approved_by": {
+      "oneOf": [
+        { "type": "string", "format": "uuid" },
+        { "type": "null" }
+      ]
+    },
+    "approved_at": {
+      "oneOf": [
+        { "type": "string", "format": "date-time" },
+        { "type": "null" }
+      ]
+    },
+    "voided_at": {
+      "oneOf": [
+        { "type": "string", "format": "date-time" },
+        { "type": "null" }
+      ]
+    },
+    "void_diff": {
+      "oneOf": [
+        { "type": "object" },
+        { "type": "null" }
+      ]
+    }
+  }
+}

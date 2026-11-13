@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://brandguard.local/contracts/audit-entry.schema.json",
+  "title": "AuditEntry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["entry_id", "content_id", "actor", "action", "reason", "timestamp"],
+  "properties": {
+    "entry_id": { "type": "string", "format": "uuid" },
+    "content_id": { "type": "string", "format": "uuid" },
+    "actor": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "user_id"],
+          "properties": {
+            "type": { "const": "USER" },
+            "user_id": { "type": "string", "format": "uuid" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": { "type": { "const": "SYSTEM" } }
+        }
+      ]
+    },
+    "action": {
+      "type": "string",
+      "enum": ["submitted", "checked", "edited", "overridden", "approved", "voided"]
+    },
+    "reason": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "null" }
+      ]
+    },
+    "timestamp": { "type": "string", "format": "date-time" }
+  }
+}

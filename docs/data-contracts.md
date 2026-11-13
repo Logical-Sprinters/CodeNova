@@ -1,17 +1,34 @@
 # Data Contracts
 
-Define shared JSON schemas in `packages/contracts` and use them to generate
-Pydantic models and TypeScript types.
+JSON Schema files in [`../packages/contracts/`](../packages/contracts/README.md)
+are the intended single source of truth for Pydantic v2 and TypeScript types.
+Code generation is not configured yet; do not hand-maintain diverging API
+shapes.
 
-Core records:
+| Contract | Schema |
+| --- | --- |
+| Rule | [`rule.schema.json`](../packages/contracts/rule.schema.json) |
+| Finding | [`finding.schema.json`](../packages/contracts/finding.schema.json) |
+| Approval record | [`approval.schema.json`](../packages/contracts/approval.schema.json) |
+| Audit entry | [`audit-entry.schema.json`](../packages/contracts/audit-entry.schema.json) |
+| Processing receipt | [`processing-receipt.schema.json`](../packages/contracts/processing-receipt.schema.json) |
 
-- **Rule:** identifier and version, type, text, source, status, effective and
-  expiry dates, superseded rule, risk tier, channels, and confirming admin.
-- **Finding:** status, referenced rule version, evidence quote, optional text
-  span, message, suggested fix, and system action.
-- **Approval:** content version, lifecycle state, canonical SHA-256 hash,
-  reviewer, approval time, and void details.
-- **Audit entry:** content, actor, action, reason when overridden, and timestamp.
+## Contract invariants
 
-Canonical hashes use normalized content and sorted asset fingerprints. Every
-finding must be grounded in an active rule version and evidence quote.
+- A rule is identified by its rule ID and version and includes source, status,
+  dates, channels, risk tier, and supersession metadata.
+- A finding references a specific rule version and exact evidence quote.
+  Character spans use zero-based start and exclusive end offsets.
+- An approval is bound to an immutable content version and its canonical
+  lowercase SHA-256 hash.
+- User actions and system actions are distinguishable in the audit record;
+  override reasons are required.
+- A processing receipt lists the text and exact rule versions sent, redactions,
+  provider, retention terms, and creation time.
+- JSON Schema validates shape, not authorization or truth. The API must still
+  verify the rule is active/applicable, enforce the verifier gates, and apply
+  state-transition and access-control rules.
+
+Canonical hash input is stable JSON containing text, channel, and sorted asset
+fingerprints after whitespace and Unicode normalization. Never hash an
+unordered or mutable representation.
