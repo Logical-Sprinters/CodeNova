@@ -701,8 +701,8 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                 children: [
                   Text(
                     decision == 'Rejected'
-                        ? 'Please provide a reason for rejecting this content.'
-                        : 'Describe the changes required before approval.',
+                      ? 'Please provide a reason for rejecting this content.'
+                      : 'Describe the changes required before approval.',
                     style: style(size: 12, color: secondary),
                   ),
                   const SizedBox(height: 12),
@@ -722,9 +722,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
             ),
             actions: [
               TextButton(
-                onPressed: () {
-                  Navigator.pop(dialogContext);
-                },
+                onPressed: () => Navigator.pop(dialogContext),
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
@@ -746,24 +744,39 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
         },
       );
 
-      if (!mounted || reason == null || reason.isEmpty) {
-        return;
-      }
+      if (!mounted || reason == null || reason.isEmpty) return;
 
-      ReviewQueueData.recordDecision(
-        review: review,
-        decision: decision,
-        reason: reason,
+      // The current backend supports approved and rejected decisions.
+      final backendDecision =
+        decision == 'Rejected' ? 'rejected' : 'rejected';
+
+      final backendReason = decision == 'Changes Requested'
+        ? 'Changes requested: $reason'
+        : reason;
+
+      await BrandGuardApiService.decideReview(
+        checkId: review['id'].toString(),
+        decision: backendDecision,
+        reviewer: 'Admin',
+        note: backendReason,
       );
 
-      setState(() {});
+      if (!mounted) return;
+
+      await _loadReviews();
+
+      if (!mounted) return;
 
       showMessage('$decision recorded successfully.');
+    } catch (e) {
+      if (!mounted) return;
+
+      showMessage('Unable to record decision: $e');
     } finally {
-      await Future.delayed(const Duration(milliseconds: 350));
       controller.dispose();
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -1291,9 +1304,9 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Demo limitation: decision details are stored in memory only. '
-              'Production audit records should be append-only, '
-              'tamper-evident and server-backed.',
+              'Approval decisions are recorded by the BrandGuard backend. '
+              'Each decision is associated with its original content check '
+              'and review record.',
               style: style(size: 10, color: navy),
             ),
           ),
