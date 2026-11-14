@@ -1,6 +1,14 @@
 # Run it locally — Windows / PowerShell
 
-Copy-paste, in order. Nothing here needs an admin shell except installing Docker and Flutter.
+Two database paths. **Pick one** — they are equivalent, and the app does not know which you
+chose, because both expose the same `postgresql://brandguard:brandguard@localhost:5432/brandguard`.
+
+| Path | Needs | Time | Notes |
+|---|---|---|---|
+| **A · native PostgreSQL** (recommended) | `winget install -e --id PostgreSQL.PostgreSQL.16` | ~2 min | no reboot, no virtualisation, no WSL2 |
+| B · Docker Desktop | `winget install -e --id Docker.DockerDesktop` | 15–20 min | needs WSL2, virtualisation in BIOS, usually a reboot |
+
+Start with `check-env.ps1`, which tells you what you already have.
 
 ## 0 · Prerequisites, once
 
@@ -17,10 +25,13 @@ slowest step of the whole project, so do it first.
 
 ```powershell
 cd C:\path\to\BrandGuard
-.\scripts\dev.ps1
+.\scripts\check-env.ps1          # what is installed
+.\scripts\dev-native.ps1         # path A: native PostgreSQL
+# or
+.\scripts\dev.ps1                # path B: Docker
 ```
 
-That starts PostgreSQL, applies `001_schema.sql` → `002_functions.sql` → `003_seed.sql`,
+Either one applies `001_schema.sql` → `002_functions.sql` → `003_seed.sql`,
 then runs the 28 assertions. Expect `28 of 28 passed`.
 
 **Why a script and not four pasted commands:** PowerShell 5.1 does not support `&&`, and

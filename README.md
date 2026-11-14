@@ -24,16 +24,25 @@ One Flutter codebase for phone and laptop. FastAPI. PostgreSQL 16.
 
 Two entry points; pick the one for your machine. Neither needs `make`.
 
-**Windows (PowerShell 5.1 or 7, no extra tools):**
+**Windows (PowerShell 5.1 or 7):**
 
 ```powershell
-.\scripts\dev.ps1        # postgres + schema + functions + seed + 28 assertions
-.\scripts\api.ps1        # API on http://localhost:8000  →  /docs   (second terminal)
-python scripts\smoke.py   # the 14-step story                       (third terminal)
+.\scripts\check-env.ps1        # what is installed, and the install command for what is not
+.\scripts\dev-native.ps1      # native PostgreSQL 16: role + database + schema + 28 assertions
+.\scripts\api.ps1             # API on http://localhost:8000  →  /docs   (second terminal)
+python scripts\smoke.py        # the 14-step story                       (third terminal)
 ```
 
+`check-env.ps1` first: it prints exactly which tools are missing rather than letting you find
+out one command at a time.
+
+**No Docker?** Neither path needs it. `dev-native.ps1` talks to a locally installed
+PostgreSQL 16 — `winget install -e --id PostgreSQL.PostgreSQL.16`, then a **new** terminal,
+then `dev-native.ps1`. Docker Desktop also works (`dev.ps1`) but needs WSL2, virtualisation
+enabled in the BIOS and usually a reboot.
+
 If PowerShell refuses to run the scripts:
-`powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1`
+`powershell -ExecutionPolicy Bypass -File .\scripts\check-env.ps1`
 
 **macOS / Linux:**
 
@@ -55,10 +64,11 @@ First runs are slow — a Docker image pull, a `flutter pub get`, and a first bu
 **Expect, exactly:** `28 of 28 passed` from the assertions, `all 14 steps passed` from the
 smoke test. Anything else names the failing step.
 
-**Windows note:** PowerShell 5.1 does not support `&&` in the shell (PowerShell 7 does), and
-`make` is not installed by default on Windows. That is why the two scripts above exist —
-they are the supported path, not a convenience. Full run book, including the Docker-only
-fallback: [docs/run-local.md](docs/run-local.md).
+**Windows notes, learned the hard way:** PowerShell 5.1 has no `&&` (7 does); `make` and
+`psql` are not on PATH by default; the PostgreSQL installer does not always add itself to
+PATH, so `dev-native.ps1` searches `C:\Program Files\PostgreSQL\*\bin` for you. The scripts
+are the supported path, not a convenience. Full run book:
+[docs/run-local.md](docs/run-local.md).
 
 The `android/` and `web/` folders are committed scaffolding, so a clone runs without an
 extra `flutter create` step. `lib/` is hand-written and is never generated.
