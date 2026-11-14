@@ -332,26 +332,40 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
     }
   }
 
-  void updateReview(
+  Future<void> updateReview(
     Map<String, dynamic> review,
     String decision,
     BuildContext sheetContext,
-  ) {
-    if (review['status'] == 'Approved' || review['status'] == 'Rejected') {
+  ) async {
+    if (review['status'] == 'Approved' ||
+        review['status'] == 'Rejected') {
       showMessage('This review already has a final decision.');
       return;
     }
 
-    ReviewQueueData.recordDecision(
-      review: review,
-      decision: decision,
-      reason: 'Approved by authorised reviewer.',
-    );
+    final backendDecision =
+      decision == 'Approved' ? 'approved' : 'rejected';
 
-    setState(() {});
+    try {
+      await BrandGuardApiService.decideReview(
+        checkId: review['id'].toString(),
+        decision: backendDecision,
+        reviewer: 'Admin',
+        note: decision == 'Approved'
+          ? 'Approved by authorised reviewer.'
+          : 'Rejected by authorised reviewer.',
+      );
 
-    Navigator.pop(sheetContext);
-    showMessage('Review status updated: $decision');
+      if (!mounted || !sheetContext.mounted) return;
+
+      Navigator.pop(sheetContext);
+
+      await _loadReviews();
+
+      showMessage('Review status updated: $decision');
+    } catch (e) {
+      showMessage('Unable to update review: $e');
+    }
   }
 
   Future<void> openReviewDetails(Map<String, dynamic> review) async {
@@ -483,8 +497,8 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                             width: double.infinity,
                             height: 47,
                             child: ElevatedButton.icon(
-                              onPressed: () {
-                                updateReview(review, 'Approved', sheetContext);
+                              onPressed: () async {
+                                await updateReview(review, 'Approved', sheetContext);
                               },
                               icon: const Icon(
                                 Icons.verified_rounded,
