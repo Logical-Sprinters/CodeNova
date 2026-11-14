@@ -1,0 +1,27 @@
+name: brandguard
+description: BrandGuard — pre-publication brand governance. One Flutter codebase for phone and laptop.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Exactly one non-SDK dependency. Every package added here is a build that can
+  # fail on a machine you do not control; the app does not need more than this.
+  http: ^1.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope-Variable.ttf
