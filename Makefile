@@ -1,4 +1,6 @@
 # BrandGuard — one documented way to do every common thing.
+# macOS / Linux. On Windows use scripts\dev.ps1 and scripts\api.ps1 instead:
+# `make` is not installed by default there, and PowerShell 5.1 has no `&&`.
 DB_URL ?= postgresql://brandguard:brandguard@localhost:5432/brandguard
 
 .PHONY: help setup up down logs db db-test api app app-web apk test lint clean

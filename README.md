@@ -20,27 +20,45 @@ One Flutter codebase for phone and laptop. FastAPI. PostgreSQL 16.
 
 ---
 
-## Run it in five commands
+## Run it
 
-```bash
-docker compose up -d          # 1. PostgreSQL 16 on :5432
-make db                       # 2. schema → functions → seed
-make db-test                  # 3. 28 schema assertions  (28 of 28 passed)
-make api                      # 4. API on http://localhost:8000  →  /docs
-make app-web                  # 5. the app in Chrome   (or `make app` for a device)
+Two entry points; pick the one for your machine. Neither needs `make`.
+
+**Windows (PowerShell 5.1 or 7, no extra tools):**
+
+```powershell
+.\scripts\dev.ps1        # postgres + schema + functions + seed + 28 assertions
+.\scripts\api.ps1        # API on http://localhost:8000  →  /docs   (second terminal)
+python scripts\smoke.py   # the 14-step story                       (third terminal)
 ```
 
-Then, in a second terminal, prove the whole story without touching the UI:
+If PowerShell refuses to run the scripts:
+`powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1`
+
+**macOS / Linux:**
 
 ```bash
-python scripts/smoke.py       # 14 steps: check → repair → approve → edit → void
+make up && make db && make db-test    # postgres, schema → functions → seed, 28 assertions
+make api                              # API on http://localhost:8000   (second terminal)
+python scripts/smoke.py               # the 14-step story              (third terminal)
 ```
 
-First runs are slow — a Docker image pull, a `flutter pub get`, and a first build. Both
-`docker compose up` and `flutter pub get` can be started while you read the rest.
+Then the app, either platform:
 
-**Windows / PowerShell:** follow [docs/run-local.md](docs/run-local.md) — same order,
-different syntax.
+```bash
+cd frontend && flutter pub get && flutter run -d chrome
+```
+
+First runs are slow — a Docker image pull, a `flutter pub get`, and a first build. Start
+`dev.ps1` / `make up` and `flutter pub get` while you read the rest.
+
+**Expect, exactly:** `28 of 28 passed` from the assertions, `all 14 steps passed` from the
+smoke test. Anything else names the failing step.
+
+**Windows note:** PowerShell 5.1 does not support `&&` in the shell (PowerShell 7 does), and
+`make` is not installed by default on Windows. That is why the two scripts above exist —
+they are the supported path, not a convenience. Full run book, including the Docker-only
+fallback: [docs/run-local.md](docs/run-local.md).
 
 The `android/` and `web/` folders are committed scaffolding, so a clone runs without an
 extra `flutter create` step. `lib/` is hand-written and is never generated.
