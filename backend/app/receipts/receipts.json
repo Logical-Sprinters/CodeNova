@@ -1,0 +1,34 @@
+[
+    {
+        "receipt_id": "10891969-0bc0-4258-a898-15e81559b7a7",
+        "timestamp": "2026-11-14T16:20:23.917325+00:00",
+        "check_id": "538a6040-7d0e-43ae-b739-ebfc245861fb",
+        "brand_name": "Acme",
+        "content_hash": "25cd4db3580e8592092dfd622d44cd7b6e7211346d73646b4e10088b51440a7f",
+        "rules_version": "1.0.0",
+        "deterministic_engine": "1.0",
+        "deterministic_findings": 2,
+        "ai_verification": {
+            "status": "abstained",
+            "message": "No verified brand facts available for comparison.",
+            "findings": []
+        },
+        "final_status": "pending"
+    },
+    {
+        "receipt_id": "4d0d93a8-1549-4932-a4a7-fd1b4a4159f2",
+        "timestamp": "2026-11-14T17:02:54.206077+00:00",
+        "check_id": "ceec5a30-ba62-4f98-b881-14846d2151b8",
+        "brand_name": "acme",
+        "content_hash": "9cf9e13a08e4b922dc3fe73456eface40d83d9051d880c25b04bb324241b042d",
+        "rules_version": "1.0.0",
+        "deterministic_engine": "1.0",
+        "deterministic_findings": 4,
+        "ai_verification": {
+            "status": "abstained",
+            "message": "No verified brand facts available for comparison.",
+            "findings": []
+        },
+        "final_status": "pending"
+    }
+]

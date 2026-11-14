@@ -3,6 +3,10 @@ include: package:flutter_lints/flutter.yaml
 analyzer:
   errors:
     todo: ignore
+  exclude:
+    - build/**
+    - android/**
+    - web/**
 
 linter:
   rules:

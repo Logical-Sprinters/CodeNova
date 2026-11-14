@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://brandguard.local/contracts/finding.schema.json",
+  "title": "Finding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "finding_id",
+    "status",
+    "rule_id",
+    "rule_version",
+    "evidence_quote",
+    "span",
+    "message",
+    "suggested_fix",
+    "system_action"
+  ],
+  "properties": {
+    "finding_id": { "type": "string", "format": "uuid" },
+    "status": {
+      "type": "string",
+      "enum": [
+        "CONFIRMED_RULE_MATCH",
+        "AI_INTERPRETATION",
+        "UNSUPPORTED",
+        "SOURCE_CONFLICT_OR_EXPIRED",
+        "NEEDS_AUTHORISED_REVIEWER"
+      ]
+    },
+    "rule_id": { "type": "string", "minLength": 1 },
+    "rule_version": { "type": "integer", "minimum": 1 },
+    "evidence_quote": { "type": "string", "minLength": 1 },
+    "span": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": { "type": "integer", "minimum": 0 },
+            "end": { "type": "integer", "minimum": 1 }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "message": { "type": "string", "minLength": 1 },
+    "suggested_fix": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "null" }
+      ]
+    },
+    "system_action": {
+      "type": "string",
+      "enum": [
+        "BLOCK_EXPORT",
+        "ADVISORY",
+        "FLAG_REVIEW",
+        "ESCALATE_ADMIN",
+        "ROUTE_LEGAL"
+      ]
+    }
+  }
+}

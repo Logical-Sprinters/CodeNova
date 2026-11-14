@@ -1,1 +1,1 @@
-"""BrandGuard API."""
+"""BrandGuard API application package."""

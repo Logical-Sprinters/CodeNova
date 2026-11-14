@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://brandguard.local/contracts/processing-receipt.schema.json",
+  "title": "ProcessingReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "receipt_id",
+    "check_run_id",
+    "sent_text",
+    "active_rules",
+    "redactions",
+    "retention_terms",
+    "provider",
+    "created_at"
+  ],
+  "properties": {
+    "receipt_id": { "type": "string", "format": "uuid" },
+    "check_run_id": { "type": "string", "format": "uuid" },
+    "sent_text": { "type": "string" },
+    "active_rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule_id", "version"],
+        "properties": {
+          "rule_id": { "type": "string", "minLength": 1 },
+          "version": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "redactions": { "type": "array" },
+    "retention_terms": { "type": "string", "minLength": 1 },
+    "provider": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "null" }
+      ]
+    },
+    "created_at": { "type": "string", "format": "date-time" }
+  }
+}

@@ -1,0 +1,28 @@
+
+{
+  "brands": {
+    "acme": {
+      "current_version": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "rules": [
+            {
+              "id": "ACME-001",
+              "name": "Restricted Phrase",
+              "pattern": "\\bfree forever\\b",
+              "severity": "review",
+              "message": "Potentially restricted brand phrase detected."
+            },
+            {
+              "id": "ACME-002",
+              "name": "Unapproved Superlative",
+              "pattern": "\\bbest in the world\\b",
+              "severity": "warning",
+              "message": "Verify this superlative against brand guidelines."
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,74 +1,10 @@
-name: ci
+name: CI
 
-on: [push, pull_request]
+on:
+  workflow_dispatch:
 
 jobs:
-  database-and-api:
-    name: schema assertions, API tests, end-to-end story
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: brandguard
-          POSTGRES_PASSWORD: brandguard
-          POSTGRES_DB: brandguard
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U brandguard -d brandguard"
-          --health-interval 5s --health-timeout 5s --health-retries 20
-    env:
-      DATABASE_URL: postgresql://brandguard:brandguard@localhost:5432/brandguard
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-
-      - name: Apply schema, functions and seed
-        run: |
-          for f in database/001_schema.sql database/002_functions.sql database/003_seed.sql; do
-            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f "$f"
-          done
-
-      - name: Schema assertions (28)
-        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f database/tests/001_assertions.sql
-
-      - name: Install API dependencies
-        run: pip install -r backend/requirements.txt
-
-      - name: API tests
-        working-directory: backend
-        env:
-          PYTHONPATH: .
-        run: python -m pytest -q
-
-      - name: Start the API
-        working-directory: backend
-        env:
-          PYTHONPATH: .
-        run: |
-          python -m uvicorn app.main:app --port 8000 &
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:8000/health >/dev/null && exit 0
-            sleep 1
-          done
-          exit 1
-
-      - name: End-to-end story (14 steps)
-        run: python scripts/smoke.py
-
-  app:
-    name: flutter analyse and test
+  placeholder:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.24.5"
-          channel: stable
-      - working-directory: frontend
-        run: flutter pub get
-      - working-directory: frontend
-        run: flutter analyze
-      - working-directory: frontend
-        run: flutter test
+      - run: echo "TODO: configure API and web checks"

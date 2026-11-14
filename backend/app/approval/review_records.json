@@ -1,0 +1,105 @@
+[
+    {
+        "check_id": "b0c336b3-229f-4bcb-9f0f-28c95163350f",
+        "brand_name": "Acme",
+        "content_hash": "25cd4db3580e8592092dfd622d44cd7b6e7211346d73646b4e10088b51440a7f",
+        "rules_version": "1.0.0",
+        "status": "approved",
+        "findings": [
+            {
+                "rule_id": "ACME-001",
+                "severity": "review",
+                "message": "Potentially restricted brand phrase detected.",
+                "evidence": "free forever",
+                "start_index": 15,
+                "end_index": 27
+            },
+            {
+                "rule_id": "ACME-002",
+                "severity": "warning",
+                "message": "Verify this superlative against brand guidelines.",
+                "evidence": "best in the world",
+                "start_index": 36,
+                "end_index": 53
+            }
+        ],
+        "created_at": "2026-11-14T16:07:50.158440+00:00",
+        "reviewer": "Omkar",
+        "review_note": "Reviewed and approved for testing.",
+        "decided_at": "2026-11-14T16:11:55.828940+00:00"
+    },
+    {
+        "check_id": "538a6040-7d0e-43ae-b739-ebfc245861fb",
+        "brand_name": "Acme",
+        "content_hash": "25cd4db3580e8592092dfd622d44cd7b6e7211346d73646b4e10088b51440a7f",
+        "rules_version": "1.0.0",
+        "status": "pending",
+        "findings": [
+            {
+                "rule_id": "ACME-001",
+                "severity": "review",
+                "message": "Potentially restricted brand phrase detected.",
+                "evidence": "free forever",
+                "start_index": 15,
+                "end_index": 27
+            },
+            {
+                "rule_id": "ACME-002",
+                "severity": "warning",
+                "message": "Verify this superlative against brand guidelines.",
+                "evidence": "best in the world",
+                "start_index": 36,
+                "end_index": 53
+            }
+        ],
+        "created_at": "2026-11-14T16:20:23.909564+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "ceec5a30-ba62-4f98-b881-14846d2151b8",
+        "brand_name": "acme",
+        "content_hash": "9cf9e13a08e4b922dc3fe73456eface40d83d9051d880c25b04bb324241b042d",
+        "rules_version": "1.0.0",
+        "status": "pending",
+        "findings": [
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "guaranteed",
+                "start_index": 15,
+                "end_index": 25
+            },
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "100% safe",
+                "start_index": 32,
+                "end_index": 41
+            },
+            {
+                "rule_id": "ACME-001",
+                "severity": "review",
+                "message": "Potentially restricted brand phrase detected.",
+                "evidence": "Free forever",
+                "start_index": 74,
+                "end_index": 86
+            },
+            {
+                "rule_id": "ACME-002",
+                "severity": "warning",
+                "message": "Verify this superlative against brand guidelines.",
+                "evidence": "best in the world",
+                "start_index": 55,
+                "end_index": 72
+            }
+        ],
+        "created_at": "2026-11-14T17:02:54.172038+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    }
+]
