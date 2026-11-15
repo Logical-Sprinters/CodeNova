@@ -8,6 +8,8 @@ import 'package:flutter_localizations/flutter_localizations.dart'
     as flutter_localizations;
 
 import 'screens/auth/sign_in_screen.dart';
+import 'screens/workspace/approval_verification_screen.dart';
+import 'screens/workspace/receipt_detail_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,6 +49,14 @@ class BrandGuardApp extends StatelessWidget {
         ),
       ),
       home: const SplashScreen(),
+      routes: {
+        '/approvalVerification': (context) => const ApprovalVerificationScreen(),
+        '/receiptDetail': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as String;
+          return ReceiptDetailScreen(receiptId: args);
+        },
+      },
+
     );
   }
 }

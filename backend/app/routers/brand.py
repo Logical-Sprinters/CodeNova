@@ -1,5 +1,14 @@
+from fastapi import APIRouter, HTTPException, Depends, Body
 
-from fastapi import APIRouter, HTTPException
+from app.approval.store import (
+    generate_content_hash,
+    load_records,
+    save_records,
+    get_record,
+    create_record,
+)
+
+
 from uuid import uuid4
 from datetime import datetime, timezone
 
@@ -7,8 +16,9 @@ from app.schemas.brand import BrandCheckRequest, BrandCheckResponse
 from app.checks.deterministic.engine import run_deterministic_checks
 from app.checks.llm.verifier import run_ai_verification
 from app.rules_store.store import get_brand_rule_versions
-from app.approval.store import create_record, generate_content_hash
+from app.audit.store import log_audit
 from app.receipts.store import create_receipt
+from app.auth import get_user
 
 router = APIRouter(
     prefix="/api/v1/brand",
@@ -17,7 +27,7 @@ router = APIRouter(
 
 
 @router.post("/check", response_model=BrandCheckResponse)
-async def check_brand(request: BrandCheckRequest):
+async def check_brand(request: BrandCheckRequest, user: dict = Depends(get_user)):
 
     findings = run_deterministic_checks(
         request.content,
@@ -45,7 +55,9 @@ async def check_brand(request: BrandCheckRequest):
         "reviewer": None,
         "review_note": None,
         "decided_at": None,
-    })
+    }, creator_id=user["user_id"])
+    # Audit log for brand check creation
+    log_audit(action="create_check", actor_id=user["user_id"], check_id=check_id, details={"brand": request.brand_name})
 
     receipt = create_receipt({
         "check_id": check_id,
@@ -68,7 +80,68 @@ async def check_brand(request: BrandCheckRequest):
     )
 
 
-@router.get("/rules/{brand_name}")
+# New endpoint for submitting edited content / creating a new version
+@router.post("/{check_id}/versions", response_model=BrandCheckResponse)
+async def submit_version(
+    check_id: str,
+    content: str = Body(..., embed=True),
+    user: dict = Depends(get_user),
+):
+    """Submit edited content for an existing check.
+    Creates a new version, invalidates any prior approval, and returns updated response.
+    """
+    record = get_record(check_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Check not found")
+
+    # Compute new hash and update record
+    new_hash = generate_content_hash(content)
+    # Invalidate prior approval if it was approved
+    if record.get("status") == "approved":
+        record["status"] = "pending"
+    else:
+        record["status"] = "pending"
+    record["content_hash"] = new_hash
+
+    # Store version history
+    version_entry = {
+        "version": len(record.get("versions", [])) + 1,
+        "content_hash": new_hash,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "creator_id": user["user_id"],
+    }
+    record.setdefault("versions", []).append(version_entry)
+
+    # Persist the updated record
+    records = load_records()
+    for i, r in enumerate(records):
+        if r["check_id"] == check_id:
+            records[i] = record
+            break
+    save_records(records)
+
+    # Create a receipt for this version submission
+    receipt = create_receipt({
+        "check_id": check_id,
+        "brand_name": record["brand_name"],
+        "content_hash": new_hash,
+        "rules_version": record.get("rules_version"),
+        "deterministic_engine": "1.0",
+        "deterministic_findings": len(record.get("findings", [])),
+        "ai_verification": None,
+        "final_status": record["status"],
+    })
+    # Audit log for version submission
+    log_audit(action="submit_version", actor_id=user["user_id"], check_id=check_id, details={"new_hash": new_hash, "version": record.get("versions", [])[-1]["version"]})
+
+    return BrandCheckResponse(
+        check_id=check_id,
+        receipt_id=receipt["receipt_id"],
+        brand_name=record["brand_name"],
+        status="review_required" if record.get("findings") else "completed",
+        findings=record.get("findings", []),
+        total_findings=len(record.get("findings", [])),
+    )
 async def get_rules(brand_name: str):
 
     result = get_brand_rule_versions(brand_name)

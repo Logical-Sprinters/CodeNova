@@ -28,10 +28,17 @@ def generate_content_hash(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
-def create_record(record: dict):
+def create_record(record: dict, creator_id: str = None):
+    """Create a new review record.
+    Optionally stores the creator's user_id for permission checks.
+    """
+    if creator_id:
+        record["creator_id"] = creator_id
     records = load_records()
     records.append(record)
     save_records(records)
+    # No need to reload and save again – one write is sufficient
+    return record
 
 
 def get_record(check_id: str):

@@ -430,5 +430,101 @@
             "findings": []
         },
         "final_status": "pending"
+    },
+    {
+        "receipt_id": "053718a8-770b-4a66-af58-e189110ec6e3",
+        "timestamp": "2026-11-15T11:39:19.198398+00:00",
+        "check_id": "e469061f-8df0-4f85-a05d-3d71f8914375",
+        "brand_name": "Acme",
+        "content_hash": "bf573149b23303cac63c2a359b53760d919770c5d070047e76de42e2184f1046",
+        "rules_version": "1.0.0",
+        "deterministic_engine": "1.0",
+        "deterministic_findings": 0,
+        "ai_verification": {
+            "status": "abstained",
+            "message": "No verified brand facts available for comparison.",
+            "findings": []
+        },
+        "final_status": "completed"
+    },
+    {
+        "receipt_id": "44195a5d-c46c-403d-92c4-85eb11f2ef37",
+        "timestamp": "2026-11-15T11:39:19.235970+00:00",
+        "check_id": "e469061f-8df0-4f85-a05d-3d71f8914375",
+        "brand_name": "Acme",
+        "content_hash": "d15da0e36ceacfd3d9d17546131984951876236fa06513173dc8631c35c3ef84",
+        "rules_version": "1.0.0",
+        "deterministic_engine": "1.0",
+        "deterministic_findings": 0,
+        "ai_verification": null,
+        "final_status": "pending"
+    },
+    {
+        "receipt_id": "4a3717d7-ab6e-46d9-aac1-befced2bd403",
+        "timestamp": "2026-11-15T11:40:57.003049+00:00",
+        "check_id": "d5a29383-5c22-4b90-b8e7-8c793a08795f",
+        "brand_name": "Acme",
+        "content_hash": "bf573149b23303cac63c2a359b53760d919770c5d070047e76de42e2184f1046",
+        "rules_version": "1.0.0",
+        "deterministic_engine": "1.0",
+        "deterministic_findings": 0,
+        "ai_verification": {
+            "status": "abstained",
+            "message": "No verified brand facts available for comparison.",
+            "findings": []
+        },
+        "final_status": "completed"
+    },
+    {
+        "receipt_id": "fe974872-2772-4ebc-be52-bf6e2758ea95",
+        "timestamp": "2026-11-15T11:40:57.033787+00:00",
+        "check_id": "d5a29383-5c22-4b90-b8e7-8c793a08795f",
+        "brand_name": "Acme",
+        "content_hash": "d15da0e36ceacfd3d9d17546131984951876236fa06513173dc8631c35c3ef84",
+        "rules_version": "1.0.0",
+        "deterministic_engine": "1.0",
+        "deterministic_findings": 0,
+        "ai_verification": null,
+        "final_status": "pending"
+    },
+    {
+        "receipt_id": "d0f30e5d-d829-4200-ade5-dec4f21ea33c",
+        "timestamp": "2026-11-15T11:41:44.813106+00:00",
+        "check_id": "7046d959-1822-4afa-9aa9-6704a89b627a",
+        "brand_name": "Acme",
+        "content_hash": "bf573149b23303cac63c2a359b53760d919770c5d070047e76de42e2184f1046",
+        "rules_version": "1.0.0",
+        "deterministic_engine": "1.0",
+        "deterministic_findings": 0,
+        "ai_verification": {
+            "status": "abstained",
+            "message": "No verified brand facts available for comparison.",
+            "findings": []
+        },
+        "final_status": "completed"
+    },
+    {
+        "receipt_id": "954cf56c-9a3f-4ad1-b2f4-e3bd931a15fb",
+        "timestamp": "2026-11-15T11:41:44.834760+00:00",
+        "check_id": "7046d959-1822-4afa-9aa9-6704a89b627a",
+        "brand_name": "Acme",
+        "content_hash": "d15da0e36ceacfd3d9d17546131984951876236fa06513173dc8631c35c3ef84",
+        "rules_version": "1.0.0",
+        "deterministic_engine": "1.0",
+        "deterministic_findings": 0,
+        "ai_verification": null,
+        "final_status": "pending"
+    },
+    {
+        "receipt_id": "126b2f35-aa99-451c-8e21-b2f7b6cd0dfa",
+        "timestamp": "2026-11-15T11:41:44.934478+00:00",
+        "check_id": "7046d959-1822-4afa-9aa9-6704a89b627a",
+        "brand_name": "Acme",
+        "content_hash": "8e42daab3486377c2401dc3e6231edf263e51a59f5328cf025f8ace0eae3ffeb",
+        "rules_version": "1.0.0",
+        "deterministic_engine": "1.0",
+        "deterministic_findings": 0,
+        "ai_verification": null,
+        "final_status": "pending"
     }
 ]

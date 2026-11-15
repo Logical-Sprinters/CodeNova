@@ -1,11 +1,14 @@
-
+// BrandGuard API service for Flutter Web client
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class BrandGuardApiService {
-  // For Flutter Web running in Chrome.
+  // Base URL for the FastAPI backend (running locally)
   static const String baseUrl = 'http://127.0.0.1:8000';
 
+  // ---------------------------------------------------------------
+  // Checks a brand and creates a new check record.
+  // ---------------------------------------------------------------
   static Future<Map<String, dynamic>> checkBrand({
     required String brandName,
     required String content,
@@ -21,24 +24,50 @@ class BrandGuardApiService {
           }),
         )
         .timeout(const Duration(seconds: 30));
-
     return _handleResponse(response);
   }
 
-  static Future<Map<String, dynamic>> getReviews({
-    String? status,
-  }) async {
+  // ---------------------------------------------------------------
+  // Retrieve list of reviews (optionally filtered by status).
+  // ---------------------------------------------------------------
+  static Future<Map<String, dynamic>> getReviews({String? status}) async {
     final uri = Uri.parse('$baseUrl/api/v1/reviews').replace(
       queryParameters: status == null ? null : {'status': status},
     );
-
-    final response = await http.get(uri).timeout(
-      const Duration(seconds: 15),
-    );
-
+    final response = await http.get(uri).timeout(const Duration(seconds: 15));
     return _handleResponse(response);
   }
 
+  // ---------------------------------------------------------------
+  // Retrieve a receipt by its ID.
+  // ---------------------------------------------------------------
+  static Future<Map<String, dynamic>> getReceipt({required String receiptId}) async {
+    final response = await http
+        .get(Uri.parse('$baseUrl/api/v1/receipts/$receiptId'))
+        .timeout(const Duration(seconds: 15));
+    return _handleResponse(response);
+  }
+
+  // ---------------------------------------------------------------
+  // Submit a new version (edited content) for a check.
+  // ---------------------------------------------------------------
+  static Future<Map<String, dynamic>> submitEditedContent({
+    required String checkId,
+    required String content,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/api/v1/brand/$checkId/versions'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'content': content}),
+        )
+        .timeout(const Duration(seconds: 15));
+    return _handleResponse(response);
+  }
+
+  // ---------------------------------------------------------------
+  // Reviewer decision (approve / reject).
+  // ---------------------------------------------------------------
   static Future<Map<String, dynamic>> decideReview({
     required String checkId,
     required String decision,
@@ -56,10 +85,12 @@ class BrandGuardApiService {
           }),
         )
         .timeout(const Duration(seconds: 15));
-
     return _handleResponse(response);
   }
 
+  // ---------------------------------------------------------------
+  // Verify an approval using the backend endpoint.
+  // ---------------------------------------------------------------
   static Future<Map<String, dynamic>> verifyApproval({
     required String checkId,
     required String brandName,
@@ -76,23 +107,18 @@ class BrandGuardApiService {
           }),
         )
         .timeout(const Duration(seconds: 15));
-
     return _handleResponse(response);
   }
 
-  static Map<String, dynamic> _handleResponse(
-    http.Response response,
-  ) {
-    final Map<String, dynamic> data =
-        jsonDecode(response.body) as Map<String, dynamic>;
-
-    if (response.statusCode >= 200 &&
-        response.statusCode < 300) {
+  // ---------------------------------------------------------------
+  // Internal helper to decode JSON and handle HTTP errors.
+  // ---------------------------------------------------------------
+  static Map<String, dynamic> _handleResponse(http.Response response) {
+    final Map<String, dynamic> data = jsonDecode(response.body);
+    if (response.statusCode >= 200 && response.statusCode < 300) {
       return data;
     }
-
     final error = data['detail'] ?? 'Something went wrong';
-
     throw Exception(error.toString());
   }
 }

@@ -247,8 +247,8 @@ String _findingKey(Map<String, dynamic> finding) {
 
     try {
       // Submit the updated content to the real backend.
-      final response = await BrandGuardApiService.checkBrand(
-        brandName: widget.brandName,
+      final response = await BrandGuardApiService.submitEditedContent(
+        checkId: widget.checkId,
         content: updatedContent,
       );
 

@@ -996,5 +996,74 @@
         "reviewer": "Admin",
         "review_note": "Approved by authorised reviewer.",
         "decided_at": "2026-11-15T09:20:56.345435+00:00"
+    },
+    {
+        "check_id": "e469061f-8df0-4f85-a05d-3d71f8914375",
+        "brand_name": "Acme",
+        "content_hash": "d15da0e36ceacfd3d9d17546131984951876236fa06513173dc8631c35c3ef84",
+        "rules_version": "1.0.0",
+        "status": "pending",
+        "findings": [],
+        "created_at": "2026-11-15T11:39:19.170694+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null,
+        "creator_id": "u1",
+        "versions": [
+            {
+                "version": 1,
+                "content_hash": "d15da0e36ceacfd3d9d17546131984951876236fa06513173dc8631c35c3ef84",
+                "created_at": "2026-11-15T11:39:19.226203+00:00",
+                "creator_id": "u1"
+            }
+        ]
+    },
+    {
+        "check_id": "d5a29383-5c22-4b90-b8e7-8c793a08795f",
+        "brand_name": "Acme",
+        "content_hash": "d15da0e36ceacfd3d9d17546131984951876236fa06513173dc8631c35c3ef84",
+        "rules_version": "1.0.0",
+        "status": "approved",
+        "findings": [],
+        "created_at": "2026-11-15T11:40:56.948043+00:00",
+        "reviewer": "u2",
+        "review_note": "ok",
+        "decided_at": "2026-11-15T11:40:57.052803+00:00",
+        "creator_id": "u1",
+        "versions": [
+            {
+                "version": 1,
+                "content_hash": "d15da0e36ceacfd3d9d17546131984951876236fa06513173dc8631c35c3ef84",
+                "created_at": "2026-11-15T11:40:57.019433+00:00",
+                "creator_id": "u1"
+            }
+        ]
+    },
+    {
+        "check_id": "7046d959-1822-4afa-9aa9-6704a89b627a",
+        "brand_name": "Acme",
+        "content_hash": "8e42daab3486377c2401dc3e6231edf263e51a59f5328cf025f8ace0eae3ffeb",
+        "rules_version": "1.0.0",
+        "status": "pending",
+        "findings": [],
+        "created_at": "2026-11-15T11:41:44.781440+00:00",
+        "reviewer": "u2",
+        "review_note": "ok",
+        "decided_at": "2026-11-15T11:41:44.867743+00:00",
+        "creator_id": "u1",
+        "versions": [
+            {
+                "version": 1,
+                "content_hash": "d15da0e36ceacfd3d9d17546131984951876236fa06513173dc8631c35c3ef84",
+                "created_at": "2026-11-15T11:41:44.829086+00:00",
+                "creator_id": "u1"
+            },
+            {
+                "version": 2,
+                "content_hash": "8e42daab3486377c2401dc3e6231edf263e51a59f5328cf025f8ace0eae3ffeb",
+                "created_at": "2026-11-15T11:41:44.934478+00:00",
+                "creator_id": "u1"
+            }
+        ]
     }
 ]
