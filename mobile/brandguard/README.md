@@ -1,17 +1,41 @@
-# brandguard
+# BrandGuard Flutter Client — `mobile/brandguard`
 
-A new Flutter project.
+This is the Flutter client currently used for BrandGuard's FastAPI integration. It runs in Chrome for the local prototype; it is not yet a production mobile app.
 
-## Getting Started
+## Connected features
 
-This project is a starting point for a Flutter application.
+- **New Brand Check:** posts text to `POST /api/v1/brand/check` (sample brand key currently `acme`).
+- **Findings & Evidence:** renders returned finding IDs, severity, messages and evidence.
+- **Review Queue:** fetches backend reviews and calls backend approve/reject endpoint.
+- **Approval verification:** API client method exists; complete user-facing workflow remains to be finished.
+- **Processing receipts:** receipt ID is passed through; details are not fully presented in Flutter yet.
 
-A few resources to get you started if this is your first Flutter project:
+Some demo labels, local suggestion state and legacy review helpers remain. Refer to [Implementation Status](../../../docs/IMPLEMENTATION_STATUS.md) before assuming a visible control is fully backend-backed.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Run
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Start backend in another terminal:
+
+```powershell
+cd backend
+python -m pip install fastapi uvicorn
+python -m uvicorn app.main:app --reload
+```
+
+Then run Flutter:
+
+```powershell
+cd mobile/brandguard
+flutter pub get
+flutter analyze
+flutter run -d chrome
+```
+
+Flutter Web currently uses `http://127.0.0.1:8000` from `lib/services/brandguard_api_service.dart`. Android emulator/physical device networking requires a different host.
+
+## Main code paths
+
+- `lib/services/brandguard_api_service.dart` — API client
+- `lib/screens/workspace/new_brand_check_screen.dart` — check submission
+- `lib/screens/workspace/findings_evidence_screen.dart` — result display/demo actions
+- `lib/screens/review/review_queue_screen.dart` — queue and decision actions

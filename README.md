@@ -1,54 +1,76 @@
 # BrandGuard
 
-BrandGuard is a proposed pre-publication brand-governance tool. It checks
-marketing content against approved, versioned rules, requires evidence for
-findings, and binds human approval to the exact content version.
+BrandGuard is a pre-publication brand-governance prototype. It checks draft marketing copy against deterministic and brand-specific rules, displays matched evidence, records review decisions, and verifies approvals against a content hash.
 
-**Repository status:** planning and scaffold. The web app, API, migrations,
-Docker services, and automated test commands are not implemented yet. Do not
-treat the plans and schema as a deployed or production-ready system.
+> **Current status (15 Nov 2026):** A working vertical slice has a FastAPI backend and a Flutter Web client connected for checks and review-queue operations. It is still a prototype—not production-ready. Some UI actions remain demo/local state. Read [Implementation Status](docs/IMPLEMENTATION_STATUS.md) and [AI Handoff](docs/AI_HANDOFF.md) first.
 
-## Project documents
+## Implemented today
 
-| Document | Purpose |
-| --- | --- |
-| [Product requirements](docs/prd.md) | Users, outcomes, features, scope, and acceptance principles. |
-| [Technical requirements](docs/trd.md) | Stack and verifiable technical behaviors. |
-| [Technical architecture](docs/architecture.md) | Components, data flow, and transaction boundaries. |
-| [Application flow](docs/app-flow.md) | Roles, lifecycle, findings, and failure paths. |
-| [Frontend specification](docs/frontend-specification.md) | Routes and UI/UX behavior. |
-| [Backend schema](docs/backend-schema.md) | Relational model and integrity rules. |
-| [Security and access](docs/security-access.md) | Role permissions, data handling, and controls. |
-| [Threat model](docs/threat-model.md) | Assets, trust boundaries, threats, and mitigations. |
-| [Implementation plan](docs/implementation-plan.md) | Round-based milestones and dependencies. |
-| [Feature tickets](docs/feature-tickets.md) | Proposed F1-F11 backlog and acceptance criteria. |
-| [Data contracts](docs/data-contracts.md) | Shared JSON Schema contracts and invariants. |
-| [Contributing](CONTRIBUTING.md) | Workflow, tests, scope, and pull request expectations. |
+- FastAPI app, root and health routes, local-development CORS.
+- `POST /api/v1/brand/check`: deterministic checks, creates a check/review record and processing receipt.
+- Generic rules for unfinished placeholders and selected absolute claims.
+- Versioned JSON rules for the fictional Acme brand.
+- `GET /api/v1/brand/rules/{brand_name}`.
+- JSON-backed review/check records and receipt storage.
+- `GET /api/v1/reviews`, `PATCH /api/v1/reviews/{check_id}/decision`.
+- `POST /api/v1/approvals/verify`: verifies approved state, brand, content hash, and current rule version.
+- `GET /api/v1/receipts/` and `GET /api/v1/receipts/{receipt_id}`.
+- Flutter New Brand Check sends text to the API; Findings & Evidence renders returned findings.
+- Flutter Review Queue fetches backend records and calls backend decision endpoints.
 
-## Planned stack
+## Important limitations
 
-- Web: Next.js, React, and TipTap.
-- API: FastAPI and Pydantic v2.
-- Storage/retrieval: PostgreSQL and pgvector.
-- Checks: deterministic Python/Pillow/OpenCV checks, then scoped strict-JSON
-  model checks.
+- AI verification is a stub that abstains when verified brand facts are unavailable; no LLM provider or fact retrieval is connected.
+- Persistence is JSON files, not PostgreSQL; unsuitable for production concurrent traffic.
+- Authentication, role-based authorization, hardened audit controls, guideline ingestion, five-gate verification, and deployment are not implemented.
+- Findings & Evidence still has demo context/suggestion state and a local submission helper; receipt details are not fully surfaced in the client.
+- Request Changes is represented as a rejected decision with a reason note.
+- The PRD describes a broader planned product than this working code slice.
 
-## Database schema
+## Quick start (Windows PowerShell)
 
-The initial PostgreSQL DDL is [`databases/schema.sql`](databases/schema.sql). It targets
-a fresh database with pgvector available:
+Prerequisites: Python 3.10+, Flutter SDK, Chrome.
 
-```sh
-createdb brandguard
-psql -d brandguard -v ON_ERROR_STOP=1 -f databases/schema.sql
+**Terminal A — backend (from repository root):**
+
+```powershell
+cd backend
+python -m pip install fastapi uvicorn
+python -m uvicorn app.main:app --reload
 ```
 
-This command has not been run in the current environment. The Compose file in
-`databases/` and application entry points are placeholders; there is not yet a
-complete local quick-start.
+API: `http://127.0.0.1:8000` · Swagger: `http://127.0.0.1:8000/docs` · Health: `http://127.0.0.1:8000/health`
 
-## Scope and demo data
+**Terminal B — Flutter Web (from repository root):**
 
-The planned Round 2 MVP is F1-F8 and F11. F9 governance insights and F10 audit
-export are deferred. TaskFlow is fictional; public demos must not include real
-client artwork or unmeasured research claims.
+```powershell
+cd mobile/brandguard
+flutter pub get
+flutter run -d chrome
+```
+
+Flutter Web currently uses `http://127.0.0.1:8000`. An Android emulator typically needs `10.0.2.2`; a physical phone needs the host computer's LAN IP.
+
+## Current flow
+
+```mermaid
+flowchart TD
+  U[Flutter New Brand Check] -->|POST brand/check| A[FastAPI]
+  A --> E[Deterministic engine + JSON rules]
+  A --> AI[AI verifier stub: abstains]
+  A --> R[JSON review record]
+  A --> P[JSON processing receipt]
+  R --> Q[Flutter Review Queue: GET reviews]
+  Q -->|PATCH decision| R
+  R --> V[Approval verify: hash + brand + rules version]
+  A --> F[Findings & Evidence UI]
+```
+
+## Documentation map
+
+- [Implementation Status](docs/IMPLEMENTATION_STATUS.md) — implemented, partial, planned, next.
+- [AI Handoff Guide](docs/AI_HANDOFF.md) — context for a teammate or coding AI cloning the repo.
+- [Architecture](docs/architecture.md) · [Application Flow](docs/app-flow.md) · [Implementation Plan](docs/implementation-plan.md) · [Feature Tickets](docs/feature-tickets.md).
+- [PRD](docs/prd.md) and [TRD](docs/trd.md) — broader requirements baseline, not a feature-completion claim.
+
+Acme and TaskFlow examples are fictional. Treat all sample rules as demo-only.

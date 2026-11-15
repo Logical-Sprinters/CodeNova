@@ -1,23 +1,24 @@
-# Demo Script
+# Current Prototype Demo Script
 
-Use fictional TaskFlow data only. This three-minute flow follows the Round 1
-submission.
+Use fictional copy and sample Acme rules. This walkthrough demonstrates the current vertical slice—not the full proposed TaskFlow product.
 
-1. **Admin:** show TaskFlow guideline ingestion, proposed rules, admin
-   confirmation, and rule versions.
-2. **Creator:** submit the Instagram caption from the golden fixture with the
-   social channel and static asset.
-3. **System:** run deterministic checks, then scoped checks; show each verified
-   finding with its rule/version and source quote, plus the processing receipt.
-4. **Creator:** apply or edit a suggested fix, then dispute one finding with a
-   written reason.
-5. **Reviewer:** approve the exact content version and show its SHA-256 hash.
-6. **Creator:** change the text or asset after approval; show automatic VOID,
-   the diff, and the append-only audit event.
-7. **Admin:** demonstrate two conflicting active price sources; show the system
-   abstaining and escalating instead of guessing.
+## 3–5 minute walkthrough
 
-The TaskFlow company and content are fictional. Use the golden test cases as
-the source for exact rules and expected findings. Record a backup video before
-the live demo; do not show real client artwork or claim unmeasured research
-results.
+1. Start FastAPI; show `http://127.0.0.1:8000/docs` and `/health`.
+2. Run BrandGuard Flutter Web in Chrome.
+3. Open New Brand Check and enter draft text containing sample strings such as `guaranteed`, `100% safe`, `free forever`, and `best in the world`.
+4. Run the check; show Flutter calling FastAPI and receiving check ID, receipt ID and deterministic findings.
+5. In Findings & Evidence, point out rule ID, severity, matched phrase and message. Explain these are regex checks against fictional sample rules.
+6. Open Review Queue; explain records are fetched from `GET /api/v1/reviews`.
+7. Approve or reject a pending record; inspect the stored decision via Swagger. Request Changes maps to rejected with a reason note.
+8. Use approval verification in Swagger with the exact approved content, then modify one character and demonstrate hash mismatch. The Flutter verification UI may still need wiring.
+9. Show the receipt API response; Flutter receipt presentation remains in progress.
+
+## Be transparent about limitations
+
+- AI verifier abstains because trusted facts/provider are not connected.
+- JSON files provide local persistence; PostgreSQL is not the runtime database.
+- Authentication, role enforcement, immutable version lifecycle, full audit log, guideline ingestion and production security are not implemented.
+- Acme rules are fictional and not official rules of any real brand.
+
+Keep a backup recording. Do not present planned features as delivered.
