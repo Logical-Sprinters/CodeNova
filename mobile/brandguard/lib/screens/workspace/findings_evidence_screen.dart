@@ -313,9 +313,9 @@ String _findingKey(Map<String, dynamic> finding) {
                 child: ElevatedButton(
                   onPressed: () {
                     Navigator.pop(dialogContext);
-                    Navigator.of(context).popUntil(
-                      (route) => route.isFirst,
-                    );
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                    // Navigate to the receipt detail after returning to dashboard
+                    Navigator.pushNamed(context, '/receiptDetail', arguments: receiptId);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: teal,

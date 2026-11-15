@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/session.dart';
 
 import 'create_account_screen.dart';
 import 'forgot_password_screen.dart';
@@ -141,6 +142,14 @@ class _SignInScreenState extends State<SignInScreen> {
     if (!mounted) return;
 
     setState(() => _isLoading = false);
+
+    // Store signed‑in user in the global session
+    final user = User(
+      userId: _emailController.text.trim(),
+      name: _emailController.text.split('@').first,
+      role: 'creator', // demo role – change as needed
+    );
+    session.signIn(user);
 
     Navigator.pushReplacement(
       context,

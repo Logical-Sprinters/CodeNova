@@ -1,6 +1,7 @@
 // BrandGuard API service for Flutter Web client
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../core/session.dart';
 
 class BrandGuardApiService {
   // Base URL for the FastAPI backend (running locally)
@@ -13,10 +14,15 @@ class BrandGuardApiService {
     required String brandName,
     required String content,
   }) async {
+    // Include user identification header from session singleton
+    final headers = {
+      'Content-Type': 'application/json',
+      if (session.userId != null) 'X-User-Id': session.userId!,
+    };
     final response = await http
         .post(
           Uri.parse('$baseUrl/api/v1/brand/check'),
-          headers: {'Content-Type': 'application/json'},
+          headers: headers,
           body: jsonEncode({
             'brand_name': brandName,
             'content': content,
@@ -26,6 +32,7 @@ class BrandGuardApiService {
         .timeout(const Duration(seconds: 30));
     return _handleResponse(response);
   }
+
 
   // ---------------------------------------------------------------
   // Retrieve list of reviews (optionally filtered by status).
@@ -74,13 +81,17 @@ class BrandGuardApiService {
     String reviewer = 'Admin',
     String note = '',
   }) async {
+    // Include user identification header from session singleton
+    final headers = {
+      'Content-Type': 'application/json',
+      if (session.userId != null) 'X-User-Id': session.userId!,
+    };
     final response = await http
         .patch(
           Uri.parse('$baseUrl/api/v1/reviews/$checkId/decision'),
-          headers: {'Content-Type': 'application/json'},
+          headers: headers,
           body: jsonEncode({
             'decision': decision,
-            'reviewer': reviewer,
             'note': note,
           }),
         )

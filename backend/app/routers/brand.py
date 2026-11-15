@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Body
+from typing import Dict
 
 from app.approval.store import (
     generate_content_hash,
@@ -19,6 +19,8 @@ from app.rules_store.store import get_brand_rule_versions
 from app.audit.store import log_audit
 from app.receipts.store import create_receipt
 from app.auth import get_user
+
+from fastapi import APIRouter, HTTPException, Depends, Body
 
 router = APIRouter(
     prefix="/api/v1/brand",
@@ -142,6 +144,7 @@ async def submit_version(
         findings=record.get("findings", []),
         total_findings=len(record.get("findings", [])),
     )
+@router.get("/rules/{brand_name}", response_model=Dict)
 async def get_rules(brand_name: str):
 
     result = get_brand_rule_versions(brand_name)

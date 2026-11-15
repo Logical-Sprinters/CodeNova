@@ -95,6 +95,7 @@ class _SignInScreenState extends State<SignInScreen> {
                                 borderRadius: BorderRadius.circular(14),
                                 onTap: () {
                                   session.signIn(user);
+                                   Api.userId = user.id;
                                   Navigator.of(context).pushReplacement(
                                     MaterialPageRoute<void>(
                                       builder: (_) => const Shell(),
