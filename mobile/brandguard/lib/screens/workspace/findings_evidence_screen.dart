@@ -1,8 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:google_fonts/google_fonts.dart';
-
-import '../review/review_queue_screen.dart';
-
+import '../../services/brandguard_api_service.dart';
 
 class FindingsEvidenceScreen extends StatefulWidget {
   final String contentText;
@@ -46,30 +44,22 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
   static const blueBg = Color(0xFFEEF3F6);
 
   String selectedFilter = 'All Findings';
-  String selectedRewrite = 'Brand Balanced';
-  bool priceFixApplied = false;
-  bool toneFixApplied = false;
+
   bool submitted = false;
+  bool isSubmitting = false;
 
-  String get updatedContent {
-    String text = widget.contentText;
+  late String _currentContent;
 
-    if (priceFixApplied) {
-      text = text.replaceAll(
-        'Starting at just \$49/mo',
-        'Starting at \$59/mo (standard enterprise tier)',
-      );
-    }
+  // Stores replacements already applied to the original content.
+  final Map<String, Map<String, dynamic>> _appliedReplacements = {};
 
-    if (toneFixApplied) {
-      text = text.replaceAll(
-        '100% uptime with zero data leaks',
-        '99.99% SLA reliability with enterprise data protection',
-      );
-    }
-
-    return text;
+  @override
+  void initState() {
+    super.initState();
+    _currentContent = widget.contentText;
   }
+
+  String get updatedContent => _currentContent;
 
   TextStyle style({
     double size = 13,
@@ -80,6 +70,39 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
       fontSize: size,
       fontWeight: weight,
       color: color,
+    );
+  }
+
+  Widget _submissionInfo(String label, String value) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE1F5EF),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: style(
+              size: 9,
+              weight: FontWeight.w800,
+              color: secondary,
+            ),
+          ),
+          const SizedBox(height: 5),
+          SelectableText(
+            value,
+            textAlign: TextAlign.center,
+            style: style(
+              size: 13,
+              weight: FontWeight.w800,
+              color: teal,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -144,123 +167,176 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
     );
   }
 
-  void applyPriceFix() {
-    setState(() => priceFixApplied = true);
-    widget.onContentUpdated(updatedContent);
-    showMessage('Pricing suggestion applied to your draft.');
-  }
+  
+String _findingKey(Map<String, dynamic> finding) {
+  return '${finding['rule_id']}_${finding['start_index']}_${finding['end_index']}';
+}
 
-  void applyToneFix() {
-    setState(() => toneFixApplied = true);
-    widget.onContentUpdated(updatedContent);
-    showMessage('$selectedRewrite rewrite applied to your draft.');
-  }
+  void applySuggestion(Map<String, dynamic> finding) {
+    final evidence = finding['evidence']?.toString() ?? '';
+    final replacement = finding['replacement']?.toString() ?? '';
 
-  void submitForReview() {
-    if (submitted) return;
+    final start = int.tryParse(finding['start_index']?.toString() ?? '');
+    final end = int.tryParse(finding['end_index']?.toString() ?? '');
 
-    widget.onContentUpdated(updatedContent);
+    final key = _findingKey(finding);
 
-    final contentId = ReviewQueueData.addSubmission(
-      title: 'Q3 Apex Cloud Launch',
-      creator: 'Current Creator',
-      channel: 'LinkedIn',
-      findings: 4,
-      content: updatedContent,
-    );
+    if (_appliedReplacements.containsKey(key)) {
+      showMessage('This suggestion has already been applied.');
+      return;
+    }
+
+    if (evidence.isEmpty || replacement.isEmpty ||
+        start == null || end == null) {
+      showMessage('A valid replacement or content position is missing.');
+      return;
+    }
+
+    // Calculate how previous replacements shifted this phrase.
+    int shift = 0;
+
+    for (final applied in _appliedReplacements.values) {
+      final appliedEnd = applied['end'] as int;
+      final appliedEvidence = applied['evidence'] as String;
+      final appliedReplacement = applied['replacement'] as String;
+
+      if (appliedEnd <= start) {
+        shift += appliedReplacement.length - appliedEvidence.length;
+      } else if ((applied['start'] as int) < end) {
+        showMessage('This finding overlaps an already applied replacement.');
+        return;
+      }
+    }
+
+    final adjustedStart = start + shift;
+    final adjustedEnd = adjustedStart + evidence.length;
+
+    if (adjustedStart < 0 ||
+        adjustedEnd > _currentContent.length ||
+        _currentContent.substring(adjustedStart, adjustedEnd) != evidence) {
+      showMessage('Could not safely locate the original phrase. Please recheck the content.');
+      return;
+    }
 
     setState(() {
-      submitted = true;
+      _currentContent = _currentContent.replaceRange(
+        adjustedStart,
+        adjustedEnd,
+        replacement,
+      );
+
+      _appliedReplacements[key] = {
+        'start': start,
+        'end': end,
+        'evidence': evidence,
+        'replacement': replacement,
+      };
     });
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          icon: const Icon(Icons.fact_check_rounded, color: teal, size: 42),
-          title: Text(
-            'Review Requested',
-            style: style(size: 19, weight: FontWeight.w800),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Your content has been successfully submitted to the authorised review queue.',
-                style: style(size: 13, color: secondary),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 14),
-              Container(
+    widget.onContentUpdated(_currentContent);
+    showMessage('Suggestion applied successfully.');
+  }
+
+
+  Future<void> submitForReview() async {
+    if (submitted || isSubmitting) return;
+
+    setState(() {
+      isSubmitting = true;
+    });
+
+    try {
+      // Submit the updated content to the real backend.
+      final response = await BrandGuardApiService.checkBrand(
+        brandName: widget.brandName,
+        content: updatedContent,
+      );
+
+      final checkId = response['check_id']?.toString() ?? 'N/A';
+      final receiptId = response['receipt_id']?.toString() ?? 'N/A';
+      final status = response['status']?.toString() ?? 'unknown';
+
+      widget.onContentUpdated(updatedContent);
+
+      if (!mounted) return;
+
+      setState(() {
+        submitted = true;
+        isSubmitting = false;
+      });
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            icon: const Icon(
+              Icons.fact_check_rounded,
+              color: teal,
+              size: 42,
+            ),
+            title: Text(
+              'Submission Processed',
+              style: style(size: 19, weight: FontWeight.w800),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Your updated content has been processed by BrandGuard.',
+                  style: style(size: 13, color: secondary),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 14),
+                _submissionInfo('CHECK ID', checkId),
+                const SizedBox(height: 8),
+                _submissionInfo('RECEIPT ID', receiptId),
+                const SizedBox(height: 8),
+                _submissionInfo(
+                  'BACKEND STATUS',
+                  status.toUpperCase(),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Final approval must come from an authorised reviewer.',
+                  style: style(size: 11, color: secondary),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+            actions: [
+              SizedBox(
                 width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE1F5EF),
-                  borderRadius: BorderRadius.circular(10),
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                    Navigator.of(context).popUntil(
+                      (route) => route.isFirst,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: teal,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Back to Dashboard'),
                 ),
-                child: Column(
-                  children: [
-                    Text(
-                      'CONTENT ID',
-                      style: style(
-                        size: 9,
-                        weight: FontWeight.w800,
-                        color: secondary,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      contentId,
-                      style: style(
-                        size: 16,
-                        weight: FontWeight.w800,
-                        color: teal,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      'Status: Pending Authorised Review',
-                      textAlign: TextAlign.center,
-                      style: style(
-                        size: 10,
-                        weight: FontWeight.w700,
-                        color: navy,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Final approval must come from an authorised reviewer.',
-                style: style(size: 11, color: secondary),
-                textAlign: TextAlign.center,
               ),
             ],
-          ),
-          actions: [
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(dialogContext);
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: teal,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Back to Dashboard'),
-              ),
-            ),
-          ],
-        );
-      },
-    );
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isSubmitting = false;
+      });
+
+      showMessage('Submission failed: $e');
+    }
   }
 
   @override
@@ -432,44 +508,43 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
   }
 
   Widget _filters() {
-    final filters = [
-      'All Findings',
-      'Rule Match',
-      'AI Interpretation',
-      'Unsupported',
-      'Source Conflict',
-    ];
+  final filters = [
+    'All Findings',
+    'Critical',
+    'Review',
+    'Warning',
+  ];
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: filters.map((filter) {
-          final active = selectedFilter == filter;
+  return SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: Row(
+      children: filters.map((filter) {
+        final active = selectedFilter == filter;
 
-          return Padding(
-            padding: const EdgeInsets.only(right: 7),
-            child: ChoiceChip(
-              label: Text(filter),
-              selected: active,
-              onSelected: (_) {
-                setState(() => selectedFilter = filter);
-              },
-              selectedColor: navy,
-              backgroundColor: Colors.white,
-              labelStyle: style(
-                size: 10,
-                weight: FontWeight.w700,
-                color: active ? Colors.white : secondary,
-              ),
-              side: BorderSide(color: active ? navy : border),
-              showCheckmark: false,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
+        return Padding(
+          padding: const EdgeInsets.only(right: 7),
+          child: ChoiceChip(
+            label: Text(filter),
+            selected: active,
+            onSelected: (_) {
+              setState(() => selectedFilter = filter);
+            },
+            selectedColor: navy,
+            backgroundColor: Colors.white,
+            labelStyle: style(
+              size: 10,
+              weight: FontWeight.w700,
+              color: active ? Colors.white : secondary,
             ),
-          );
-        }).toList(),
-      ),
-    );
-  }
+            side: BorderSide(color: active ? navy : border),
+            showCheckmark: false,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+          ),
+        );
+      }).toList(),
+    ),
+  );
+}
 
   List<Map<String, dynamic>> get _backendFindings {
   return widget.findings
@@ -479,13 +554,17 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
   }
 
   List<Map<String, dynamic>> get _visibleFindings {
-    if (selectedFilter == 'All Findings' ||
-        selectedFilter == 'Rule Match') {
-      return _backendFindings;
-    }
-
-    return [];
+  if (selectedFilter == 'All Findings') {
+    return _backendFindings;
   }
+
+  return _backendFindings.where((finding) {
+    final severity =
+        finding['severity']?.toString().toLowerCase() ?? '';
+
+    return severity == selectedFilter.toLowerCase();
+  }).toList();
+}
 
   Widget _findingCard({
     required Widget child,
@@ -513,70 +592,154 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
 
 
   Widget _backendFindingCard(Map<String, dynamic> finding) {
+    final evidence = finding['evidence']?.toString() ?? '';
+    final suggestion = finding['suggestion']?.toString() ?? '';
+    final replacement = finding['replacement']?.toString() ?? '';
     final ruleId = finding['rule_id']?.toString() ?? 'UNKNOWN';
     final severity = finding['severity']?.toString() ?? 'review';
-    final message = finding['message']?.toString() ?? 'No description available.';
-    final evidence = finding['evidence']?.toString() ?? '';
+    final message = finding['message']?.toString() ?? '';
+    final start = finding['start_index']?.toString() ?? '';
+    final end = finding['end_index']?.toString() ?? '';
 
-    final isCritical = severity.toLowerCase() == 'critical';
-    final isReview = severity.toLowerCase() == 'review';
+    final key = _findingKey(finding);
+    final isApplied = _appliedReplacements.containsKey(key);
 
-    final Color severityColor = isCritical
-        ? red
-        : isReview
-            ? amber
-            : blue;
-
-    final Color severityBackground = isCritical
-        ? redBg
-        : isReview
-            ? amberBg
-            : blueBg;
-
-    return _findingCard(
-      color: severityColor,
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              _tag('Rule Match', blue, blueBg),
-              const SizedBox(width: 7),
-              _tag(severity, severityColor, severityBackground),
-              const Spacer(),
               Text(
                 ruleId,
-                style: style(size: 9, color: secondary),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const Spacer(),
+              Text(
+                severity.toUpperCase(),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: severity == 'warning'
+                      ? Colors.orange
+                      : Colors.red,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 13),
+          const SizedBox(height: 12),
+
           Text(
             message,
-            style: style(size: 13, weight: FontWeight.w800),
+            style: const TextStyle(fontSize: 14),
           ),
-          if (evidence.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              'MATCHED CONTENT',
-              style: style(
-                size: 9,
-                weight: FontWeight.w800,
-                color: secondary,
+
+          const SizedBox(height: 16),
+          const Text(
+            'MATCHED EVIDENCE',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              color: Colors.grey,
+            ),
+          ),
+          const SizedBox(height: 6),
+
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              evidence,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+
+          const SizedBox(height: 8),
+          Text(
+            'Content position: $start - $end',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade600,
+            ),
+          ),
+
+          if (suggestion.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            const Text(
+              'AI SUGGESTION',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 11,
+                color: Colors.blue,
               ),
             ),
             const SizedBox(height: 6),
-            _quoteBox(evidence, severityColor),
+            Text(suggestion),
+
+            if (replacement.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'SUGGESTED REPLACEMENT',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                  color: Colors.green,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  replacement,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: isApplied
+                      ? null
+                      : () => applySuggestion(finding),
+                  child: Text(
+                    isApplied
+                        ? 'Suggestion Applied'
+                        : 'Apply Suggestion',
+                  ),
+                ),
+              ),
+            ],
           ],
-          const SizedBox(height: 10),
+
+          const SizedBox(height: 12),
           Text(
-            'Detected by the BrandGuard deterministic rule engine.',
-            style: style(size: 10, color: secondary),
+            'Detected by the BrandGuard rule engine.',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade600,
+            ),
           ),
         ],
       ),
     );
   }
+
 
   Widget _tag(String label, Color color, Color fill) {
     return Container(
@@ -621,6 +784,13 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
   }
 
   Widget _bottomAction() {
+    final availableSuggestions = _backendFindings
+      .where((finding) =>
+          (finding['replacement']?.toString() ?? '').isNotEmpty)
+      .length;
+
+    final appliedCount = _appliedReplacements.length;
+    
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
       decoration: BoxDecoration(
@@ -643,8 +813,7 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'AI suggestions applied: '
-                  '${(priceFixApplied ? 1 : 0) + (toneFixApplied ? 1 : 0)} of 4',
+                  'Suggestions applied: $appliedCount of $availableSuggestions',
                   style: style(size: 9, color: secondary),
                 ),
                 Text(
@@ -658,11 +827,15 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
               width: double.infinity,
               height: 49,
               child: ElevatedButton.icon(
-                onPressed: submitted ? null : submitForReview,
+                onPressed: (submitted || isSubmitting)
+                  ? null
+                  : submitForReview,
                 icon: const Icon(Icons.shield_outlined, size: 19),
                 label: Text(
-                  submitted
-                      ? 'Submitted for Review'
+                  isSubmitting
+                    ? 'Submitting to BrandGuard...'
+                    : submitted
+                      ? 'Submission Processed'
                       : 'Submit for Authorised Review',
                   style: style(
                     size: 12,

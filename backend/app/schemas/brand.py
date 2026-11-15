@@ -15,6 +15,8 @@ class Finding(BaseModel):
     evidence: str
     start_index: int
     end_index: int
+    suggestion: Optional[str] = None
+    replacement: Optional[str] = None
 
 
 class BrandCheckResponse(BaseModel):

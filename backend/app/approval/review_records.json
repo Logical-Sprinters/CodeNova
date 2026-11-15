@@ -101,5 +101,900 @@
         "reviewer": null,
         "review_note": null,
         "decided_at": null
+    },
+    {
+        "check_id": "43979467-51f6-4d19-bd0b-c3342906f10b",
+        "brand_name": "acme",
+        "content_hash": "68d0a20c855c7df1be1d4571f5ec0c0fe26ecabd2ac9495bd5679c2bb6aa255b",
+        "rules_version": "1.0.0",
+        "status": "completed",
+        "findings": [],
+        "created_at": "2026-11-15T05:50:43.263486+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "76ef10f3-3c07-4976-8ddc-b801703091b9",
+        "brand_name": "acme",
+        "content_hash": "68d0a20c855c7df1be1d4571f5ec0c0fe26ecabd2ac9495bd5679c2bb6aa255b",
+        "rules_version": "1.0.0",
+        "status": "completed",
+        "findings": [],
+        "created_at": "2026-11-15T05:51:32.927661+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "a374a84c-10e4-4b49-90d4-f316d2b9af4b",
+        "brand_name": "acme",
+        "content_hash": "a37c62aff89b377c3f6580f6449e0866a34f24bdb6f3e69900f5cd2d34bc29a0",
+        "rules_version": "1.0.0",
+        "status": "completed",
+        "findings": [],
+        "created_at": "2026-11-15T05:54:47.101110+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "eddaddfe-fb3b-4ffa-b514-0b1d51a508f3",
+        "brand_name": "acme",
+        "content_hash": "a37c62aff89b377c3f6580f6449e0866a34f24bdb6f3e69900f5cd2d34bc29a0",
+        "rules_version": "1.0.0",
+        "status": "completed",
+        "findings": [],
+        "created_at": "2026-11-15T05:54:54.083982+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "7d09a4a8-e86e-47a4-a969-7909f45463e4",
+        "brand_name": "acme",
+        "content_hash": "2a82569124f5b7231ebc6a5d80ab3f96303d37956ec7a5dea9b17884d1d66c1f",
+        "rules_version": "1.0.0",
+        "status": "completed",
+        "findings": [],
+        "created_at": "2026-11-15T06:00:32.763276+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "f72653e9-f6b3-452b-aa76-ef986f654760",
+        "brand_name": "acme",
+        "content_hash": "2a82569124f5b7231ebc6a5d80ab3f96303d37956ec7a5dea9b17884d1d66c1f",
+        "rules_version": "1.0.0",
+        "status": "completed",
+        "findings": [],
+        "created_at": "2026-11-15T06:14:56.031084+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "311793cd-8bbb-447b-9dcd-185c1903d7cf",
+        "brand_name": "acme",
+        "content_hash": "f628e66711559b1f581956c748b422fbc73ec9abba3b4fc6530d7e24ef4c25ae",
+        "rules_version": "1.0.0",
+        "status": "approved",
+        "findings": [
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "100% safe",
+                "start_index": 159,
+                "end_index": 168
+            },
+            {
+                "rule_id": "ACME-001",
+                "severity": "review",
+                "message": "Potentially restricted brand phrase detected.",
+                "evidence": "free forever",
+                "start_index": 207,
+                "end_index": 219
+            },
+            {
+                "rule_id": "ACME-002",
+                "severity": "warning",
+                "message": "Verify this superlative against brand guidelines.",
+                "evidence": "best in the world",
+                "start_index": 286,
+                "end_index": 303
+            }
+        ],
+        "created_at": "2026-11-15T06:17:20.898495+00:00",
+        "reviewer": "Admin",
+        "review_note": "Approved by authorised reviewer.",
+        "decided_at": "2026-11-15T06:21:30.164058+00:00"
+    },
+    {
+        "check_id": "4d39fcdf-5187-44ae-a722-28bd13ed7f2b",
+        "brand_name": "acme",
+        "content_hash": "f628e66711559b1f581956c748b422fbc73ec9abba3b4fc6530d7e24ef4c25ae",
+        "rules_version": "1.0.0",
+        "status": "rejected",
+        "findings": [
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "100% safe",
+                "start_index": 159,
+                "end_index": 168
+            },
+            {
+                "rule_id": "ACME-001",
+                "severity": "review",
+                "message": "Potentially restricted brand phrase detected.",
+                "evidence": "free forever",
+                "start_index": 207,
+                "end_index": 219
+            },
+            {
+                "rule_id": "ACME-002",
+                "severity": "warning",
+                "message": "Verify this superlative against brand guidelines.",
+                "evidence": "best in the world",
+                "start_index": 286,
+                "end_index": 303
+            }
+        ],
+        "created_at": "2026-11-15T06:20:08.728216+00:00",
+        "reviewer": "Admin",
+        "review_note": "Changes requested: more details",
+        "decided_at": "2026-11-15T06:22:13.000901+00:00"
+    },
+    {
+        "check_id": "84532351-21f2-4397-8fe0-5c7382fa2039",
+        "brand_name": "acme",
+        "content_hash": "2a82569124f5b7231ebc6a5d80ab3f96303d37956ec7a5dea9b17884d1d66c1f",
+        "rules_version": "1.0.0",
+        "status": "rejected",
+        "findings": [
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "guarantees 100",
+                "start_index": 91,
+                "end_index": 105,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed for high availability"
+            }
+        ],
+        "created_at": "2026-11-15T06:59:46.529138+00:00",
+        "reviewer": "Admin",
+        "review_note": "no reason",
+        "decided_at": "2026-11-15T09:10:05.709676+00:00"
+    },
+    {
+        "check_id": "0c44b68a-236b-4b17-bed9-bddba7ba4309",
+        "brand_name": "acme",
+        "content_hash": "b642e5fc5255e0abc203cfdcb4536729a5c876bccfd2889d2d98a27d758ecd4f",
+        "rules_version": "1.0.0",
+        "status": "approved",
+        "findings": [
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "100% safe",
+                "start_index": 161,
+                "end_index": 170,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed with security controls"
+            },
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "guarantees zero downtime",
+                "start_index": 172,
+                "end_index": 196,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed for high availability"
+            },
+            {
+                "rule_id": "ACME-001",
+                "severity": "review",
+                "message": "Potentially restricted brand phrase detected.",
+                "evidence": "free forever",
+                "start_index": 209,
+                "end_index": 221,
+                "suggestion": "Avoid promising permanent free access unless this is an approved offer.",
+                "replacement": "free plan available"
+            },
+            {
+                "rule_id": "ACME-002",
+                "severity": "warning",
+                "message": "Verify this superlative against brand guidelines.",
+                "evidence": "best in the world",
+                "start_index": 289,
+                "end_index": 306,
+                "suggestion": "Replace unsupported superlatives with a factual description.",
+                "replacement": "built to support business security and performance"
+            }
+        ],
+        "created_at": "2026-11-15T07:04:32.059159+00:00",
+        "reviewer": "Admin",
+        "review_note": "Approved by authorised reviewer.",
+        "decided_at": "2026-11-15T07:09:01.063064+00:00"
+    },
+    {
+        "check_id": "fcc77959-5bf7-45d1-88b4-bb7847d4143d",
+        "brand_name": "acme",
+        "content_hash": "b642e5fc5255e0abc203cfdcb4536729a5c876bccfd2889d2d98a27d758ecd4f",
+        "rules_version": "1.0.0",
+        "status": "rejected",
+        "findings": [
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "100% safe",
+                "start_index": 161,
+                "end_index": 170,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed with security controls"
+            },
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "guarantees zero downtime",
+                "start_index": 172,
+                "end_index": 196,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed for high availability"
+            },
+            {
+                "rule_id": "ACME-001",
+                "severity": "review",
+                "message": "Potentially restricted brand phrase detected.",
+                "evidence": "free forever",
+                "start_index": 209,
+                "end_index": 221,
+                "suggestion": "Avoid promising permanent free access unless this is an approved offer.",
+                "replacement": "free plan available"
+            },
+            {
+                "rule_id": "ACME-002",
+                "severity": "warning",
+                "message": "Verify this superlative against brand guidelines.",
+                "evidence": "best in the world",
+                "start_index": 289,
+                "end_index": 306,
+                "suggestion": "Replace unsupported superlatives with a factual description.",
+                "replacement": "built to support business security and performance"
+            }
+        ],
+        "created_at": "2026-11-15T07:07:21.748975+00:00",
+        "reviewer": "Admin",
+        "review_note": "Changes requested: more details needed",
+        "decided_at": "2026-11-15T07:09:23.890717+00:00"
+    },
+    {
+        "check_id": "b9fdd3bd-9ede-41df-8994-f82afa50fd66",
+        "brand_name": "acme",
+        "content_hash": "401a598a4556a2c44e113c5cb0a9d0d7b64c5c8ca7be4f38be9d210c686d47c3",
+        "rules_version": "1.0.0",
+        "status": "pending",
+        "findings": [
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "100% safe",
+                "start_index": 16,
+                "end_index": 25,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed with security controls"
+            },
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "guarantees zero downtime",
+                "start_index": 27,
+                "end_index": 51,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed for high availability"
+            },
+            {
+                "rule_id": "ACME-001",
+                "severity": "review",
+                "message": "Potentially restricted brand phrase detected.",
+                "evidence": "free forever",
+                "start_index": 60,
+                "end_index": 72,
+                "suggestion": "Avoid promising permanent free access unless this is an approved offer.",
+                "replacement": "free plan available"
+            },
+            {
+                "rule_id": "ACME-002",
+                "severity": "warning",
+                "message": "Verify this superlative against brand guidelines.",
+                "evidence": "best in the world",
+                "start_index": 92,
+                "end_index": 109,
+                "suggestion": "Replace unsupported superlatives with a factual description.",
+                "replacement": "built to support business security and performance"
+            }
+        ],
+        "created_at": "2026-11-15T07:16:28.061965+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "5cb6ef8d-baac-46d0-b2cd-c832d16f60c2",
+        "brand_name": "acme",
+        "content_hash": "401a598a4556a2c44e113c5cb0a9d0d7b64c5c8ca7be4f38be9d210c686d47c3",
+        "rules_version": "1.0.0",
+        "status": "pending",
+        "findings": [
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "100% safe",
+                "start_index": 16,
+                "end_index": 25,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed with security controls"
+            },
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "guarantees zero downtime",
+                "start_index": 27,
+                "end_index": 51,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed for high availability"
+            },
+            {
+                "rule_id": "ACME-001",
+                "severity": "review",
+                "message": "Potentially restricted brand phrase detected.",
+                "evidence": "free forever",
+                "start_index": 60,
+                "end_index": 72,
+                "suggestion": "Avoid promising permanent free access unless this is an approved offer.",
+                "replacement": "free plan available"
+            },
+            {
+                "rule_id": "ACME-002",
+                "severity": "warning",
+                "message": "Verify this superlative against brand guidelines.",
+                "evidence": "best in the world",
+                "start_index": 92,
+                "end_index": 109,
+                "suggestion": "Replace unsupported superlatives with a factual description.",
+                "replacement": "built to support business security and performance"
+            }
+        ],
+        "created_at": "2026-11-15T07:41:17.200109+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "225403e7-30a9-478c-885b-1e9e5120b70a",
+        "brand_name": "acme",
+        "content_hash": "401a598a4556a2c44e113c5cb0a9d0d7b64c5c8ca7be4f38be9d210c686d47c3",
+        "rules_version": "1.0.0",
+        "status": "pending",
+        "findings": [
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "100% safe",
+                "start_index": 16,
+                "end_index": 25,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed with security controls"
+            },
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "guarantees zero downtime",
+                "start_index": 27,
+                "end_index": 51,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed for high availability"
+            },
+            {
+                "rule_id": "ACME-001",
+                "severity": "review",
+                "message": "Potentially restricted brand phrase detected.",
+                "evidence": "free forever",
+                "start_index": 60,
+                "end_index": 72,
+                "suggestion": "Avoid promising permanent free access unless this is an approved offer.",
+                "replacement": "free plan available"
+            },
+            {
+                "rule_id": "ACME-002",
+                "severity": "warning",
+                "message": "Verify this superlative against brand guidelines.",
+                "evidence": "best in the world",
+                "start_index": 92,
+                "end_index": 109,
+                "suggestion": "Replace unsupported superlatives with a factual description.",
+                "replacement": "built to support business security and performance"
+            }
+        ],
+        "created_at": "2026-11-15T07:43:38.774201+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "5c619181-ad1c-44ca-9ac9-81761751ce5f",
+        "brand_name": "acme",
+        "content_hash": "401a598a4556a2c44e113c5cb0a9d0d7b64c5c8ca7be4f38be9d210c686d47c3",
+        "rules_version": "1.0.0",
+        "status": "pending",
+        "findings": [
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "100% safe",
+                "start_index": 16,
+                "end_index": 25,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed with security controls"
+            },
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "guarantees zero downtime",
+                "start_index": 27,
+                "end_index": 51,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed for high availability"
+            },
+            {
+                "rule_id": "ACME-001",
+                "severity": "review",
+                "message": "Potentially restricted brand phrase detected.",
+                "evidence": "free forever",
+                "start_index": 60,
+                "end_index": 72,
+                "suggestion": "Avoid promising permanent free access unless this is an approved offer.",
+                "replacement": "free plan available"
+            },
+            {
+                "rule_id": "ACME-002",
+                "severity": "warning",
+                "message": "Verify this superlative against brand guidelines.",
+                "evidence": "best in the world",
+                "start_index": 92,
+                "end_index": 109,
+                "suggestion": "Replace unsupported superlatives with a factual description.",
+                "replacement": "built to support business security and performance"
+            }
+        ],
+        "created_at": "2026-11-15T07:46:13.549798+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "d2ee80a4-39da-424d-8607-bcff4fdbad6f",
+        "brand_name": "acme",
+        "content_hash": "401a598a4556a2c44e113c5cb0a9d0d7b64c5c8ca7be4f38be9d210c686d47c3",
+        "rules_version": "1.0.0",
+        "status": "pending",
+        "findings": [
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "100% safe",
+                "start_index": 16,
+                "end_index": 25,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed with security controls"
+            },
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "guarantees zero downtime",
+                "start_index": 27,
+                "end_index": 51,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed for high availability"
+            },
+            {
+                "rule_id": "ACME-001",
+                "severity": "review",
+                "message": "Potentially restricted brand phrase detected.",
+                "evidence": "free forever",
+                "start_index": 60,
+                "end_index": 72,
+                "suggestion": "Avoid promising permanent free access unless this is an approved offer.",
+                "replacement": "free plan available"
+            },
+            {
+                "rule_id": "ACME-002",
+                "severity": "warning",
+                "message": "Verify this superlative against brand guidelines.",
+                "evidence": "best in the world",
+                "start_index": 92,
+                "end_index": 109,
+                "suggestion": "Replace unsupported superlatives with a factual description.",
+                "replacement": "built to support business security and performance"
+            }
+        ],
+        "created_at": "2026-11-15T07:52:47.951108+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "2aceb2ea-c481-4af2-a23b-8d95043bdd8e",
+        "brand_name": "acme",
+        "content_hash": "401a598a4556a2c44e113c5cb0a9d0d7b64c5c8ca7be4f38be9d210c686d47c3",
+        "rules_version": "1.0.0",
+        "status": "pending",
+        "findings": [
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "100% safe",
+                "start_index": 16,
+                "end_index": 25,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed with security controls"
+            },
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "guarantees zero downtime",
+                "start_index": 27,
+                "end_index": 51,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed for high availability"
+            },
+            {
+                "rule_id": "ACME-001",
+                "severity": "review",
+                "message": "Potentially restricted brand phrase detected.",
+                "evidence": "free forever",
+                "start_index": 60,
+                "end_index": 72,
+                "suggestion": "Avoid promising permanent free access unless this is an approved offer.",
+                "replacement": "free plan available"
+            },
+            {
+                "rule_id": "ACME-002",
+                "severity": "warning",
+                "message": "Verify this superlative against brand guidelines.",
+                "evidence": "best in the world",
+                "start_index": 92,
+                "end_index": 109,
+                "suggestion": "Replace unsupported superlatives with a factual description.",
+                "replacement": "built to support business security and performance"
+            }
+        ],
+        "created_at": "2026-11-15T07:53:36.107413+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "798ae7ad-2af5-44ee-b576-c16a2c149140",
+        "brand_name": "acme",
+        "content_hash": "401a598a4556a2c44e113c5cb0a9d0d7b64c5c8ca7be4f38be9d210c686d47c3",
+        "rules_version": "1.0.0",
+        "status": "pending",
+        "findings": [
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "100% safe",
+                "start_index": 16,
+                "end_index": 25,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed with security controls"
+            },
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "guarantees zero downtime",
+                "start_index": 27,
+                "end_index": 51,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed for high availability"
+            },
+            {
+                "rule_id": "ACME-001",
+                "severity": "review",
+                "message": "Potentially restricted brand phrase detected.",
+                "evidence": "free forever",
+                "start_index": 60,
+                "end_index": 72,
+                "suggestion": "Avoid promising permanent free access unless this is an approved offer.",
+                "replacement": "free plan available"
+            },
+            {
+                "rule_id": "ACME-002",
+                "severity": "warning",
+                "message": "Verify this superlative against brand guidelines.",
+                "evidence": "best in the world",
+                "start_index": 92,
+                "end_index": 109,
+                "suggestion": "Replace unsupported superlatives with a factual description.",
+                "replacement": "built to support business security and performance"
+            }
+        ],
+        "created_at": "2026-11-15T09:03:25.864945+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "230392f0-a2d9-4fb7-a43e-6fc7e5d75692",
+        "brand_name": "acme",
+        "content_hash": "d4262bf0814e44f5c5f0fff32db820498883d00876ced7cea1329d9bd02e83b0",
+        "rules_version": "1.0.0",
+        "status": "completed",
+        "findings": [],
+        "created_at": "2026-11-15T09:04:06.221152+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "5c65d2ee-5795-42ac-b6a1-3dc865ecea0b",
+        "brand_name": "acme",
+        "content_hash": "401a598a4556a2c44e113c5cb0a9d0d7b64c5c8ca7be4f38be9d210c686d47c3",
+        "rules_version": "1.0.0",
+        "status": "pending",
+        "findings": [
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "100% safe",
+                "start_index": 16,
+                "end_index": 25,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed with security controls"
+            },
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "guarantees zero downtime",
+                "start_index": 27,
+                "end_index": 51,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed for high availability"
+            },
+            {
+                "rule_id": "ACME-001",
+                "severity": "review",
+                "message": "Potentially restricted brand phrase detected.",
+                "evidence": "free forever",
+                "start_index": 60,
+                "end_index": 72,
+                "suggestion": "Avoid promising permanent free access unless this is an approved offer.",
+                "replacement": "free plan available"
+            },
+            {
+                "rule_id": "ACME-002",
+                "severity": "warning",
+                "message": "Verify this superlative against brand guidelines.",
+                "evidence": "best in the world",
+                "start_index": 92,
+                "end_index": 109,
+                "suggestion": "Replace unsupported superlatives with a factual description.",
+                "replacement": "built to support business security and performance"
+            }
+        ],
+        "created_at": "2026-11-15T09:04:55.373316+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "012676f8-be80-4065-8a32-aa30d0e06f05",
+        "brand_name": "acme",
+        "content_hash": "401a598a4556a2c44e113c5cb0a9d0d7b64c5c8ca7be4f38be9d210c686d47c3",
+        "rules_version": "1.0.0",
+        "status": "pending",
+        "findings": [
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "100% safe",
+                "start_index": 16,
+                "end_index": 25,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed with security controls"
+            },
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "guarantees zero downtime",
+                "start_index": 27,
+                "end_index": 51,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed for high availability"
+            },
+            {
+                "rule_id": "ACME-001",
+                "severity": "review",
+                "message": "Potentially restricted brand phrase detected.",
+                "evidence": "free forever",
+                "start_index": 60,
+                "end_index": 72,
+                "suggestion": "Avoid promising permanent free access unless this is an approved offer.",
+                "replacement": "free plan available"
+            },
+            {
+                "rule_id": "ACME-002",
+                "severity": "warning",
+                "message": "Verify this superlative against brand guidelines.",
+                "evidence": "best in the world",
+                "start_index": 92,
+                "end_index": 109,
+                "suggestion": "Replace unsupported superlatives with a factual description.",
+                "replacement": "built to support business security and performance"
+            }
+        ],
+        "created_at": "2026-11-15T09:05:42.828104+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "93eea8ce-ff03-46b0-9880-4a7dd9c2032e",
+        "brand_name": "acme",
+        "content_hash": "d4262bf0814e44f5c5f0fff32db820498883d00876ced7cea1329d9bd02e83b0",
+        "rules_version": "1.0.0",
+        "status": "completed",
+        "findings": [],
+        "created_at": "2026-11-15T09:06:04.634887+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "aa29d685-c7f3-461f-a96d-8a7365ebacc9",
+        "brand_name": "acme",
+        "content_hash": "2a82569124f5b7231ebc6a5d80ab3f96303d37956ec7a5dea9b17884d1d66c1f",
+        "rules_version": "1.0.0",
+        "status": "pending",
+        "findings": [
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "guarantees 100",
+                "start_index": 91,
+                "end_index": 105,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed for high availability"
+            }
+        ],
+        "created_at": "2026-11-15T09:07:39.312916+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "71db42e8-2361-446b-ad68-096b48b3843f",
+        "brand_name": "acme",
+        "content_hash": "401a598a4556a2c44e113c5cb0a9d0d7b64c5c8ca7be4f38be9d210c686d47c3",
+        "rules_version": "1.0.0",
+        "status": "pending",
+        "findings": [
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "100% safe",
+                "start_index": 16,
+                "end_index": 25,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed with security controls"
+            },
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "guarantees zero downtime",
+                "start_index": 27,
+                "end_index": 51,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed for high availability"
+            },
+            {
+                "rule_id": "ACME-001",
+                "severity": "review",
+                "message": "Potentially restricted brand phrase detected.",
+                "evidence": "free forever",
+                "start_index": 60,
+                "end_index": 72,
+                "suggestion": "Avoid promising permanent free access unless this is an approved offer.",
+                "replacement": "free plan available"
+            },
+            {
+                "rule_id": "ACME-002",
+                "severity": "warning",
+                "message": "Verify this superlative against brand guidelines.",
+                "evidence": "best in the world",
+                "start_index": 92,
+                "end_index": 109,
+                "suggestion": "Replace unsupported superlatives with a factual description.",
+                "replacement": "built to support business security and performance"
+            }
+        ],
+        "created_at": "2026-11-15T09:20:10.501903+00:00",
+        "reviewer": null,
+        "review_note": null,
+        "decided_at": null
+    },
+    {
+        "check_id": "d9a9eb70-8b90-4afe-b409-873e6a5aea4e",
+        "brand_name": "acme",
+        "content_hash": "8d3c847340089afbd1124087bce49f9d8b252841aad3bb611a495370484dc0f9",
+        "rules_version": "1.0.0",
+        "status": "approved",
+        "findings": [
+            {
+                "rule_id": "BG-002",
+                "severity": "review",
+                "message": "Potentially unsupported absolute claim. Verify before publication.",
+                "evidence": "guarantees zero downtime",
+                "start_index": 49,
+                "end_index": 73,
+                "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
+                "replacement": "designed for high availability"
+            },
+            {
+                "rule_id": "ACME-001",
+                "severity": "review",
+                "message": "Potentially restricted brand phrase detected.",
+                "evidence": "free forever",
+                "start_index": 82,
+                "end_index": 94,
+                "suggestion": "Avoid promising permanent free access unless this is an approved offer.",
+                "replacement": "free plan available"
+            },
+            {
+                "rule_id": "ACME-002",
+                "severity": "warning",
+                "message": "Verify this superlative against brand guidelines.",
+                "evidence": "best in the world",
+                "start_index": 114,
+                "end_index": 131,
+                "suggestion": "Replace unsupported superlatives with a factual description.",
+                "replacement": "built to support business security and performance"
+            }
+        ],
+        "created_at": "2026-11-15T09:20:20.409561+00:00",
+        "reviewer": "Admin",
+        "review_note": "Approved by authorised reviewer.",
+        "decided_at": "2026-11-15T09:20:56.345435+00:00"
     }
 ]

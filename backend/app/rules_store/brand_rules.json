@@ -1,4 +1,3 @@
-
 {
   "brands": {
     "acme": {
@@ -11,14 +10,18 @@
               "name": "Restricted Phrase",
               "pattern": "\\bfree forever\\b",
               "severity": "review",
-              "message": "Potentially restricted brand phrase detected."
+              "message": "Potentially restricted brand phrase detected.",
+              "suggestion": "Avoid promising permanent free access unless this is an approved offer.",
+              "replacement": "free plan available"
             },
             {
               "id": "ACME-002",
               "name": "Unapproved Superlative",
               "pattern": "\\bbest in the world\\b",
               "severity": "warning",
-              "message": "Verify this superlative against brand guidelines."
+              "message": "Verify this superlative against brand guidelines.",
+              "suggestion": "Replace unsupported superlatives with a factual description.",
+              "replacement": "built to support business security and performance"
             }
           ]
         }

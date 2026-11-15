@@ -234,11 +234,15 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
             : '${createdAt.day.toString().padLeft(2, '0')} '
                 '${createdAt.month.toString().padLeft(2, '0')} '
                 '${createdAt.year}',
-        'status': rawStatus == 'pending'
-            ? 'Pending'
-            : rawStatus == 'approved'
-                ? 'Approved'
-                : 'Rejected',
+        'status': rawStatus == 'approved'
+          ? 'Approved'
+          : rawStatus == 'rejected'
+            ? 'Rejected'
+            : rawStatus == 'pending_review' || rawStatus == 'pending'
+              ? 'Pending'
+              : rawStatus == 'completed'
+                ? 'Completed'
+                : 'Pending',
         'findings': findings.length,
         'version': 'v${review['rules_version'] ?? '1.0.0'}',
         'risk': risk,
