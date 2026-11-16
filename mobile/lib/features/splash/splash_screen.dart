@@ -5,6 +5,8 @@ import 'package:material_ui/material_ui.dart';
 import '../../app/app_theme.dart';
 import '../auth/sign_in_screen.dart';
 
+/// Branded splash. It performs no network calls and no security claims beyond
+/// describing the governance engine that powers the app.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -14,368 +16,335 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
-  late final AnimationController _pulseController;
-  late final AnimationController _progressController;
-  late final AnimationController _introController;
-  late final AnimationController _orbitController;
-  late final Animation<double> _introFade;
-  late final Animation<Offset> _introSlide;
+  late final AnimationController _pulse;
+  late final AnimationController _progress;
+  late final AnimationController _orbit;
+  late final AnimationController _intro;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
+  String _step = 'CONNECTING TO GOVERNANCE ENGINE';
 
   @override
   void initState() {
     super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    _progress = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..forward();
+    _orbit = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    )..repeat();
+    _intro = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..forward();
+    _fade = CurvedAnimation(parent: _intro, curve: Curves.easeOut);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.12),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _intro, curve: Curves.easeOutCubic));
 
-    // Show the branded splash screen briefly, then open Sign In.
+    Future.delayed(const Duration(milliseconds: 1100), () {
+      if (mounted) setState(() => _step = 'VERIFYING GOVERNANCE ENGINE');
+    });
     Future.delayed(const Duration(milliseconds: 2600), () {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const SignInScreen()),
       );
     });
-
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-
-    _progressController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2200),
-    )..forward();
-
-    _introController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1300),
-    )..forward();
-    _introFade = CurvedAnimation(
-      parent: _introController,
-      curve: Curves.easeOut,
-    );
-    _introSlide = Tween<Offset>(begin: const Offset(0, 0.16), end: Offset.zero)
-        .animate(
-          CurvedAnimation(parent: _introController, curve: Curves.easeOutCubic),
-        );
-
-    _orbitController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 9),
-    )..repeat();
   }
 
   @override
   void dispose() {
-    _pulseController.dispose();
-    _progressController.dispose();
-    _introController.dispose();
-    _orbitController.dispose();
+    _pulse.dispose();
+    _progress.dispose();
+    _orbit.dispose();
+    _intro.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppTheme.navyDeep,
       body: Stack(
         children: [
-          const Positioned.fill(
+          Positioned.fill(
             child: DecoratedBox(
-              decoration: BoxDecoration(color: AppTheme.navy),
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(0, -0.15),
+                  radius: 0.9,
+                  colors: [
+                    const Color(0xFF16394A),
+                    AppTheme.navyDeep.withValues(alpha: 0.98),
+                    const Color(0xFF04141C),
+                  ],
+                ),
+              ),
             ),
           ),
           Positioned(
-            top: -110,
-            left: -110,
-            child: _glow(280, AppTheme.teal.withValues(alpha: 0.23)),
+            top: -120,
+            left: -80,
+            child: _glow(280, AppTheme.teal.withValues(alpha: 0.22)),
           ),
           Positioned(
-            top: 260,
-            right: -130,
-            child: _glow(260, AppTheme.mint.withValues(alpha: 0.13)),
-          ),
-          Positioned(
-            bottom: -100,
-            left: 80,
-            child: _glow(250, Colors.blueGrey.withValues(alpha: 0.15)),
+            bottom: -110,
+            right: -70,
+            child: _glow(260, AppTheme.mintBright.withValues(alpha: 0.1)),
           ),
           const Positioned.fill(child: CustomPaint(painter: GridPainter())),
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
               child: Column(
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _securityBadge(),
+                      _chip(
+                        'VAULT SECURE',
+                        dot: AppTheme.mintBright,
+                        onDark: true,
+                      ),
                       Row(
                         children: [
                           const Icon(
-                            Icons.lock,
-                            size: 15,
-                            color: AppTheme.mint,
+                            Icons.lock_outline_rounded,
+                            size: 13,
+                            color: AppTheme.mintBright,
                           ),
-                          const SizedBox(width: 6),
-                          Text('256-BIT', style: _labelStyle()),
+                          const SizedBox(width: 5),
+                          Text(
+                            'SESSION TOKENS IN MEMORY',
+                            style: AppTheme.monoLabel(
+                              color: AppTheme.mintBright,
+                            ).copyWith(fontSize: 9),
+                          ),
                         ],
                       ),
                     ],
                   ),
                   const Spacer(),
-                  AnimatedBuilder(
-                    animation: _pulseController,
-                    builder: (context, child) {
-                      final scale = 1 + (_pulseController.value * 0.035);
-                      return Transform.scale(scale: scale, child: child);
-                    },
-                    child: Column(
-                      children: [
-                        SizedBox(
-                          width: 176,
-                          height: 176,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              AnimatedBuilder(
-                                animation: _orbitController,
-                                builder: (context, child) => Transform.rotate(
-                                  angle: _orbitController.value * 2 * math.pi,
-                                  child: child,
-                                ),
-                                child: CustomPaint(
-                                  size: const Size(176, 176),
-                                  painter: OrbitPainter(),
-                                ),
-                              ),
-                              Container(
-                                width: 150,
-                                height: 150,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: AppTheme.teal.withValues(alpha: 0.12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppTheme.mint.withValues(
-                                        alpha: 0.15,
-                                      ),
-                                      blurRadius: 55,
-                                      spreadRadius: 15,
+                  FadeTransition(
+                    opacity: _fade,
+                    child: SlideTransition(
+                      position: _slide,
+                      child: Column(
+                        children: [
+                          AnimatedBuilder(
+                            animation: _pulse,
+                            builder: (context, child) => Transform.scale(
+                              scale: 1 + _pulse.value * 0.03,
+                              child: child,
+                            ),
+                            child: SizedBox(
+                              width: 190,
+                              height: 190,
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  AnimatedBuilder(
+                                    animation: _orbit,
+                                    builder: (context, child) =>
+                                        Transform.rotate(
+                                          angle: _orbit.value * 2 * math.pi,
+                                          child: child,
+                                        ),
+                                    child: CustomPaint(
+                                      size: const Size(190, 190),
+                                      painter: OrbitPainter(),
                                     ),
-                                  ],
-                                ),
-                                child: Center(
-                                  child: Container(
-                                    width: 112,
-                                    height: 112,
+                                  ),
+                                  Container(
+                                    width: 124,
+                                    height: 124,
                                     decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(23),
+                                      borderRadius: BorderRadius.circular(28),
                                       gradient: const LinearGradient(
                                         begin: Alignment.topCenter,
                                         end: Alignment.bottomCenter,
                                         colors: [
-                                          Color(0xFF203E50),
+                                          Color(0xFF20394A),
                                           Color(0xFF0C202C),
                                         ],
                                       ),
                                       border: Border.all(
-                                        color: AppTheme.teal,
-                                        width: 1.5,
+                                        color: AppTheme.teal.withValues(
+                                          alpha: 0.6,
+                                        ),
+                                        width: 1.4,
                                       ),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.25,
+                                          color: AppTheme.teal.withValues(
+                                            alpha: 0.22,
                                           ),
-                                          blurRadius: 20,
-                                          offset: const Offset(0, 10),
+                                          blurRadius: 42,
+                                          spreadRadius: 6,
                                         ),
                                       ],
                                     ),
                                     child: const Center(
-                                      child: CustomPaint(
-                                        size: Size(60, 70),
-                                        painter: ShieldPainter(),
+                                      child: Icon(
+                                        Icons.verified_user_rounded,
+                                        color: AppTheme.mintBright,
+                                        size: 58,
                                       ),
                                     ),
                                   ),
-                                ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 15,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF001725),
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          child: Text(
-                            'AUDITED',
-                            style: TextStyle(
-                              fontFamily: 'Manrope',
-                              color: AppTheme.mint,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 2,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 35),
-                  FadeTransition(
-                    opacity: _introFade,
-                    child: SlideTransition(
-                      position: _introSlide,
-                      child: Column(
-                        children: [
+                          const SizedBox(height: 18),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF17394A),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: AppTheme.mintBright.withValues(
+                                  alpha: 0.25,
+                                ),
+                              ),
+                            ),
+                            child: Text(
+                              'PRE-PUBLICATION GOVERNANCE',
+                              style: AppTheme.monoLabel(
+                                color: AppTheme.mintBright,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
                                 'BrandGuard',
-                                style: TextStyle(
-                                  fontFamily: 'Manrope',
+                                style: AppTheme.headlineLarge.copyWith(
                                   color: Colors.white,
-                                  fontSize: 29,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -1,
+                                  fontSize: 34,
                                 ),
                               ),
-                              const SizedBox(width: 7),
+                              const SizedBox(width: 6),
                               Container(
-                                width: 9,
-                                height: 9,
+                                width: 8,
+                                height: 8,
                                 decoration: const BoxDecoration(
-                                  color: AppTheme.mint,
+                                  color: AppTheme.mintBright,
                                   shape: BoxShape.circle,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 9),
+                          const SizedBox(height: 6),
                           Text(
                             'Your brand. Always protected.',
-                            style: TextStyle(
-                              fontFamily: 'Manrope',
-                              color: const Color(0xFFD3E5F1),
-                              fontSize: 14,
-                              letterSpacing: 0.3,
+                            style: AppTheme.bodyMedium.copyWith(
+                              color: Colors.white.withValues(alpha: 0.72),
                             ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 48),
-                  AnimatedBuilder(
-                    animation: _progressController,
-                    builder: (context, child) {
-                      return Column(
-                        children: [
-                          Container(
-                            width: 195,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: FractionallySizedBox(
-                                widthFactor: 0.67 * _progressController.value,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(20),
-                                    gradient: const LinearGradient(
-                                      colors: [AppTheme.mint, AppTheme.teal],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 15),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.sync,
-                                size: 14,
-                                color: AppTheme.mint,
-                              ),
-                              const SizedBox(width: 7),
-                              Text(
-                                'VERIFYING GOVERNANCE ENGINE',
-                                style: _labelStyle(),
-                              ),
-                            ],
-                          ),
-                        ],
-                      );
-                    },
-                  ),
                   const Spacer(),
+                  AnimatedBuilder(
+                    animation: _progress,
+                    builder: (context, _) => Column(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(999),
+                          child: LinearProgressIndicator(
+                            value: _progress.value,
+                            minHeight: 5,
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.12,
+                            ),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              AppTheme.teal,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.settings_ethernet_rounded,
+                              size: 13,
+                              color: AppTheme.mintBright,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _step,
+                              style: AppTheme.monoLabel(
+                                color: Colors.white.withValues(alpha: 0.8),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
+                      horizontal: 12,
+                      vertical: 7,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF001725).withValues(alpha: 0.65),
-                      borderRadius: BorderRadius.circular(30),
+                      color: Colors.white.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(999),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.07),
+                        color: Colors.white.withValues(alpha: 0.12),
                       ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          width: 8,
-                          height: 8,
+                          width: 6,
+                          height: 6,
                           decoration: const BoxDecoration(
-                            color: AppTheme.mint,
+                            color: AppTheme.teal,
                             shape: BoxShape.circle,
                           ),
                         ),
-                        const SizedBox(width: 9),
-                        Flexible(
-                          child: Text(
-                            'Enterprise Pre-Publication Governance',
-                            style: TextStyle(
-                              fontFamily: 'Manrope',
-                              color: const Color(0xFFE2F3FF),
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Text(
-                          'v2.4',
-                          style: TextStyle(
-                            fontFamily: 'Manrope',
-                            color: AppTheme.mint,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                          ),
+                          'Evidence-backed reviews',
+                          style: AppTheme.monoLabel(
+                            color: Colors.white.withValues(alpha: 0.85),
+                          ).copyWith(fontSize: 9),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '· v2.4',
+                          style: AppTheme.monoLabel(color: AppTheme.mintBright)
+                              .copyWith(fontSize: 9),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 17),
+                  const SizedBox(height: 8),
                   Text(
                     'No finding without evidence. No approval without a version.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'Manrope',
-                      color: const Color(0xFF7C94A6),
-                      fontSize: 10,
-                    ),
+                    style: AppTheme.monoLabel(
+                      color: Colors.white.withValues(alpha: 0.45),
+                    ).copyWith(fontSize: 9),
                   ),
                 ],
               ),
@@ -386,155 +355,98 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  Widget _glow(double size, Color color) {
+  Widget _chip(String label, {Color dot = AppTheme.teal, bool onDark = false}) {
     return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-    );
-  }
-
-  Widget _securityBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(30),
+        color: onDark
+            ? Colors.white.withValues(alpha: 0.08)
+            : Colors.white.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 7,
-            height: 7,
-            decoration: const BoxDecoration(
-              color: AppTheme.mint,
-              shape: BoxShape.circle,
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: AppTheme.monoLabel(
+              color: Colors.white.withValues(alpha: 0.9),
             ),
           ),
-          const SizedBox(width: 8),
-          Text('VAULT SECURE', style: _labelStyle()),
         ],
       ),
     );
   }
 
-  TextStyle _labelStyle() {
-    return TextStyle(
-      fontFamily: 'Manrope',
-      color: const Color(0xFFD3E5F1),
-      fontSize: 10,
-      fontWeight: FontWeight.w800,
-      letterSpacing: 1.4,
-    );
-  }
+  Widget _glow(double size, Color color) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      gradient: RadialGradient(colors: [color, color.withValues(alpha: 0)]),
+    ),
+  );
 }
 
-class OrbitPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width * 0.46;
-    final ringPaint = Paint()
-      ..color = AppTheme.mint.withValues(alpha: 0.28)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    canvas.drawCircle(center, radius, ringPaint);
-
-    final glowPaint = Paint()
-      ..color = AppTheme.mint
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
-    canvas.drawCircle(Offset(center.dx, center.dy - radius), 4, glowPaint);
-    final dotPaint = Paint()..color = AppTheme.teal;
-    canvas.drawCircle(Offset(center.dx, center.dy + radius), 3, dotPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant OrbitPainter oldDelegate) => false;
-}
-
+/// Subtle governance grid.
 class GridPainter extends CustomPainter {
   const GridPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = AppTheme.mint.withValues(alpha: 0.045)
-      ..strokeWidth = 0.5;
-
-    const gap = 32.0;
-
-    for (double x = 0; x < size.width; x += gap) {
+      ..color = Colors.white.withValues(alpha: 0.045)
+      ..strokeWidth = 1;
+    const step = 44.0;
+    for (var x = 0.0; x <= size.width; x += step) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
     }
-
-    for (double y = 0; y < size.height; y += gap) {
+    for (var y = 0.0; y <= size.height; y += step) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant GridPainter oldDelegate) => false;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class ShieldPainter extends CustomPainter {
-  const ShieldPainter();
+/// Rotating verification ring.
+class OrbitPainter extends CustomPainter {
+  const OrbitPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
-    final shield = Path()
-      ..moveTo(size.width / 2, 2)
-      ..lineTo(size.width * 0.12, size.height * 0.18)
-      ..lineTo(size.width * 0.12, size.height * 0.45)
-      ..cubicTo(
-        size.width * 0.12,
-        size.height * 0.72,
-        size.width * 0.30,
-        size.height * 0.91,
-        size.width / 2,
-        size.height - 2,
-      )
-      ..cubicTo(
-        size.width * 0.70,
-        size.height * 0.91,
-        size.width * 0.88,
-        size.height * 0.72,
-        size.width * 0.88,
-        size.height * 0.45,
-      )
-      ..lineTo(size.width * 0.88, size.height * 0.18)
-      ..close();
-
-    final fill = Paint()
-      ..color = const Color(0xFF001725)
-      ..style = PaintingStyle.fill;
-
-    final outline = Paint()
-      ..color = AppTheme.mint
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-
-    canvas.drawPath(shield, fill);
-    canvas.drawPath(shield, outline);
-
-    final check = Path()
-      ..moveTo(size.width * 0.29, size.height * 0.49)
-      ..lineTo(size.width * 0.44, size.height * 0.64)
-      ..lineTo(size.width * 0.72, size.height * 0.35);
-
-    final checkPaint = Paint()
-      ..color = AppTheme.mint
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..style = PaintingStyle.stroke;
-
-    canvas.drawPath(check, checkPaint);
-
-    final dotPaint = Paint()..color = AppTheme.mint;
-
-    canvas.drawCircle(Offset(size.width / 2, size.height * 0.20), 2, dotPaint);
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 6;
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..color = AppTheme.teal.withValues(alpha: 0.28);
+    canvas.drawCircle(center, radius, ring);
+    canvas.drawCircle(
+      center,
+      radius - 16,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = AppTheme.mintBright.withValues(alpha: 0.14),
+    );
+    final node = Paint()..color = AppTheme.mintBright;
+    canvas.drawCircle(Offset(center.dx, center.dy - radius), 3.4, node);
+    canvas.drawCircle(
+      Offset(center.dx + radius * 0.86, center.dy + radius * 0.5),
+      2.4,
+      Paint()..color = AppTheme.teal,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant ShieldPainter oldDelegate) => false;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

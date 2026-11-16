@@ -1,10 +1,14 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../app/app_theme.dart';
+import '../../app/ui/app_widgets.dart';
 import '../../core/auth/demo_auth.dart';
 import '../../core/auth/session.dart';
 import '../../core/network/brandguard_api_service.dart';
-import '../dashboard/home_dashboard_screen.dart';
+import '../../app/ui/brandguard_shell.dart';
+import 'create_account_screen.dart';
+import 'forgot_password_screen.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -15,7 +19,7 @@ class SignInScreen extends StatefulWidget {
 class _SignInScreenState extends State<SignInScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
-  bool _busy = false, _remember = false, _demo = false;
+  bool _busy = false, _remember = false, _demo = false, _obscure = true;
   bool _checkingConnection = true;
   String? _error, _notice, _connectionError, _authProvider;
 
@@ -132,7 +136,7 @@ class _SignInScreenState extends State<SignInScreen> {
     }
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const HomeDashboardScreen()),
+      MaterialPageRoute(builder: (_) => const BrandGuardShell()),
     );
   }
 
@@ -165,330 +169,467 @@ class _SignInScreenState extends State<SignInScreen> {
     }
   }
 
-  Future<void> _account({bool recover = false}) async {
-    final name = TextEditingController();
-    final email = TextEditingController(text: _email.text);
-    final password = TextEditingController();
-    String? error;
-    bool busy = false, confirmationRequired = false;
-    final route = DialogRoute<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialog) => StatefulBuilder(
-        builder: (dialog, update) => AlertDialog(
-          title: Text(recover ? 'Reset password' : 'Create account'),
-          content: SizedBox(
-            width: 380,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (!recover)
-                    TextField(
-                      controller: name,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(labelText: 'Name'),
-                    ),
-                  TextField(
-                    controller: email,
-                    keyboardType: TextInputType.emailAddress,
-                    autocorrect: false,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(labelText: 'Email'),
-                  ),
-                  if (!recover)
-                    TextField(
-                      controller: password,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Password (at least 8 characters)',
-                      ),
-                    ),
-                  if (error != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Text(
-                        error!,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: busy ? null : () => Navigator.pop(dialog, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: busy
-                  ? null
-                  : () async {
-                      final invalid =
-                          _emailError(email.text) ??
-                          (!recover && name.text.trim().length < 2
-                              ? 'Enter your name (at least 2 characters).'
-                              : null) ??
-                          (!recover &&
-                                  (password.text.length < 8 ||
-                                      password.text.length > 128)
-                              ? 'Use a password with 8 to 128 characters.'
-                              : null);
-                      if (invalid != null) {
-                        update(() => error = invalid);
-                        return;
-                      }
-                      update(() {
-                        busy = true;
-                        error = null;
-                      });
-                      try {
-                        if (recover) {
-                          await BrandGuardApiService.recover(email.text);
-                        } else {
-                          final data = await BrandGuardApiService.signup(
-                            name.text,
-                            email.text,
-                            password.text,
-                          );
-                          confirmationRequired =
-                              data['requires_confirmation'] == true;
-                        }
-                        if (dialog.mounted) Navigator.pop(dialog, true);
-                      } catch (e) {
-                        if (!dialog.mounted) return;
-                        update(() {
-                          error = e.toString();
-                          busy = false;
-                        });
-                      }
-                    },
-              child: Text(
-                busy
-                    ? 'Please wait...'
-                    : recover
-                    ? 'Send instructions'
-                    : 'Create account',
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-    final result = await Navigator.of(context).push(route);
-    await route.completed;
-    final submittedEmail = email.text.trim();
-    name.dispose();
-    email.dispose();
-    password.dispose();
-    if (!mounted || result != true) return;
-    if (recover || confirmationRequired) {
-      setState(() {
-        _error = null;
-        _email.text = submittedEmail;
-        _password.clear();
-        _notice = recover
-            ? 'If this account exists, check your inbox or spam folder for password reset instructions.'
-            : 'Account created. Check your inbox or spam folder, confirm your email, then sign in.';
-      });
-    } else {
-      _email.text = submittedEmail;
-      await _openDashboard();
-    }
-  }
-
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: const Color(0xFFF7F8F5),
-    body: SafeArea(
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Icon(
-                  Icons.verified_user_rounded,
-                  size: 54,
-                  color: Color(0xFF22A895),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Welcome back',
-                  style: Theme.of(context).textTheme.headlineMedium
-                      ?.copyWith(fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 8),
-                const Text('Sign in with your BrandGuard email and password.'),
-                const SizedBox(height: 8),
-                Text(
-                  'Server: $_serverLabel',
-                  key: const ValueKey('server-address'),
-                  style: const TextStyle(fontSize: 12),
-                ),
-                if (_checkingConnection)
-                  const Text(
-                    'Checking server connection...',
-                    style: TextStyle(fontSize: 12),
-                  )
-                else if (_connectionError != null)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      body: SafeArea(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
                     children: [
-                      Text(
-                        _connectionError!,
-                        key: const ValueKey('server-connection-error'),
-                        style: const TextStyle(fontSize: 12, color: Colors.red),
+                      const Expanded(
+                        child: BrandMark(
+                          size: 42,
+                          radius: 13,
+                          showWordmark: true,
+                          subtitle: 'GOVERNANCE VAULT',
+                        ),
                       ),
-                      TextButton(
-                        key: const ValueKey('retry-connection'),
-                        onPressed: _checkConnection,
-                        child: const Text('Retry connection'),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppTheme.mint,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: AppTheme.teal.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Text(
+                          'v2.4',
+                          style: AppTheme.monoLabel(color: AppTheme.tealText),
+                        ),
                       ),
                     ],
-                  )
-                else
+                  ),
+                  const SizedBox(height: 26),
+                  Text('Welcome back', style: AppTheme.headlineLarge),
+                  const SizedBox(height: 6),
                   Text(
-                    _authProvider == 'local'
-                        ? 'Connected to local server'
-                        : 'Connected to live service',
-                    key: const ValueKey('server-connected'),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF006B5E),
-                    ),
+                    'Sign in to protect and audit your brand assets.',
+                    style: AppTheme.bodyMedium.copyWith(color: AppTheme.muted),
                   ),
-                const SizedBox(height: 24),
-                TextFormField(
-                  key: const ValueKey('demo-email'),
-                  controller: _email,
-                  keyboardType: TextInputType.emailAddress,
-                  autocorrect: false,
-                  textInputAction: TextInputAction.next,
-                  autofillHints: const [AutofillHints.username],
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  key: const ValueKey('demo-password'),
-                  controller: _password,
-                  obscureText: true,
-                  autofillHints: const [AutofillHints.password],
-                  onFieldSubmitted: (_) {
-                    if (!_busy) _login();
-                  },
-                  decoration: const InputDecoration(
-                    labelText: 'Password',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                CheckboxListTile(
-                  key: const ValueKey('demo-remember-email'),
-                  value: _remember,
-                  onChanged: (value) =>
-                      setState(() => _remember = value ?? false),
-                  title: const Text('Remember email only'),
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                ),
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      _error!,
-                      key: const ValueKey('demo-login-error'),
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  ),
-                if (_notice != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      _notice!,
-                      key: const ValueKey('auth-notice'),
-                      style: const TextStyle(color: Color(0xFF006B5E)),
-                    ),
-                  ),
-                FilledButton(
-                  key: const ValueKey('demo-sign-in'),
-                  onPressed: _busy ? null : _login,
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Text(_busy ? 'Signing in...' : 'Sign In'),
-                  ),
-                ),
-                Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  children: [
-                    TextButton(
-                      onPressed: _busy ? null : () => _account(),
-                      child: const Text('Create account'),
-                    ),
-                    TextButton(
-                      onPressed: _busy ? null : () => _account(recover: true),
-                      child: const Text('Forgot password?'),
-                    ),
-                  ],
-                ),
-                if (_demo)
-                  Container(
-                    key: const ValueKey('demo-access-card'),
-                    margin: const EdgeInsets.only(top: 12),
+                  const SizedBox(height: 18),
+                  SurfaceCard(
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8F6FF),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text(
-                          'Local demonstration accounts',
-                          style: TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'creator@brandguard.demo\nreviewer@brandguard.demo',
-                        ),
-                        const Text('Password for both: Demo@12345'),
-                        Wrap(
-                          spacing: 10,
+                        Row(
                           children: [
-                            TextButton(
-                              key: const ValueKey('demo-creator'),
-                              onPressed: () => _fill(DemoAuth.creator),
-                              child: const Text('Use Creator'),
+                            const Icon(
+                              Icons.domain_verification_outlined,
+                              size: 18,
+                              color: AppTheme.tealText,
                             ),
-                            TextButton(
-                              key: const ValueKey('demo-reviewer'),
-                              onPressed: () => _fill(DemoAuth.reviewer),
-                              child: const Text('Use Reviewer'),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Email & password sign-in',
+                                style: AppTheme.labelLarge,
+                              ),
+                            ),
+                            EntityChip(
+                              provider: _checkingConnection
+                                  ? null
+                                  : _authProvider,
                             ),
                           ],
                         ),
-                        const Text(
-                          'Local server only. These public demo accounts are not live cloud accounts.',
+                        const SizedBox(height: 12),
+                        _connectionState(),
+                        const SizedBox(height: 14),
+                        TextField(
+                          key: const ValueKey('demo-email'),
+                          controller: _email,
+                          keyboardType: TextInputType.emailAddress,
+                          autocorrect: false,
+                          textInputAction: TextInputAction.next,
+                          autofillHints: const [AutofillHints.username],
+                          decoration: const InputDecoration(
+                            labelText: 'Work email',
+                            hintText: 'name@company.com',
+                            prefixIcon: Icon(Icons.mail_outline_rounded),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          key: const ValueKey('demo-password'),
+                          controller: _password,
+                          obscureText: _obscure,
+                          autofillHints: const [AutofillHints.password],
+                          onSubmitted: (_) {
+                            if (!_busy) _login();
+                          },
+                          decoration: InputDecoration(
+                            labelText: 'Password',
+                            prefixIcon: const Icon(Icons.lock_outline_rounded),
+                            suffixIcon: IconButton(
+                              tooltip: _obscure
+                                  ? 'Show password'
+                                  : 'Hide password',
+                              onPressed: () =>
+                                  setState(() => _obscure = !_obscure),
+                              icon: Icon(
+                                _obscure
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: Checkbox(
+                                key: const ValueKey('demo-remember-email'),
+                                value: _remember,
+                                onChanged: (value) =>
+                                    setState(() => _remember = value ?? false),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () =>
+                                    setState(() => _remember = !_remember),
+                                child: Text(
+                                  'Remember email only',
+                                  style: AppTheme.bodySmall.copyWith(
+                                    color: AppTheme.ink,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: _busy ? null : _openRecover,
+                              child: const Text('Reset access?'),
+                            ),
+                          ],
+                        ),
+                        if (_error != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Container(
+                              key: const ValueKey('demo-login-error'),
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppTheme.dangerBg,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: AppTheme.danger.withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(
+                                    Icons.error_outline_rounded,
+                                    size: 16,
+                                    color: AppTheme.danger,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _error!,
+                                      style: AppTheme.bodySmall.copyWith(
+                                        color: AppTheme.danger,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        if (_notice != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Text(
+                              _notice!,
+                              key: const ValueKey('auth-notice'),
+                              style: AppTheme.bodySmall.copyWith(
+                                color: AppTheme.tealText,
+                              ),
+                            ),
+                          ),
+                        SizedBox(
+                          height: 50,
+                          child: FilledButton(
+                            key: const ValueKey('demo-sign-in'),
+                            onPressed: _busy ? null : _login,
+                            child: _busy
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text('Sign In to Dashboard'),
+                                        SizedBox(width: 8),
+                                        Icon(
+                                          Icons.arrow_forward_rounded,
+                                          size: 18,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                'Tokens stay in memory. Passwords are never saved on this device.',
+                                textAlign: TextAlign.center,
+                                style: AppTheme.monoLabel().copyWith(
+                                  fontSize: 9.5,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Tokens stay in memory; the app does not save your password.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 11),
-                ),
-              ],
+                  if (_demo) ...[const SizedBox(height: 14), _demoCard()],
+                  const SizedBox(height: 18),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        'New organisation?',
+                        style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+                      ),
+                      TextButton(
+                        onPressed: _busy ? null : _openSignup,
+                        child: const Text('Create account'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
+
+  Widget _connectionState() {
+    if (_checkingConnection) {
+      // Deliberately static: an indefinite spinner here would keep the page
+      // animating while a slow health check runs, which is wasteful and makes
+      // automated layout tests wait for a frame that never settles.
+      return Row(
+        children: [
+          const Icon(
+            Icons.hourglass_top_rounded,
+            size: 14,
+            color: AppTheme.muted,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Checking server connection…',
+              style: AppTheme.bodySmall,
+            ),
+          ),
+        ],
+      );
+    }
+    if (_connectionError != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _connectionError!,
+            key: const ValueKey('server-connection-error'),
+            style: AppTheme.bodySmall.copyWith(color: AppTheme.danger),
+          ),
+          TextButton.icon(
+            key: const ValueKey('retry-connection'),
+            onPressed: _checkConnection,
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Retry connection'),
+          ),
+        ],
+      );
+    }
+    return Row(
+      children: [
+        Container(
+          width: 7,
+          height: 7,
+          decoration: const BoxDecoration(
+            color: AppTheme.success,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            _authProvider == 'local'
+                ? 'Connected to local server'
+                : 'Connected to live service',
+            key: const ValueKey('server-connected'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTheme.bodySmall.copyWith(color: AppTheme.tealText),
+          ),
+        ),
+        Flexible(
+          child: Text(
+            'Server: $_serverLabel',
+            key: const ValueKey('server-address'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.right,
+            style: AppTheme.monoLabel().copyWith(fontSize: 9),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _demoCard() {
+    return SurfaceCard(
+      key: const ValueKey('demo-access-card'),
+      color: AppTheme.surfaceTint,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.science_outlined,
+                size: 16,
+                color: AppTheme.tealText,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Local demonstration accounts',
+                  style: AppTheme.labelLarge.copyWith(color: AppTheme.tealText),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'creator@brandguard.demo\nreviewer@brandguard.demo',
+            style: TextStyle(
+              fontFamily: 'Manrope',
+              fontSize: 12.5,
+              height: 1.5,
+              color: AppTheme.ink,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text('Password for both: Demo@12345'),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  key: const ValueKey('demo-creator'),
+                  onPressed: () => _fill(DemoAuth.creator),
+                  child: const Text('Use Creator'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton(
+                  key: const ValueKey('demo-reviewer'),
+                  onPressed: () => _fill(DemoAuth.reviewer),
+                  child: const Text('Use Reviewer'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Local server only — these public accounts are not cloud accounts.',
+            style: AppTheme.monoLabel().copyWith(fontSize: 9),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openSignup() async {
+    final createdEmail = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CreateAccountScreen(initialEmail: _email.text),
+      ),
+    );
+    if (!mounted || createdEmail == null) return;
+    setState(() {
+      _email.text = createdEmail;
+      _notice = 'Account created. Confirm your email if required, then sign in. Roles are assigned by an administrator.';
+      _error = null;
+    });
+  }
+
+  Future<void> _openRecover() async {
+    final sent = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ForgotPasswordScreen(initialEmail: _email.text),
+      ),
+    );
+    if (!mounted || sent != true) return;
+    setState(() {
+      _notice = 'If this account exists, check your inbox or spam folder for reset instructions.';
+      _error = null;
+    });
+  }
+}
+
+/// Shows which authentication provider answered; never invents SSO support.
+class EntityChip extends StatelessWidget {
+  const EntityChip({super.key, required this.provider});
+
+  final String? provider;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = provider == null
+        ? 'CHECKING'
+        : provider == 'supabase'
+        ? 'LIVE AUTH'
+        : 'LOCAL AUTH';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE9EEF1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(text, style: AppTheme.monoLabel(color: AppTheme.navy)),
+    );
+  }
 }

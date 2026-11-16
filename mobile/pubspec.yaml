@@ -2,7 +2,7 @@ name: brandguard
 description: "BrandGuard mobile-first brand governance app with a FastAPI backend."
 publish_to: 'none'
 
-version: 2.0.1+3
+version: 2.1.0+4
 
 environment:
   sdk: ^3.14.0

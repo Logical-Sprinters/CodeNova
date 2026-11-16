@@ -4,8 +4,10 @@ import 'package:brandguard/core/auth/demo_auth.dart';
 import 'package:brandguard/core/auth/session.dart';
 import 'package:brandguard/core/network/brandguard_api_service.dart';
 import 'package:brandguard/app/brandguard_app.dart';
+import 'package:brandguard/features/auth/create_account_screen.dart';
+import 'package:brandguard/features/auth/forgot_password_screen.dart';
 import 'package:brandguard/features/auth/sign_in_screen.dart';
-import 'package:brandguard/features/dashboard/home_dashboard_screen.dart';
+import 'package:brandguard/app/ui/brandguard_shell.dart';
 import 'package:brandguard/features/profile/profile_screen.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -93,7 +95,7 @@ void main() {
         );
         await tester.tap(find.byKey(ValueKey('demo-${account.role}')));
         await submit(tester);
-        expect(find.byType(HomeDashboardScreen), findsOneWidget);
+        expect(find.byType(BrandGuardShell), findsOneWidget);
         expect(session.userId, account.userId);
         expect(session.accessToken, 'access-${account.userId}');
         final prefs = await SharedPreferences.getInstance();
@@ -158,7 +160,7 @@ void main() {
     await openLogin(tester);
     expect(
       tester
-          .widget<TextFormField>(find.byKey(const ValueKey('demo-email')))
+          .widget<TextField>(find.byKey(const ValueKey('demo-email')))
           .controller
           ?.text,
       DemoAuth.reviewer.email,
@@ -166,7 +168,7 @@ void main() {
     expect(session.currentUser, isNull);
     expect(
       tester
-          .widget<TextFormField>(find.byKey(const ValueKey('demo-password')))
+          .widget<TextField>(find.byKey(const ValueKey('demo-password')))
           .controller
           ?.text,
       isEmpty,
@@ -189,7 +191,7 @@ void main() {
     expect(find.byKey(const ValueKey('demo-access-card')), findsNothing);
     expect(
       tester
-          .widget<TextFormField>(find.byKey(const ValueKey('demo-email')))
+          .widget<TextField>(find.byKey(const ValueKey('demo-email')))
           .controller
           ?.text,
       isEmpty,
@@ -207,52 +209,96 @@ void main() {
     await tester.scrollUntilVisible(button, 250);
     await tester.tap(button);
     await settleTestUi(tester);
-    await tester.tap(find.widgetWithText(TextButton, 'Sign Out'));
+    await tester.tap(find.widgetWithText(TextButton, 'Sign out'));
     await settleTestUi(tester);
     expect(session.currentUser, isNull);
     expect(session.refreshToken, isNull);
     expect(find.byType(SignInScreen), findsOneWidget);
   });
   testWidgets(
-    'signup dialog can be opened and dismissed without disposed-controller errors',
+    'create-account page opens, validates and closes without controller errors',
+    timeout: const Timeout(Duration(minutes: 3)),
     (tester) async {
+      var signupAttempted = false;
+      BrandGuardApiService.clientForTesting = MockClient((request) async {
+        if (request.url.path.endsWith('/signup')) {
+          signupAttempted = true;
+          return http.Response('{"requires_confirmation":false}', 200);
+        }
+        return http.Response(
+          '{"auth_provider":"local","demo_accounts_enabled":true}',
+          200,
+        );
+      });
       await openLogin(tester);
       await tester.ensureVisible(find.text('Create account'));
       await tester.tap(find.text('Create account'));
       await settleTestUi(tester);
-      expect(find.byType(AlertDialog), findsOneWidget);
-      await tester.tap(find.text('Cancel'));
+      expect(find.byType(CreateAccountScreen), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const ValueKey('create-account-name')),
+        'Elena Rostova',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('create-account-email')),
+        'elena@example.com',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('create-account-password')),
+        'longenough1',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('create-account-confirm')),
+        'longenough1',
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('create-account')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('create-account')));
       await settleTestUi(tester);
+      // Terms are required, so no signup request may be attempted.
+      expect(signupAttempted, isFalse);
+      expect(find.byType(CreateAccountScreen), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byIcon(Icons.arrow_back_rounded).first);
+      await settleTestUi(tester);
+      expect(find.byType(SignInScreen), findsOneWidget);
+    },
+  );
+  testWidgets(
+    'local recovery exposes unavailable email honestly',
+    timeout: const Timeout(Duration(minutes: 3)),
+    (tester) async {
+      BrandGuardApiService.clientForTesting = MockClient(
+        (request) async => request.url.path.endsWith('/recover')
+            ? http.Response(
+                '{"detail":"Email reset needs Supabase configuration"}',
+                503,
+              )
+            : http.Response(
+                '{"auth_provider":"local","demo_accounts_enabled":true}',
+                200,
+              ),
+      );
+      await openLogin(tester);
+      await tester.enterText(
+        find.byKey(const ValueKey('demo-email')),
+        DemoAuth.creator.email,
+      );
+      await tester.ensureVisible(find.text('Reset access?'));
+      await tester.tap(find.text('Reset access?'));
+      await settleTestUi(tester);
+      expect(find.byType(ForgotPasswordScreen), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('send-reset')));
+      await settleTestUi(tester);
+      expect(find.textContaining('Email reset needs Supabase'), findsWidgets);
+      await tester.tap(find.byIcon(Icons.arrow_back_rounded).first);
+      await settleTestUi(tester);
+      expect(find.byType(SignInScreen), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
-  testWidgets('local recovery exposes unavailable email honestly', (
-    tester,
-  ) async {
-    BrandGuardApiService.clientForTesting = MockClient(
-      (request) async => request.url.path.endsWith('/recover')
-          ? http.Response(
-              '{"detail":"Email reset needs Supabase configuration"}',
-              503,
-            )
-          : http.Response(
-              '{"auth_provider":"local","demo_accounts_enabled":true}',
-              200,
-            ),
-    );
-    await openLogin(tester);
-    await tester.enterText(
-      find.byKey(const ValueKey('demo-email')),
-      DemoAuth.creator.email,
-    );
-    await tester.ensureVisible(find.text('Forgot password?'));
-    await tester.tap(find.text('Forgot password?'));
-    await settleTestUi(tester);
-    await tester.tap(find.text('Send instructions'));
-    await settleTestUi(tester);
-    expect(find.textContaining('Email reset needs Supabase'), findsOneWidget);
-    await tester.tap(find.text('Cancel'));
-    await settleTestUi(tester);
-    expect(tester.takeException(), isNull);
-  });
 }

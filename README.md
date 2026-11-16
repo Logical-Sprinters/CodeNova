@@ -1,496 +1,199 @@
-# BrandGuard
+# BrandGuard — Redesigned Mobile App (v2.1.0)
 
-### Check content. Review evidence. Approve with confidence.
+BrandGuard ek **mobile-first brand governance app** hai: content likho, rules se check karao, aur
+authorised reviewer se sign-off lo. Yeh version aapke bheje hue design references aur `DESIGN.md`
+(Token: *Executive Precision*) ke hisaab se **poora UI/UX redesign** karta hai — backend, Supabase
+data, logins aur flows **waise hi** hain jaise pehle the.
 
-**A mobile-first brand governance and content review workspace built with Flutter, FastAPI and Supabase.**
-
-BrandGuard creators aur reviewers ko ek shared workflow deta hai: content prepare karein, brand rules ke against check karein, evidence inspect karein aur exact content version par human approval record karein.
-
-<<<<<<< HEAD
-**[Open Live App](https://brandguard-app.antideploy.app)** · **[Quick User Guide](START_HERE.md)** · **[Deployment Guide](DEPLOYMENT.md)** · **[API Documentation](https://brandguard-app.antideploy.app/docs)**
-=======
-**[Mobile Login Fix / Rebuild Guide](LOGIN_FIX.md)** · **[Open Live App](https://brandguard-app.antideploy.app)** · **[Quick User Guide](START_HERE.md)** · **[Deployment Guide](DEPLOYMENT.md)** · **[API Documentation](https://brandguard-app.antideploy.app/docs)**
->>>>>>> 1127c4e (Complte task)
-
-> **Current status:** Public hosting, Supabase integration, signup confirmation aur password recovery verified hain. Paid AI integration prepared hai, lekin wallet funding aur live quality verification tak **AI disabled** hai. Rule-based checks aur human review independently work karte hain.
+> Tagline: **No finding without evidence. No approval without a version.**
 
 ---
 
-## Contents
+## 1. Kya naya hai (design)
 
-- [Features](#features)
-- [Technology Stack](#technology-stack)
-- [Architecture](#architecture)
-- [Project Structure](#project-structure)
-- [Quick Start](#quick-start)
-- [Content Review Workflow](#content-review-workflow)
-- [Configuration](#configuration)
-- [API Overview](#api-overview)
-- [Testing and Verification](#testing-and-verification)
-- [Deployment](#deployment)
-- [Security and Access](#security-and-access)
-- [Known Limits](#known-limits)
-- [Documentation](#documentation)
-- [License](#license)
-
-## Features
-
-| Area | What BrandGuard provides |
-|---|---|
-| **Account access** | Email/password sign-in, signup confirmation, password recovery, current identity, session refresh aur logout. |
-| **Role-based workflows** | Creator submissions aur trusted Reviewer/Admin permissions; public signup se role elevation nahi hoti. |
-| **Brand library** | Shared guidelines, versioned enforceable rules aur reviewer-verified fact sources. |
-| **Content checks** | Server-side deterministic checks, findings aur content evidence. AI unavailable ho toh explicit abstention. |
-| **Human review** | Exact submitted version ko approve/reject karein; review notes aur decision history retain hoti hai. |
-| **Approval verification** | Exact content aur rule-version changes ke against approval validity verify hoti hai. |
-| **Saved drafts** | Server-backed drafts, attachment references, revisions aur stale-update conflict detection. |
-| **Private documents** | TXT, Markdown aur text-based PDF upload, extraction, preview aur authorized download. |
-| **Processing records** | Protected receipts, content hashes, version history aur audit events. |
-| **Workspace activity** | Real dashboard totals, scoped analytics aur server-stored in-app notifications. |
-
-**Important:** A clean automated scan is **not** human publication approval. AI assessment bhi factual truth ki guarantee nahi hai.
-
-## Technology Stack
-
-| Layer | Technology |
-|---|---|
-| Main application | Flutter / Dart — Android, iOS aur optional web source |
-| Backend | FastAPI, Pydantic, Uvicorn |
-| Persistence | SQLAlchemy with PostgreSQL; isolated local development ke liye SQLite |
-| Hosted identity | Supabase Auth |
-| Hosted files | Supabase private Storage |
-| Auth email | Signed Supabase Send Email Hook → Antideploy transactional relay |
-| Optional AI | OpenRouter-compatible server-side integration; currently disabled |
-| Hosting | Antideploy, custom non-root Docker container |
-| Tests | Pytest, Flutter unit/widget tests, separate live API/browser checks |
-
-<<<<<<< HEAD
-**Tested toolchain:** Python **3.13.18**, Flutter **3.50.0**, Dart **3.14.0**. Local launcher requires Python **3.11+**; mobile source requires Dart **`^3.14.0`**. App/API version: **2.0.0**.
-=======
-**Tested toolchain:** Python **3.13.18**, Flutter **3.50.0**, Dart **3.14.0**. Local launcher requires Python **3.11+**; mobile source requires Dart **`^3.14.0`**. Mobile version: **2.0.1+3**; unchanged backend API version: **2.0.0**.
->>>>>>> 1127c4e (Complte task)
-
-## Architecture
-
-```text
-Flutter mobile app / bundled Flutter web app
-                    |
-              HTTPS /api/v1
-                    |
-              FastAPI backend
-              |     |      |
-              |     |      +--> Supabase private Storage
-              |     +---------> PostgreSQL workflow data
-              +---------------> Supabase Auth
-                    |
-                    +--> Optional grounded AI provider
-                         (disabled until funded and verified)
-
-Supabase Auth --> Signed email hook --> Antideploy email relay
-```
-
-- **`mobile/` main aur only Flutter project root hai.**
-- `browser_preview/` isi app ka compiled web bundle hai; separate frontend codebase nahi.
-- Hosted web UI aur API same HTTPS origin par serve hote hain.
-- Native Flutter app backend se baat karta hai; private database/provider credentials app mein embed nahi hote.
-
-## Project Structure
-
-```text
-BrandGuard-Antideploy/
-├── mobile/                    # Main Flutter application
-│   ├── lib/
-│   │   ├── app/               # App setup and theme
-│   │   ├── core/              # Sessions, API client and document picker
-│   │   └── features/          # Auth, checks, reviews, drafts, library, etc.
-│   ├── assets/                # Bundled fonts and licenses
-│   ├── test/                  # Flutter unit/widget tests
-│   ├── android/
-│   └── ios/
-├── backend/
-│   ├── app/                   # API, authorization and domain services
-│   │   ├── routers/
-│   │   └── checks/            # Deterministic and optional AI checks
-│   ├── certs/                 # Public Supabase CA and provenance
-│   ├── supabase/              # Existing provisioning/migration scripts
-│   ├── tests/
-│   ├── tests_secure/
-│   ├── .env.example           # Placeholders only; never real credentials
-│   └── requirements.txt
-├── browser_preview/           # Prebuilt web assets
-├── docs/                      # Setup and technical documentation
-├── validation/                # Recorded, sanitized verification evidence
-├── Dockerfile                 # Production container
-├── serve.py                   # Production entrypoint
-├── start_backend.py           # Local setup/start launcher
-├── OPEN_APP.bat               # Windows local browser launcher
-├── START_HERE.md               # Short user guide
-├── DEPLOYMENT.md               # Current hosted setup and operational limits
-└── README.md
-```
-
-## Quick Start
-
-### 1. Use the live app — no installation
-
-Open **https://brandguard-app.antideploy.app** on your phone or desktop browser.
-
-1. **Create account** se register karein.
-2. Email confirmation link open karein.
-3. Apne email/password se sign in karein.
-4. Password bhool gaye hon toh **Forgot password?** use karein.
-
-Public registration **Creator** account banati hai. Reviewer/Admin access trusted administrator assign karta hai. Hosting account ka Google sign-in aur BrandGuard app ka email/password sign-in alag hain.
-
-> Free hosting idle hone par first request ko wake-up mein thoda waqt lag sakta hai. Live app use karne ke liye laptop par backend chalaye rakhna zaroori nahi.
-
-### 2. Run native Flutter against the hosted API
-
-Flutter SDK aur target emulator/device ready hone ke baad:
-
-```sh
-cd mobile
-flutter clean
-flutter pub get --enforce-lockfile
-flutter run --dart-define=API_BASE=https://brandguard-app.antideploy.app
-```
-
-<<<<<<< HEAD
-Is option mein apna local Python server start karna zaroori nahi. Actual native release signing/device certification is command se claim nahi hoti.
-=======
-**Is release mein native default live HTTPS hai:** `https://brandguard-app.antideploy.app`.
-Windows par root ka **`RUN_MOBILE.bat`**, Mac/Linux par **`./RUN_MOBILE.sh`** bhi use
-kar sakte hain. VS Code ke liye root mein hosted launch configuration included hai.
-Purane IDE arguments mein `API_BASE=http://10.0.2.2:8000` ho toh remove karein;
-explicit override always wins. Old installed app ko fully stop/rebuild karein,
-sirf hot reload nahi. Details: [LOGIN_FIX.md](LOGIN_FIX.md).
-
-Is option mein apna local Python server start karna zaroori nahi. Actual native
-release signing/device certification is command se claim nahi hoti. ZIP source
-release hai; APK/IPA included nahi hai.
->>>>>>> 1127c4e (Complte task)
-
-### 3. Run an isolated local demo
-
-**Use a separate development copy with no production `.env` or injected cloud variables.** Current configured workspace ka private cloud `.env` delete/overwrite mat karein. Without cloud configuration, backend local SQLite aur local demonstration accounts use karta hai.
-
-From the project root:
-
-```sh
-python start_backend.py --web --host 127.0.0.1
-```
-
-Mac/Linux par zaroorat ho toh `python3` use karein. Windows par **`OPEN_APP.bat`** double-click bhi kar sakte hain.
-
-Launcher `backend/.venv` create karta hai, pinned dependencies install karta hai aur server ready hone par browser open karta hai. First dependency installation ke liye internet aur Python 3.11+ chahiye. Terminal open rakhein; **Ctrl+C** se server stop hota hai.
-
-| Local service | Address |
-|---|---|
-| Browser app | http://127.0.0.1:8000/ |
-| Health check | http://127.0.0.1:8000/health |
-| Interactive API docs | http://127.0.0.1:8000/docs |
-
-**Local demonstration accounts — local mode only:**
-
-| Role | Email | Password |
+| Area | Pehle | Ab |
 |---|---|---|
-| Creator | `creator@brandguard.demo` | `Demo@12345` |
-| Reviewer | `reviewer@brandguard.demo` | `Demo@12345` |
+| Navigation | Drawer/links | Fixed 5-tab bottom bar: Home · Workspace · Reviews · Guidelines · Profile |
+| Design tokens | Ad-hoc colors | `AppTheme` mein centralized navy/teal palette, Manrope type ramp, radius + shadow tiers |
+| Splash | Simple | Dark "VAULT SECURE" splash, verification ring, progress |
+| Sign in | Plain form | Brand header, provider chip, secure password field, error/notice cards, demo accounts card (local only) |
+| Sign up | Dialog | Full page: strength meter, confirm match, consent, role explanation |
+| Forgot password | Dialog | Dedicated page, honest "provider sends the link" message |
+| Home | Metric grid | Greeting hero + 4 metric cards + decision mix + fast actions + recent activity |
+| Brand check | Plain form | Step strip, meta chips (words/chars/read time), attachments, policy engine summary |
+| Findings | Long cards | Rule cards with severity pill, evidence block, replacement block, sticky submit bar |
+| Review queue | List | Metrics + filter chips + rich review sheet + approval ledger |
+| Guidelines | 3 lists | One Guidelines tab → Guidelines / Rules / Fact Sources overview |
+| Profile | Basic | Avatar, role chip, grouped settings, appearance, backend status, danger-zone logout |
+| Receipts | Raw key/value list | Structured receipt: hash chips, review state, evidence grounding, raw payload |
 
-These deliberately public local credentials **do not work on the hosted Supabase app**. Seeded local demo mode ko internet par expose na karein. Local mode real confirmation/reset emails send karne ka pretend nahi karta.
+## 2. Chalane ke steps (baby steps)
 
-To run just the local API:
+### A. Android (emulator ya USB debug device)
 
-```sh
-python start_backend.py --host 127.0.0.1
-```
+1. ZIP extract karo.
+2. `mobile` folder ke andar jao: `cd mobile`.
+3. Pehli baar:
+   ```bash
+   flutter clean
+   flutter pub get --enforce-lockfile
+   ```
+4. App run karo (hosted Supabase backend ke saath):
+   ```bash
+   flutter run --dart-define=API_BASE=https://brandguard-app.antideploy.app
+   ```
+   Windows par ready-made launcher: `RUN_MOBILE.bat` (project root).
+5. App khulne par splash → Sign In. Apne demo account se login karo (credentials alag private
+   file mein diye gaye hain; woh is ZIP ke andar **nahi** hain).
 
-<<<<<<< HEAD
-Native Flutter development ke liye API address choose karein:
-=======
-Only local native development ke liye explicit `--dart-define=API_BASE=...` pass karein. Neeche wale addresses ab automatic defaults nahi hain:
->>>>>>> 1127c4e (Complte task)
+### B. Browser preview (optional, fastest check)
 
-| Target | Local API address |
-|---|---|
-| Android emulator | `http://10.0.2.2:8000` |
-| iOS simulator / desktop | `http://127.0.0.1:8000` |
-| Physical phone | Computer ka reachable LAN IP; server ko LAN interface par bind karein |
-| Flutter web development | Explicit API URL, ya same-origin hosted setup |
-
-Physical phone ka `localhost` computer nahi hota. LAN testing ke liye server ko `--host 0.0.0.0` se start karein aur firewall/network access check karein. Public deployment mein HTTPS aur cloud Auth use karein, local demo accounts nahi.
-
-## Content Review Workflow
-
-```text
-Creator signs in
-      ↓
-Prepare exact editor text / reopen a saved draft
-      ↓
-Run brand checks → inspect findings and processing receipt
-      ↓
-Independent Reviewer inspects the submitted version
-      ↓
-Approve or reject with a note
-      ↓
-Verify approval against exact content and current rule version
-```
-
-1. Reviewer shared guidelines, enforceable rules aur verified fact sources maintain karta hai.
-2. Creator content enter karta hai. Document upload karne par **sirf attachment add hona content scan nahi hai**; extracted text editor mein insert karein agar usse check karna hai.
-3. Backend exact editor text check karta hai aur versioned record/receipt save karta hai.
-4. Reviewer **Review Queue** mein exact submission inspect karke decision deta hai. Self-review blocked hai.
-5. Content edit/recheck se new version banta hai. Relevant rule changes approval ko stale kar sakte hain; purana approval blindly reuse nahi hota.
-6. Creator dashboard, notifications, history aur receipt se actual server-side outcome dekh sakta hai.
-
-## Configuration
-
-`backend/.env.example` placeholders aur available settings document karta hai. Kisi **new unconfigured development environment** mein isse private `backend/.env` banaya ja sakta hai. Existing production configuration ko replace na karein.
-
-| Variable / group | Purpose |
-|---|---|
-| `AUTH_PROVIDER` | Explicit `local` or `supabase` Auth mode |
-| `SEED_DEMO_USERS` | Local demo seeding; production mein `false` |
-| `DATABASE_URL` | Private server-side SQL connection |
-| `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | Selected Supabase project configuration |
-| `SUPABASE_STORAGE_BUCKET` | Private document bucket |
-| `AUTH_REDIRECT_URL`, `PUBLIC_APP_URL` | Controlled auth callbacks and app origin |
-| `CORS_ORIGINS` | Explicit allowed frontend origins |
-| `AI_PROVIDER`, `AI_BASE_URL`, `AI_MODEL` | Optional server-side model configuration |
-| `OPENROUTER_API_KEY` | Platform-provisioned private AI key; never a Flutter define |
-| `SUPABASE_EMAIL_HOOK_SECRET` | Signed Supabase email-hook verification |
-| `RESEND_*`, `EMAIL_FROM` | Platform-provisioned transactional relay settings |
-
-### Hosted Supabase and email
-
-The existing BrandGuard project is already connected; another project/database create karna zaroori nahi. Current host uses PostgreSQL with **CA + hostname verification (`sslmode=verify-full`)**, Supabase Auth aur private Storage.
-
-- Site URL uses the hosted app origin.
-- Exact `/auth/confirm` aur `/auth/reset` callbacks configured hain.
-- Signed `/api/v1/auth/hooks/email` endpoint auth email relay ko call karta hai.
-- Normal runtime mein Supabase service/admin key required nahi hai.
-- Native relay variables ko duplicate user variables se shadow mat karein.
-
-Setup/maintenance details: [Supabase guide](docs/SUPABASE_SETUP.md) · [Current cloud status](docs/LIVE_SUPABASE_STATUS.md).
-
-### Optional AI — honest availability
-
-Hosted configuration mein paid AI abhi **disabled** hai. Ek application-specific OpenRouter key already provisioned hai, lekin wallet funding aur real inference/quality tests pending hain. Duplicate key create karne ki zaroorat nahi.
-
-After authorized funding and activation, configured path uses `openai/gpt-5.4-mini` with strict structured output and independent server-side citation/quote/span validation. Provider availability, source quality aur human judgment phir bhi necessary hain.
-
-**Missing access, missing evidence, provider failure ya invalid output → `abstained`, not a fabricated factual pass.**
-
-Activation, cost/privacy boundaries aur live test checklist: [AI setup](docs/AI_SETUP.md).
-
-## API Overview
-
-Hosted base URL: **`https://brandguard-app.antideploy.app`**. Most application endpoints require a valid bearer token; role and ownership checks server-side enforce hote hain.
-
-| Method | Route | Purpose |
-|---|---|---|
-| `GET` | `/health` | Public service health |
-| `POST` | `/api/v1/auth/signup`, `/api/v1/auth/login` | Registration and password sign-in |
-| `GET` | `/api/v1/auth/me` | Current authenticated identity |
-| `POST` | `/api/v1/auth/refresh`, `/api/v1/auth/logout` | Session lifecycle |
-| `POST` / `PUT` | `/api/v1/auth/recover` / `/api/v1/auth/password` | Recovery request / password update |
-| `POST` | `/api/v1/brand/check` | Run a content check |
-| `POST` | `/api/v1/brand/{check_id}/versions` | Submit a new checked version |
-| `GET` / `PATCH` | `/api/v1/reviews` / `/api/v1/reviews/{check_id}/decision` | Review queue / human decision |
-| `POST` | `/api/v1/approvals/verify` | Verify exact-content approval |
-| `GET`, `POST`, `PUT`, `DELETE` | `/api/v1/library/{kind}` and item routes | Guidelines, rules and fact sources |
-| `POST` / `GET` | `/api/v1/files` / `/api/v1/files/{asset_id}/download` | Private upload / authorized download |
-| `GET`, `POST`, `PUT`, `DELETE` | `/api/v1/drafts` and item routes | Saved drafts |
-| `GET` | `/api/v1/receipts/{receipt_id}` | Protected processing receipt |
-| `GET` | `/api/v1/analytics`, `/api/v1/history`, `/api/v1/audit` | Scoped workspace records |
-| `GET` | `/api/v1/notifications`, `/api/v1/system/status` | Activity and authenticated runtime status |
-
-Full request/response schemas: **[Interactive API docs](https://brandguard-app.antideploy.app/docs)**.
-
-Simple health check:
-
-```sh
-curl https://brandguard-app.antideploy.app/health
-```
-
-## Testing and Verification
-
-### Run backend tests
-
-With your backend virtual environment activated:
-
-```sh
-cd backend
-python -m pip install -r requirements-dev.txt
-python -m pytest -q tests tests_secure
-```
-
-Fixtures temporary local stores use karte hain aur real cloud settings se isolate hote hain. Ad-hoc seeded smoke tests ko production database ke against run na karein.
-
-### Run Flutter checks
-
-```sh
+```bash
 cd mobile
-flutter pub get --enforce-lockfile
-flutter analyze
-<<<<<<< HEAD
-flutter test
+flutter run -d chrome --dart-define=API_BASE=https://brandguard-app.antideploy.app
 ```
 
-### Latest completed deployment verification
+### C. Sirf design dekhna hai (backend ke bina)
 
-=======
-flutter test --concurrency=1
+Local backend chalao (`backend/README` ke mutabik) aur `--dart-define=API_BASE=http://10.0.2.2:8000`
+(Android emulator) ya `http://localhost:8000` (web/desktop) use karo. Local mode mein hi public demo
+accounts dikhte hain ("Local demonstration accounts" card). Cloud mode mein yeh card **kabhi nahi**
+dikhta — wahan apna asli Supabase login use karo.
+
+## 3. Design system (short)
+
+- **Colors** — Navy `#142C3B` (authority), Teal `#22A895` (verification), Mint `#E8F5F1` (safe zones),
+  Canvas `#F7F8F5`, Card `#FFFFFF`, Border `#E5ECE9`, Danger `#D95D5D`, Warning `#E6A23C`.
+- **Type** — Manrope, mobile headline 26/34, body 14/20, micro labels 10/14 uppercase.
+  Versions/hashes tabular figures mein.
+- **Shape** — Inputs/buttons 8 px, cards 16–20 px, status pills 999 px.
+- **Depth** — Cards: hairline border + soft ambient shadow. Bottom bar: frost + top hairline.
+- **Spacing** — 16 px margins, 8 px rhythm, bottom content padding 26–96 px taaki bottom bar
+  content ko na dhake.
+
+Sab kuch `mobile/lib/app/app_theme.dart` (tokens/theme) aur `mobile/lib/app/ui/app_widgets.dart`
+(reusable widgets: `SurfaceCard`, `StatusPill`, `MetricCard`, `InlineNotice`, `EmptyStateCard`,
+`HashChip`, `ProgressLine`, `DetailRow`, `NavigationRow`, `InitialsAvatar`, `ErrorBlock`) mein hai.
+Naya screen banate waqt inhi widgets ko use karo — design consistent rahega.
+
+## 4. Pages jo working condition mein hain
+
+Har page live REST API se data leta hai (mock/sample screens hata diye gaye hain), aur
+loading / empty / error states dikhata hai (blank ya red screen nahi):
+
+| Tab/Page | Backend calls |
+|---|---|
+| Splash | koi network call nahi |
+| Sign in | `GET /api/v1/auth/config`, `POST /api/v1/auth/login` |
+| Create account | `POST /api/v1/auth/signup` |
+| Forgot password | `POST /api/v1/auth/recover` |
+| Home | `/analytics`, `/notifications`, `/system/status` |
+| Workspace hub | saare modules ka entry point |
+| New brand check | `POST /api/v1/drafts`, `POST /api/v1/files` (upload), `POST /api/v1/brand/check` |
+| Findings & evidence | `POST /api/v1/brand/{id}/versions` (submit) |
+| Review queue | `GET /api/v1/reviews`, `PATCH /api/v1/reviews/{id}/decision` |
+| Verify approval | `POST /api/v1/approvals/verify` |
+| Guidelines / Rules / Fact sources | `GET/POST/PUT/DELETE /api/v1/library/{kind}` |
+| Analytics | `GET /api/v1/analytics` |
+| Notifications | `GET/PATCH/DELETE /api/v1/notifications` |
+| Drafts | `GET/POST/PUT/DELETE /api/v1/drafts` |
+| Version history / Audit ledger | `GET /api/v1/history`, `/api/v1/audit` |
+| Processing receipts | `GET /api/v1/receipts/`, `GET /api/v1/receipts/{id}` |
+| Profile | `GET /api/v1/system/status`, `POST /api/v1/auth/logout` |
+
+## 5. Honesty notes (kya jaan-boojh kar nahi dikhaya)
+
+Design references mein kuch cheezein dikhayi gayi thi jo is backend/app mein **nahi** hain. Unhe
+dikhana galat hoga, isliye humne unhe honest tareeke se handle kiya:
+
+1. **SAML/Okta/SSO button** — hata diya. Sign in Supabase email+password ya local auth se hota hai.
+2. **AI/magic claims ("100% uptime", "SOC 2 certified", "AES-256 HSM")** — marketing text ki tarah
+   nahi lagaya. App sirf wahi dikhata hai jo server bataata hai.
+3. **OCR (image se text)** — "OCR Text Extracted" jaisa fake badge nahi. Upload sirf TXT/MD/text-PDF
+   par kaam karta hai, aur screen par yahi likha hai.
+4. **Biometric/hardware attestation, 2FA** — implement nahi hai, isliye UI mein claim nahi hai.
+5. **Organisation/tenant model** — sign-up page organisation name leta hai lekin saaf likhta hai ki
+   server par abhi organisation model nahi hai.
+6. **"Request changes"** — UI mein hai, lekin backend sirf `approved`/`rejected` supports karta hai,
+   isliye "changes requested" note ke saath `rejected` record hota hai (pehle se same behaviour).
+7. **AI comparison** — `AI_PROVIDER=disabled` hai, isliye findings screen par "AI comparison:
+   abstained" saaf dikhta hai. AI funded hone par hi real comparison hoga.
+8. **Dark theme** — token ke hisaab se light theme audited + shipped hai; dark/system par tap karne se
+   honest snackbar aata hai (aadhi-adhoori dark theme nahi dikhayi).
+
+## 6. Testing / quality
+
+Is delivery par jo actually chalaya gaya (reproducible commands):
+
+```bash
+cd mobile
+flutter analyze                 # No issues found!
+flutter test --concurrency=1    # 91 tests, All tests passed!
+cd ../backend
+pytest -q                       # 113 passed
 ```
 
-### Current mobile login-fix release
+Live browser verification (Playwright, real hosted API, Creator + Reviewer dono):
 
 | Check | Result |
 |---|---|
-| Backend regression suite rerun | **113 passed** |
-| Flutter unit/widget regression suite | **75 passed**, including 26 new connection/UI checks |
-| Flutter analyzer | **No issues found** |
-| Native Dart → live HTTPS | **13 passed**: both trusted roles, identity/dashboard, logout/token denial, safe signup reachability |
-| Updated browser bundle | Release build successful; both rendered role logins and actual cloud dashboards verified through a test-only API bridge |
+| Supabase login (real) | 200, token mila, role gate sahi |
+| `/api/v1/auth/config`, `/analytics`, `/notifications`, `/system/status`, `/reviews`, `/api/v1/library/*` | sab 200 |
+| Runtime JS errors | 0 |
+| Failed resources | 0 |
+| Logout | 200 (per session) |
+| Screens walked | sign-in, home, workspace + 9 modules, review queue + review sheet, guidelines + rules library, fact sources, profile, analytics, receipts |
+| Screens 320×640 / 480×1000 | koi overflow banner nahi, koi red screen nahi |
 
-Current evidence: [`validation/login-fix/`](validation/login-fix/).
-Native HTTPS verification used the Dart VM and this source's endpoint resolver, not
-an Android emulator/device build. Invalid-role signup was rejected with 422 without
-creating users or sending extra emails. Existing cloud database/accounts/roles and
-production deployment were not replaced. Physical-device/APK testing is not claimed.
+Suite kya cover karta hai:
 
-### Previous completed deployment verification
+- Splash → Sign In flow, local demo autofill, cloud mode mein demo values hidden.
+- Galat password, offline server, remember-email (tokens kabhi preferences mein nahi).
+- Signup page validation + consent gate, forgot-password page error honesty.
+- Har screen **320×640, 360×780, 390×844, 430×932, 768×1024** par bina overflow render hoti hai
+  (yehi "pixel error" ka automated guard hai). Browser par bhi 320 px aur 480 px par koi
+  `overflowed by … pixels` error nahi aaya.
+- Bottom navigation ke paanchon tab, workspace ke saare modules, guidelines ke teen modules.
+- Exact-content check call (untrimmed body), draft revision protection, notification mark-read,
+  receipt loading/dispose safety.
 
->>>>>>> 1127c4e (Complte task)
-| Check | Recorded result |
+## 6b. ZIP ke andar kya hai
+
+```
+mobile/                 # Flutter source (main app) — lib/, test/, android/, ios/, web/
+backend/                # FastAPI backend (Supabase mode) — app/, tests/
+browser_preview/        # Ready-made web build (19 MB) — server par kuch build karne ki zaroorat nahi
+validation/             # Test/build evidence logs
+README.md               # Yeh file
+```
+
+`browser_preview/` ko kisi bhi static server se kholo (e.g. `python serve.py`) — wahi build hai jo
+live browser verification se pass hua. Iske andar tokens/passwords kuch nahi hai.
+
+**Is ZIP ke andar jaan-boojh kar NAHI hai:** `.env` (server credentials), demo account passwords
+(private file alag), `build/`, `.dart_tool/`, keystore.
+
+## 7. Troubleshooting
+
+| Problem | Fix |
 |---|---|
-| Backend regression/security/provider contracts | **113 passed** |
-| Flutter unit/widget tests | **49 passed** |
-| Flutter analyzer | **No issues found** |
-| Public API → real Supabase workflows | **55 passed** |
-| Signup/email/callback/password-recovery checks | **17 passed** |
-| Actual mobile-sized Chromium login | **Creator + Reviewer verified** at 430×932 |
-| Test email delivery reports | **5/5 provider-reported delivered** |
-| Antideploy automatic and full security scans | **0 findings** after the header/CSP correction |
+| Sign in par timeout | `API_BASE` galat ya device se internet nahi. Hosted URL use karo; purani IDE `--dart-define` override hata do. |
+| Blank/red screen | `flutter clean && flutter pub get --enforce-lockfile` phir dobara run karo (design update ke baad rebuild zaroori hai). |
+| "Multiple exceptions/overflow" purane screenshot mein | Naye build mein fix hai; tests 5 screen sizes par overflow check karte hain. |
+| Demo account card nahi dikh raha | Woh sirf **local** server par dikhta hai. Cloud par normal login karo. |
+| Reset link email nahi aaya | Supabase SMTP/limit check karo; app saaf-saaf batata hai jab email reset available nahi hai. |
 
-Detailed evidence: [Validation report](validation/RESULTS.md) and [`validation/antideploy/`](validation/antideploy/).
+## 8. Repo structure (important)
 
-<<<<<<< HEAD
-Counts recorded deployment checks ko refer karte hain; documentation edit ek new runtime test run nahi hai. Some unit/provider tests mocked hain; separate live API/browser checks ko unse mix nahi kiya gaya. Delivery reports human mailbox opening prove nahi karte, aur platform scans independent penetration-test certification nahi hain.
-=======
-Is second table ke counts earlier deployed release ke historical checks hain; email/security/workflow suites ko is mobile fix ke liye dobara run nahi kiya gaya. Some unit/provider tests mocked hain; separate live API/browser checks ko unse mix nahi kiya gaya. Delivery reports human mailbox opening prove nahi karte, aur platform scans independent penetration-test certification nahi hain.
->>>>>>> 1127c4e (Complte task)
-
-## Deployment
-
-Current deployment **Antideploy** par hai. Updates ke liye existing application reuse karein; project identity `.antideploy.json` mein stored hai.
-
-```text
-Dockerfile
-   → non-root Python 3.13 container
-   → serve.py
-   → backend working directory
-   → app.web:app
-   → 0.0.0.0:$PORT, one worker
+```
+mobile/
+  lib/app/app_theme.dart          # design tokens + Material theme
+  lib/app/ui/app_widgets.dart     # shared visual vocabulary
+  lib/app/ui/brandguard_shell.dart# 5-tab bottom navigation shell
+  lib/features/...                # screens (auth, dashboard, checks, reviews, guidelines, ...)
+  test/                           # widget + layout regression tests
+backend/                          # FastAPI + Supabase (unchanged)
 ```
 
-- `PORT` platform supply karta hai; fallback `8080` hai.
-- Entrypoint production mein local/demo Auth refuse karta hai.
-- Existing users/database/files ko replace ya reseed nahi karta.
-- Backend working directory bundled public TLS CA path resolve karti hai; certificate verification disable na karein.
-- Secrets encrypted host variables/private files mein rehte hain, source upload mein nahi.
-- Runtime/env changes ke baad appropriate upload/redeploy required hai; README-only edits ke liye unnecessary redeploy nahi.
-
-<<<<<<< HEAD
-`browser_preview/` prebuilt artifact hai. Dart source change hone par web bundle rebuild/update karna hoga; Antideploy upload limits aur required CanvasKit assets verify karke deploy karein.
-=======
-`browser_preview/` prebuilt artifact hai. Dart source change hone par web bundle rebuild/update karna hoga:
-
-```sh
-cd mobile
-flutter build web --release --no-wasm-dry-run --no-web-resources-cdn
-```
-
-Fresh `mobile/build/web/` ko `browser_preview/` mein copy karein. Included custom
-bootstrap service worker register nahi karta, taaki stale login configuration cache
-na ho. Hosting upload ke liye unused skwasm/wimp/webparagraph, `.symbols` aur `.map`
-files prune kar sakte hain; **generic aur Chromium CanvasKit JS/WASM dono retain**
-karein. Antideploy upload limits verify karke hi redeploy karein.
->>>>>>> 1127c4e (Complte task)
-
-**Deployment instructions:** [DEPLOYMENT.md](DEPLOYMENT.md) · [Antideploy agent guide](https://antideploy.com/agent.md).
-
-## Security and Access
-
-- **Private credentials:** `.env`, database passwords, signing secrets, admin keys aur AI/relay credentials Git, Flutter, screenshots ya public ZIP mein commit na karein.
-- **Trusted roles:** client-editable user metadata se Reviewer/Admin privilege grant nahi hota.
-- **Private files:** owner/trusted-reviewer access enforce hota hai; documents public bucket mein serve nahi hote.
-- **Session handling:** app tokens memory mein rakhta hai, ordinary preferences mein nahi; app restart par sign-in required ho sakta hai.
-- **Auth callbacks:** token fragments clear hote hain; reset/confirmation tokens browser local/session storage mein persist nahi hote.
-- **Defense in depth:** signed email hooks, protected API responses aur security headers/CSP configured hain.
-- **Review integrity:** automated scan result, AI result aur human approval separate concepts hain.
-
-Previously issued private evaluation accounts time-limited hain: app/private Storage access **17 November 2026, 01:30:31 IST** (`2026-11-16T20:00:31Z`) par expire hota hai. Credentials is README mein include nahi kiye gaye. Normal accounts without the trusted demo-expiry flag is expiry se affected nahi hote.
-
-## Known Limits
-
-- Paid AI access/quality is **not yet live-verified**; rule-based checks and human review available hain.
-- Documents: TXT/Markdown/text-based PDF only; **5 MB**, **30 PDF pages**, up to **100,000 extracted characters**. AI input limit **12,000 characters** hai.
-- OCR, URL crawling, embeddings/vector retrieval aur malware scanning implemented nahi hain. Retrieval lexical passage matching use karta hai.
-- In-app notifications refresh/poll based hain; push delivery aur general product-email notifications implemented nahi hain.
-- Workspace single-workspace design hai; high-throughput normalized multitenancy ya background retention worker claim nahi kiya gaya.
-- Separate “Request Changes” state nahi hai; rejection plus reviewer note use hota hai.
-- Email-address-change double confirmation implemented app feature nahi hai. Current native auth-email allowance **20 recipients/day** hai, subject to the hosting plan.
-- Native APK/IPA signing/device certification, full UI E2E coverage, production load testing aur cloud backup/restore recovery drill complete claim nahi kiye gaye.
-- [LICENSE](LICENSE) abhi placeholder hai; public redistribution se pehle actual project license finalize karna hoga.
-
-## Documentation
-
-| Document | Use it for |
-|---|---|
-| [START_HERE.md](START_HERE.md) | App kholna, sign-in aur basic workflow |
-| [DEPLOYMENT.md](DEPLOYMENT.md) | Current hosting, email, access, AI and operational handoff |
-| [Supabase setup](docs/SUPABASE_SETUP.md) | Existing DB/Auth/private Storage maintain karna |
-| [Live Supabase status](docs/LIVE_SUPABASE_STATUS.md) | Connected project and current verified state |
-| [AI setup](docs/AI_SETUP.md) | Funding/activation prerequisites, grounding and limitations |
-| [Project guide](docs/PROJECT_GUIDE.md) | Technical reference and administration |
-<<<<<<< HEAD
-=======
-| [Mobile login fix](LOGIN_FIX.md) | Hosted default, rebuild steps, safe local overrides and limits |
->>>>>>> 1127c4e (Complte task)
-| [Validation results](validation/RESULTS.md) | Actual checks, evidence and untested areas |
-
-Earlier ready-demo ZIP aur previous source releases preserved hain. Local/demo distribution aur current hosted deployment ke private environments interchangeable nahi hain.
-
-## License
-
-Project license **not finalized yet**. [`LICENSE`](LICENSE) currently selection placeholder hai; MIT/Apache ya koi aur license assume na karein. Bundled font licensing `mobile/assets/fonts/OFL.txt` mein available hai.
-
----
-
-<<<<<<< HEAD
-## Current flow
-
-```mermaid
-flowchart TD
-  S[Flutter Sign In] -->|Supabase Auth| SA[(Supabase Auth)]
-  SA -->|JWT| S
-  S -->|Bearer token| A[FastAPI]
-  U[Flutter New Brand Check] -->|POST brand/check| A
-  A --> V1{JWT verified? role from public.users}
-  V1 --> E[Deterministic engine + rules table]
-  V1 --> AI[AI verifier stub: abstains]
-  V1 --> DB[(Supabase Postgres)]
-  DB --> CV[content + immutable version]
-  DB --> R[check run]
-  DB --> P[processing receipt]
-  DB --> AU[audit log]
-  R --> Q[Flutter Review Queue: GET reviews]
-  Q -->|PATCH decision| A
-  DB --> AP[Approval verify: hash + brand + rules version]
-  A --> F[Findings & Evidence UI]
-```
-
-=======
->>>>>>> 1127c4e (Complte task)
-**BrandGuard — clear checks, traceable evidence, accountable human decisions.**
+Backend code, Supabase project, rules aur data **is redesign ke chalu hone se change nahi hue**.
+Koi deployment/seed/migration is ZIP ke saath nahi chalti.

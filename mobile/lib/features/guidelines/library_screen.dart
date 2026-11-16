@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../app/app_theme.dart';
+import '../../app/ui/app_widgets.dart';
 import '../../core/auth/session.dart';
 import '../../core/network/brandguard_api_service.dart';
 import '../../core/network/document_picker.dart';
@@ -250,132 +252,285 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(widget.title),
-      actions: [
-        IconButton(
-          onPressed: _load,
-          tooltip: 'Refresh',
-          icon: const Icon(Icons.refresh),
+  Widget build(BuildContext context) {
+    final isRules = widget.kind == 'rules';
+    final isFacts = widget.kind == 'facts';
+    final readOnly = !_canManage;
+
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        leading: IconButton(
+          onPressed: () => Navigator.maybePop(context),
+          icon: const Icon(Icons.arrow_back_rounded),
         ),
-        if (_canManage && widget.kind == 'facts')
+        title: Text(widget.title),
+        actions: [
           IconButton(
-            onPressed: _upload,
-            tooltip: 'Upload source document',
-            icon: const Icon(Icons.upload_file),
+            onPressed: _load,
+            tooltip: 'Refresh',
+            icon: const Icon(Icons.refresh_rounded),
           ),
-      ],
-    ),
-    floatingActionButton: _canManage
-        ? FloatingActionButton(
-            onPressed: () => _edit(),
-            child: const Icon(Icons.add),
-          )
-        : null,
-    body: RefreshIndicator(
-      onRefresh: _load,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 90),
-        children: [
-          TextField(
-            controller: _brand,
-            decoration: InputDecoration(
-              labelText: 'Brand',
-              suffixIcon: IconButton(
-                onPressed: _load,
-                icon: const Icon(Icons.search),
+          if (_canManage && isFacts)
+            IconButton(
+              onPressed: _upload,
+              tooltip: 'Upload source document',
+              icon: const Icon(Icons.upload_file_rounded),
+            ),
+          const SizedBox(width: 4),
+        ],
+      ),
+      floatingActionButton: _canManage
+          ? FloatingActionButton.extended(
+              onPressed: () => _edit(),
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: Text(
+                isRules
+                    ? 'New rule'
+                    : isFacts
+                    ? 'New source'
+                    : 'New guideline',
               ),
-            ),
-            onSubmitted: (_) => _load(),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            widget.kind == 'rules'
-                ? 'These versioned regex rules run in the backend. Changing one invalidates old-rules approvals.'
-                : widget.kind == 'facts'
-                ? 'Only enabled, reviewer-verified source text is eligible for retrieval. A URL alone is not factual verification.'
-                : 'Shared descriptive guidance. Enforceable patterns belong in Rules.',
-          ),
-          const SizedBox(height: 12),
-          if (!_canManage)
-            const Text(
-              'Read-only: a reviewer manages the shared brand library.',
-            ),
-          if (_loading)
-            const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(_error!, style: const TextStyle(color: Colors.red)),
-            ),
-          if (!_loading && _error == null && _items.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(24),
-              child: Text('No items yet. A reviewer can add the first one.'),
-            ),
-          ..._items.map(
-            (item) => Card(
-              margin: const EdgeInsets.symmetric(vertical: 7),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            )
+          : null,
+      body: SafeArea(
+        top: false,
+        child: RefreshIndicator(
+          onRefresh: _load,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+            children: [
+              PageIntro(
+                eyebrow: isRules
+                    ? 'DETERMINISTIC GROUNDING'
+                    : isFacts
+                    ? 'EVIDENCE REPOSITORY'
+                    : 'SHARED GUIDANCE',
+                eyebrowTone: isRules
+                    ? Tone.navy
+                    : isFacts
+                    ? Tone.info
+                    : Tone.success,
+                title: widget.title,
+                subtitle: isRules
+                    ? 'Versioned regex rules executed by the backend on every check.'
+                    : isFacts
+                    ? 'Upload private documents and mark only truly verified evidence as eligible.'
+                    : 'Descriptive brand guidance. Enforceable patterns belong in Rules.',
+              ),
+              const SizedBox(height: 14),
+              SurfaceCard(
+                padding: const EdgeInsets.all(12),
+                radius: 16,
+                child: Row(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            item['title']?.toString() ?? '',
-                            style: const TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                        if (_canManage)
-                          PopupMenuButton<String>(
-                            onSelected: (value) {
-                              if (value == 'edit') _edit(item);
-                              if (value == 'delete') _delete(item);
-                            },
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(value: 'edit', child: Text('Edit')),
-                              PopupMenuItem(
-                                value: 'delete',
-                                child: Text('Delete'),
-                              ),
-                            ],
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    if (widget.kind == 'rules')
-                      SelectableText('Pattern: ${item['pattern']}'),
-                    Text(
-                      (item['description'] ?? item['content'] ?? '').toString(),
-                      maxLines: 5,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (widget.kind == 'facts')
-                      Text(
-                        item['verified'] == true
-                            ? 'Reviewer verified'
-                            : 'Unverified — excluded from AI',
-                        style: TextStyle(
-                          color: item['verified'] == true
-                              ? Colors.teal
-                              : Colors.deepOrange,
+                    Expanded(
+                      child: TextField(
+                        controller: _brand,
+                        onSubmitted: (_) => _load(),
+                        textInputAction: TextInputAction.search,
+                        decoration: const InputDecoration(
+                          labelText: 'Brand',
+                          prefixIcon: Icon(Icons.search_rounded, size: 18),
+                          isDense: true,
                         ),
                       ),
-                    if (item['enabled'] == false) const Text('Disabled'),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      height: 46,
+                      child: FilledButton(
+                        onPressed: _load,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppTheme.navy,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                        ),
+                        child: const Text('Load'),
+                      ),
+                    ),
                   ],
                 ),
               ),
-            ),
+              const SizedBox(height: 10),
+              if (readOnly)
+                InlineNotice(
+                  tone: Tone.navy,
+                  icon: Icons.visibility_outlined,
+                  title: 'Read-only: reviewer-managed',
+                  message: 'A reviewer manages the shared brand library. You can inspect every entry used by checks.',
+                ),
+              if (readOnly) const SizedBox(height: 10),
+              InlineNotice(
+                tone: isFacts ? Tone.warning : Tone.info,
+                title: isRules
+                    ? 'Editing a rule invalidates old approvals'
+                    : isFacts
+                    ? 'A URL alone is not factual verification'
+                    : 'Guidance is descriptive, not enforced',
+                message: isRules
+                    ? 'Rule changes bump the rules version, so previous approvals are reported as out-of-date by the receipt endpoint.'
+                    : isFacts
+                    ? 'Only enabled, reviewer-verified source text is eligible for retrieval. Unverified uploads are excluded.'
+                    : 'Guidance helps humans decide. Only Rules change inspection output.',
+              ),
+              const SizedBox(height: 16),
+              SectionHeading(
+                title: 'Library entries',
+                caption:
+                    '${_items.length} record${_items.length == 1 ? '' : 's'} for ${_brand.text.trim()}',
+              ),
+              const SizedBox(height: 10),
+              if (_loading)
+                const LoadingBlock()
+              else if (_error != null)
+                ErrorBlock(message: _error!, onRetry: _load)
+              else if (_items.isEmpty)
+                EmptyStateCard(
+                  title: 'No entries yet',
+                  message: _canManage
+                      ? 'Add the first entry with the button below.'
+                      : 'A reviewer can add the first entry for this brand.',
+                  icon: isRules
+                      ? Icons.rule_rounded
+                      : isFacts
+                      ? Icons.fact_check_outlined
+                      : Icons.menu_book_outlined,
+                )
+              else
+                ..._items.map((item) => _entryCard(item, isRules, isFacts)),
+            ],
           ),
-        ],
+        ),
       ),
-    ),
-  );
+    );
+  }
+
+  Widget _entryCard(Map<String, dynamic> item, bool isRules, bool isFacts) {
+    final enabled = item['enabled'] != false;
+    final verified = item['verified'] == true;
+    final tone = !enabled
+        ? Tone.neutral
+        : isFacts
+        ? (verified ? Tone.success : Tone.warning)
+        : Tone.success;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: SurfaceCard(
+        radius: 18,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    item['title']?.toString() ?? 'Untitled',
+                    style: AppTheme.labelLarge.copyWith(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                StatusPill(
+                  label: !enabled
+                      ? 'Disabled'
+                      : isFacts
+                      ? (verified ? 'Verified' : 'Unverified')
+                      : 'Active',
+                  tone: tone,
+                  compact: true,
+                ),
+                if (_canManage)
+                  PopupMenuButton<String>(
+                    icon: const Icon(
+                      Icons.more_horiz_rounded,
+                      size: 18,
+                      color: AppTheme.muted,
+                    ),
+                    onSelected: (value) {
+                      if (value == 'edit') _edit(item);
+                      if (value == 'delete') _delete(item);
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'edit', child: Text('Edit')),
+                      PopupMenuItem(value: 'delete', child: Text('Delete')),
+                    ],
+                  ),
+              ],
+            ),
+            if (item['category'] != null) ...[
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  StatusPill(
+                    label: item['category'].toString(),
+                    tone: Tone.info,
+                    compact: true,
+                  ),
+                  if (item['severity'] != null)
+                    StatusPill(
+                      label: item['severity'].toString(),
+                      tone: Tone.warning,
+                      compact: true,
+                    ),
+                ],
+              ),
+            ],
+            if (isRules && item['pattern'] != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: AppTheme.background,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppTheme.border),
+                ),
+                child: SelectableText(
+                  item['pattern'].toString(),
+                  style: AppTheme.monoLabel(color: AppTheme.navy)
+                      .copyWith(fontSize: 11),
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Text(
+              (item['description'] ?? item['content'] ?? '').toString(),
+              maxLines: 5,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.bodySmall.copyWith(
+                color: AppTheme.ink,
+                height: 1.45,
+              ),
+            ),
+            if (item['source_url'] != null &&
+                item['source_url'].toString().isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                item['source_url'].toString(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.monoLabel(color: AppTheme.info),
+              ),
+            ],
+            if (isFacts) ...[
+              const SizedBox(height: 8),
+              Text(
+                verified
+                    ? 'Reviewer verified · eligible as citation evidence'
+                    : 'Unverified · excluded from retrieval and citations',
+                style: AppTheme.monoLabel(
+                  color: verified ? AppTheme.success : AppTheme.warning,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }

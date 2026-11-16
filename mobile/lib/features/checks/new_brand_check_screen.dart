@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../app/app_theme.dart';
+import '../../app/ui/app_widgets.dart';
 import '../../core/network/brandguard_api_service.dart';
 import '../../core/network/document_picker.dart';
 import 'findings_evidence_screen.dart';
@@ -32,7 +34,7 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
       _content.text = draft['content']?.toString() ?? '';
       _attachments.addAll(
         (draft['attachments'] as List? ?? []).map(
-          (e) => Map<String, dynamic>.from(e),
+          (e) => Map<String, dynamic>.from(e as Map),
         ),
       );
     }
@@ -44,6 +46,17 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
     _brand.dispose();
     _content.dispose();
     super.dispose();
+  }
+
+  int get _wordCount {
+    final text = _content.text.trim();
+    return text.isEmpty ? 0 : text.split(RegExp(r'\s+')).length;
+  }
+
+  int get _step {
+    if (_content.text.trim().isEmpty) return _attachments.isEmpty ? 1 : 2;
+    if (_attachments.isEmpty) return 2;
+    return 3;
   }
 
   void _message(Object value) {
@@ -153,7 +166,7 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
             receiptId: result['receipt_id']?.toString(),
             contentVersion: result['content_version'] as int?,
             aiVerification: result['ai_verification'] is Map
-                ? Map<String, dynamic>.from(result['ai_verification'])
+                ? Map<String, dynamic>.from(result['ai_verification'] as Map)
                 : null,
           ),
         ),
@@ -166,127 +179,420 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(_draftId == null ? 'New Brand Check' : 'Edit Saved Draft'),
-    ),
-    body: ListView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-      children: [
-        const Text(
-          'Write • Check • Human review',
-          style: TextStyle(
-            color: Color(0xFF006B5E),
-            fontWeight: FontWeight.w800,
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        leading: IconButton(
+          onPressed: () => Navigator.maybePop(context),
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
+        title: Text(_draftId == null ? 'New brand check' : 'Edit saved draft'),
+        actions: [
+          TextButton.icon(
+            key: const ValueKey('save-draft'),
+            onPressed: _busy ? null : _save,
+            icon: const Icon(Icons.save_outlined, size: 16),
+            label: Text(_revision == null ? 'Draft' : 'Save · r$_revision'),
           ),
-        ),
-        const SizedBox(height: 18),
-        TextField(
-          key: const ValueKey('draft-title'),
-          controller: _title,
-          enabled: !_busy,
-          decoration: const InputDecoration(
-            labelText: 'Draft title',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        const SizedBox(height: 14),
-        TextField(
-          key: const ValueKey('check-brand'),
-          controller: _brand,
-          enabled: !_busy,
-          decoration: const InputDecoration(
-            labelText: 'Brand',
-            helperText:
-                'Acme includes starter rules. Reviewers can add another brand.',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        const SizedBox(height: 18),
-        TextField(
-          key: const ValueKey('check-content'),
-          controller: _content,
-          enabled: !_busy,
-          minLines: 10,
-          maxLines: 24,
-          maxLength: 200000,
-          onChanged: (_) => setState(() {}),
-          decoration: const InputDecoration(
-            labelText: 'Content to check',
-            alignLabelWithHint: true,
-            hintText: 'Paste your exact content here...',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        Text(
-          '${_content.text.trim().isEmpty ? 0 : _content.text.trim().split(RegExp(r'\s+')).length} words · ${_content.text.length} characters',
-        ),
-        const SizedBox(height: 22),
-        Row(
+          const SizedBox(width: 6),
+        ],
+      ),
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 26),
           children: [
-            const Expanded(
-              child: Text(
-                'Private documents',
-                style: TextStyle(fontWeight: FontWeight.w800),
+            _stepStrip(),
+            const SizedBox(height: 14),
+            SurfaceCard(
+              padding: const EdgeInsets.all(12),
+              radius: 16,
+              color: AppTheme.surfaceTint,
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: AppTheme.teal.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome_motion_outlined,
+                      size: 18,
+                      color: AppTheme.tealText,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _title.text.trim().isEmpty
+                              ? 'Untitled draft'
+                              : _title.text.trim(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTheme.labelLarge.copyWith(fontSize: 13),
+                        ),
+                        Text(
+                          '${_brand.text.trim()} · autosaved on the server once you press Draft',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  StatusPill(
+                    label: _draftId == null ? 'Local' : 'Synced',
+                    tone: _draftId == null ? Tone.neutral : Tone.success,
+                  ),
+                ],
               ),
             ),
-            TextButton.icon(
-              onPressed: _busy ? null : _upload,
-              icon: const Icon(Icons.attach_file),
-              label: const Text('Upload'),
+            const SizedBox(height: 16),
+            Text('Draft copy / marketing message', style: AppTheme.titleMedium),
+            const SizedBox(height: 8),
+            TextField(
+              key: const ValueKey('draft-title'),
+              controller: _title,
+              enabled: !_busy,
+              onChanged: (_) => setState(() {}),
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Draft title',
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              key: const ValueKey('check-brand'),
+              controller: _brand,
+              enabled: !_busy,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                labelText: 'Brand',
+                helperText: 'Acme ships starter rules. Reviewers can add another brand.',
+                isDense: true,
+                prefixIcon: Icon(Icons.storefront_outlined),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              key: const ValueKey('check-content'),
+              controller: _content,
+              enabled: !_busy,
+              minLines: 8,
+              maxLines: 24,
+              maxLength: 200000,
+              onChanged: (_) => setState(() {}),
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                alignLabelWithHint: true,
+                hintText: 'Paste the exact copy that will be published. The check hashes this text exactly as written.',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            Row(
+              children: [
+                _metaChip(Icons.notes_rounded, '$_wordCount words'),
+                const SizedBox(width: 8),
+                _metaChip(
+                  Icons.text_fields_rounded,
+                  '${_content.text.length} chars',
+                ),
+                const SizedBox(width: 8),
+                _metaChip(
+                  Icons.schedule_rounded,
+                  '~${((_wordCount / 200) * 60).ceil()}s read',
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            SectionHeading(
+              title: 'Attached visual assets',
+              caption: 'Stored privately, scoped to your identity',
+              trailing: TextButton.icon(
+                onPressed: _busy ? null : _upload,
+                icon: const Icon(Icons.upload_file_rounded, size: 16),
+                label: const Text('Add'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (_attachments.isEmpty)
+              InlineNotice(
+                tone: Tone.neutral,
+                icon: Icons.attach_file_rounded,
+                title: 'No attachment yet',
+                message: 'TXT, Markdown or text-based PDF up to 5 MB / 30 pages. Images and scanned PDFs need OCR, which this server does not run — only extracted text is checked.',
+              )
+            else
+              ..._attachments.map(
+                (asset) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: SurfaceCard(
+                    padding: const EdgeInsets.all(10),
+                    radius: 14,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: AppTheme.mint,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.description_outlined,
+                            size: 19,
+                            color: AppTheme.tealText,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                asset['name'].toString(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTheme.labelLarge.copyWith(
+                                  fontSize: 12.5,
+                                ),
+                              ),
+                              Text(
+                                'Server-stored document',
+                                style: AppTheme.monoLabel().copyWith(
+                                  fontSize: 9,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Remove reference',
+                          onPressed: _busy
+                              ? null
+                              : () =>
+                                    setState(() => _attachments.remove(asset)),
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            size: 18,
+                            color: AppTheme.danger,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 18),
+            const SectionHeading(
+              title: 'Inspection policy engine',
+              caption: 'Applied server-side on every run',
+            ),
+            const SizedBox(height: 8),
+            _policyRow(
+              'Pricing & numeric claim rules',
+              'Cross-checks prices, percentages and commitments against approved rules.',
+            ),
+            _policyRow(
+              'Regulatory & compliance rules',
+              'Flags absolute or restricted statements that need a disclaimer.',
+            ),
+            _policyRow(
+              'Tone & voice rules',
+              'Validates terminology and the shared brand voice.',
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'These switches are informational: the API applies every active rule version. Rules cannot be disabled from the app.',
+              style: AppTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+            InlineNotice(
+              tone: Tone.info,
+              icon: Icons.manage_search_rounded,
+              title: 'Deterministic rules, honest AI abstention',
+              message: 'Checks use the current backend rules and reviewer-verified fact sources. If AI comparison is unavailable it abstains instead of guessing. A clean scan is not human approval.',
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      onPressed: _busy ? null : _save,
+                      icon: const Icon(Icons.save_outlined, size: 17),
+                      label: Text(
+                        _revision == null
+                            ? 'Save draft'
+                            : 'Save draft · r$_revision',
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 52,
+              child: FilledButton(
+                key: const ValueKey('run-check'),
+                onPressed: _busy ? null : _check,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.teal,
+                  minimumSize: const Size(0, 52),
+                ),
+                child: _busy
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.shield_rounded, size: 19),
+                          SizedBox(width: 8),
+                          Text('Run Brand Check'),
+                        ],
+                      ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                'Runs against the live API · exact-text SHA-256 binding',
+                style: AppTheme.monoLabel().copyWith(fontSize: 9),
+              ),
             ),
           ],
         ),
-        const Text(
-          'TXT, Markdown or text PDF • maximum 5 MB / 30 PDF pages. Images and scanned PDFs need OCR and are not supported. Attachments are stored privately; insert extracted text to check it.',
-        ),
-        ..._attachments.map(
-          (asset) => ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.description_outlined),
-            title: Text(asset['name'].toString()),
-            subtitle: const Text('Server-stored document'),
-            trailing: IconButton(
-              onPressed: _busy
-                  ? null
-                  : () => setState(() => _attachments.remove(asset)),
-              tooltip: 'Remove reference',
-              icon: const Icon(Icons.close),
+      ),
+    );
+  }
+
+  Widget _metaChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: AppTheme.muted),
+          const SizedBox(width: 4),
+          Text(label, style: AppTheme.monoLabel()),
+        ],
+      ),
+    );
+  }
+
+  Widget _stepStrip() {
+    const labels = ['Details', 'Content', 'Assets', 'Review'];
+    final current = _step;
+    return Row(
+      children: [
+        for (var i = 0; i < labels.length; i++) ...[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: i <= current ? AppTheme.teal : AppTheme.border,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Icon(
+                      i < current
+                          ? Icons.check_circle_rounded
+                          : i == current
+                          ? Icons.radio_button_checked_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      size: 11,
+                      color: i <= current ? AppTheme.teal : AppTheme.muted,
+                    ),
+                    const SizedBox(width: 3),
+                    Flexible(
+                      child: Text(
+                        labels[i].toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.monoLabel(
+                          color: i <= current
+                              ? AppTheme.tealText
+                              : AppTheme.muted,
+                        ).copyWith(fontSize: 8.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-        ),
-        const SizedBox(height: 22),
-        const Text(
-          'Checks use the current backend rules and eligible reviewer-verified fact sources. An AI comparison needs provider access; otherwise it explicitly abstains. A clean scan is not human approval.',
-        ),
-        const SizedBox(height: 20),
-        OutlinedButton.icon(
-          key: const ValueKey('save-draft'),
-          onPressed: _busy ? null : _save,
-          icon: const Icon(Icons.save_outlined),
-          label: Text(
-            _revision == null
-                ? 'Save Draft'
-                : 'Save Draft · revision $_revision',
-          ),
-        ),
-        const SizedBox(height: 12),
-        FilledButton.icon(
-          key: const ValueKey('run-check'),
-          onPressed: _busy ? null : _check,
-          icon: _busy
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.shield_outlined),
-          label: Padding(
-            padding: const EdgeInsets.all(13),
-            child: Text(_busy ? 'Please wait...' : 'Run Brand Check'),
-          ),
-        ),
+          if (i != labels.length - 1) const SizedBox(width: 6),
+        ],
       ],
-    ),
-  );
+    );
+  }
+
+  Widget _policyRow(String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: SurfaceCard(
+        padding: const EdgeInsets.all(12),
+        radius: 14,
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: AppTheme.mint,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: const Icon(
+                Icons.tune_rounded,
+                size: 16,
+                color: AppTheme.tealText,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: AppTheme.labelLarge.copyWith(fontSize: 12.5),
+                  ),
+                  Text(subtitle, style: AppTheme.bodySmall),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+            const StatusPill(label: 'On', tone: Tone.success, compact: true),
+          ],
+        ),
+      ),
+    );
+  }
 }

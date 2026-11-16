@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:brandguard/core/auth/demo_auth.dart';
 import 'package:brandguard/core/auth/session.dart';
 import 'package:brandguard/core/network/brandguard_api_service.dart';
+import 'package:brandguard/features/auth/create_account_screen.dart';
 import 'package:brandguard/features/auth/sign_in_screen.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -46,14 +47,14 @@ void main() {
       expect(find.byKey(const ValueKey('demo-access-card')), findsNothing);
       expect(
         tester
-            .widget<TextFormField>(find.byKey(const ValueKey('demo-email')))
+            .widget<TextField>(find.byKey(const ValueKey('demo-email')))
             .controller
             ?.text,
         isEmpty,
       );
       expect(
         tester
-            .widget<TextFormField>(find.byKey(const ValueKey('demo-password')))
+            .widget<TextField>(find.byKey(const ValueKey('demo-password')))
             .controller
             ?.text,
         isEmpty,
@@ -125,14 +126,14 @@ void main() {
       await open(tester);
       expect(
         tester
-            .widget<TextFormField>(find.byKey(const ValueKey('demo-email')))
+            .widget<TextField>(find.byKey(const ValueKey('demo-email')))
             .controller
             ?.text,
         isEmpty,
       );
       expect(
         tester
-            .widget<TextFormField>(find.byKey(const ValueKey('demo-password')))
+            .widget<TextField>(find.byKey(const ValueKey('demo-password')))
             .controller
             ?.text,
         isEmpty,
@@ -177,21 +178,42 @@ void main() {
       await tester.ensureVisible(find.text('Create account'));
       await tester.tap(find.text('Create account'));
       await settleTestUi(tester);
-      final fields = find.descendant(
-        of: find.byType(AlertDialog),
-        matching: find.byType(TextField),
+      await tester.enterText(
+        find.byKey(const ValueKey('create-account-name')),
+        'New User',
       );
-      await tester.enterText(fields.at(0), 'New User');
-      await tester.enterText(fields.at(1), 'user@example.com');
-      await tester.enterText(fields.at(2), 'Password123!');
-      final create = find.widgetWithText(FilledButton, 'Create account');
-      await tester.ensureVisible(create);
+      await tester.enterText(
+        find.byKey(const ValueKey('create-account-email')),
+        'user@example.com',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('create-account-password')),
+        'Password123!',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('create-account-confirm')),
+        'Password123!',
+      );
+      await tester.scrollUntilVisible(
+        find.byType(Checkbox),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.byType(Checkbox));
+      await settleTestUi(tester);
+      final create = find.byKey(const ValueKey('create-account'));
+      await tester.scrollUntilVisible(
+        create,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
       await tester.tap(create);
       await settleTestUi(tester);
-      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(CreateAccountScreen), findsNothing);
       expect(find.byKey(const ValueKey('auth-notice')), findsOneWidget);
       expect(
-        find.textContaining('confirm your email, then sign in'),
+        find.textContaining('Confirm your email if required, then sign in'),
         findsOneWidget,
       );
       expect(find.byKey(const ValueKey('demo-login-error')), findsNothing);
@@ -200,7 +222,7 @@ void main() {
       expect(logins, 0);
       expect(
         tester
-            .widget<TextFormField>(find.byKey(const ValueKey('demo-email')))
+            .widget<TextField>(find.byKey(const ValueKey('demo-email')))
             .controller
             ?.text,
         'user@example.com',

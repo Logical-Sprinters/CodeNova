@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../app/app_theme.dart';
+import '../../app/ui/app_widgets.dart';
 import '../../core/network/brandguard_api_service.dart';
 
 class FindingsEvidenceScreen extends StatefulWidget {
@@ -32,15 +34,6 @@ class FindingsEvidenceScreen extends StatefulWidget {
 }
 
 class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
-  static const navy = Color(0xFF001725);
-  static const teal = Color(0xFF258F83);
-  static const background = Color(0xFFF7F8F6);
-  static const border = Color(0xFFE5EAE7);
-  static const secondary = Color(0xFF74838A);
-
-  static const red = Color(0xFFC96B6B);
-  static const redBg = Color(0xFFFBF0EF);
-
   String selectedFilter = 'All Findings';
 
   bool submitted = false;
@@ -59,102 +52,13 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
 
   String get updatedContent => _currentContent;
 
-  TextStyle style({
-    double size = 13,
-    FontWeight weight = FontWeight.w400,
-    Color color = navy,
-  }) {
-    return TextStyle(
-      fontFamily: 'Manrope',
-      fontSize: size,
-      fontWeight: weight,
-      color: color,
-    );
-  }
-
-  Widget _submissionInfo(String label, String value) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE1F5EF),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: style(size: 9, weight: FontWeight.w800, color: secondary),
-          ),
-          const SizedBox(height: 5),
-          SelectableText(
-            value,
-            textAlign: TextAlign.center,
-            style: style(size: 13, weight: FontWeight.w800, color: teal),
-          ),
-        ],
-      ),
-    );
-  }
-
   void showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: navy,
+        backgroundColor: AppTheme.navy,
         behavior: SnackBarBehavior.floating,
       ),
-    );
-  }
-
-  void showSource(String title, String details) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(22),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    height: 4,
-                    width: 42,
-                    decoration: BoxDecoration(
-                      color: border,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(title, style: style(size: 18, weight: FontWeight.w800)),
-                const SizedBox(height: 12),
-                Text(details, style: style(size: 13, color: secondary)),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: navy,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('Close'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 
@@ -269,20 +173,18 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
         barrierDismissible: false,
         builder: (dialogContext) {
           return AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
+            icon: const Icon(
+              Icons.fact_check_rounded,
+              color: AppTheme.teal,
+              size: 40,
             ),
-            icon: const Icon(Icons.fact_check_rounded, color: teal, size: 42),
-            title: Text(
-              'Submission Processed',
-              style: style(size: 19, weight: FontWeight.w800),
-            ),
+            title: const Text('Submission processed'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Your updated content has been processed by BrandGuard.',
-                  style: style(size: 13, color: secondary),
+                  'The updated content was stored as a new version and is now waiting for an authorised reviewer.',
+                  style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 14),
@@ -294,7 +196,7 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
                 const SizedBox(height: 12),
                 Text(
                   'Final approval must come from an authorised reviewer.',
-                  style: style(size: 11, color: secondary),
+                  style: AppTheme.monoLabel(),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -302,19 +204,14 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
             actions: [
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                child: FilledButton(
                   onPressed: () {
-                    // Capture the Navigator before removing this screen.
                     final navigator = Navigator.of(context);
                     navigator.pop();
                     navigator.popUntil((route) => route.isFirst);
                     navigator.pushNamed('/receiptDetail', arguments: receiptId);
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: teal,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('View Receipt'),
+                  child: const Text('View receipt'),
                 ),
               ),
             ],
@@ -332,35 +229,124 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
     }
   }
 
+  Widget _submissionInfo(String label, String value) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppTheme.mint,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Text(label, style: AppTheme.monoLabel()),
+          const SizedBox(height: 4),
+          SelectableText(
+            value,
+            textAlign: TextAlign.center,
+            style: AppTheme.monoLabel(color: AppTheme.tealText)
+                .copyWith(fontSize: 11.5),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> get _backendFindings {
+    return widget.findings
+        .whereType<Map>()
+        .map((finding) => Map<String, dynamic>.from(finding))
+        .toList();
+  }
+
+  List<String> get _filters {
+    final severities = _backendFindings
+        .map((f) => f['severity']?.toString().toLowerCase() ?? '')
+        .where((s) => s.isNotEmpty)
+        .toSet();
+    return [
+      'All Findings',
+      for (final severity in ['critical', 'review', 'warning'])
+        if (severities.contains(severity))
+          severity[0].toUpperCase() + severity.substring(1),
+    ];
+  }
+
+  List<Map<String, dynamic>> get _visibleFindings {
+    if (selectedFilter == 'All Findings') return _backendFindings;
+    return _backendFindings
+        .where(
+          (f) =>
+              (f['severity']?.toString().toLowerCase() ?? '') ==
+              selectedFilter.toLowerCase(),
+        )
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: background,
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
+        title: const Text('Audit inspection'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: StatusPill(
+              label: '${widget.findings.length} findings',
+              tone: widget.findings.isEmpty ? Tone.success : Tone.danger,
+            ),
+          ),
+        ],
+      ),
       body: SafeArea(
+        top: false,
         child: Column(
           children: [
-            _header(),
             Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _contextLabel(),
-                    const SizedBox(height: 12),
-                    _statusCard(),
-                    const SizedBox(height: 14),
-                    _aiStatus(),
-                    const SizedBox(height: 14),
-                    _filters(),
-                    const SizedBox(height: 12),
-                    if (_visibleFindings.isNotEmpty)
-                      ..._visibleFindings.map(_backendFindingCard),
-
-                    if (_visibleFindings.isEmpty) _emptyFilter(),
-                  ],
-                ),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 18),
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.campaign_outlined,
+                        size: 15,
+                        color: AppTheme.muted,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '${widget.brandName} · check ${_shortId(widget.checkId)}',
+                          style: AppTheme.monoLabel(color: AppTheme.ink),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  _statusCard(),
+                  const SizedBox(height: 12),
+                  _aiStatus(),
+                  const SizedBox(height: 14),
+                  _filterRow(),
+                  const SizedBox(height: 12),
+                  if (_visibleFindings.isEmpty)
+                    EmptyStateCard(
+                      title: widget.findings.isEmpty
+                          ? 'No rule violations detected'
+                          : 'Nothing in this category',
+                      message: widget.findings.isEmpty
+                          ? 'The deterministic rules returned no findings for this exact text. This is not human approval — an authorised reviewer still has to decide.'
+                          : 'Switch the filter to see the other findings on this check.',
+                      icon: Icons.task_alt_rounded,
+                    )
+                  else
+                    ..._visibleFindings.map(_backendFindingCard),
+                ],
               ),
             ),
             _bottomAction(),
@@ -370,93 +356,45 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
     );
   }
 
-  Widget _header() {
-    return Container(
-      height: 60,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: border)),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back_rounded, color: navy),
-          ),
-          const Icon(Icons.verified_user_rounded, color: teal, size: 25),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              'Audit Inspection',
-              style: style(size: 17, weight: FontWeight.w800),
-            ),
-          ),
-          const CircleAvatar(
-            radius: 17,
-            backgroundColor: navy,
-            child: Icon(Icons.person, color: Colors.white, size: 18),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _contextLabel() {
-    return Row(
-      children: [
-        const Icon(Icons.campaign_outlined, color: secondary, size: 17),
-        const SizedBox(width: 7),
-        Expanded(
-          child: Text(
-            'Q3 Apex Cloud Launch • LinkedIn Carousel',
-            style: style(size: 11, weight: FontWeight.w700),
-          ),
-        ),
-      ],
-    );
+  String _shortId(String value) {
+    if (value.length <= 8) return value;
+    return value.substring(0, 8);
   }
 
   Widget _statusCard() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: border),
-        boxShadow: [
-          BoxShadow(
-            color: navy.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    final count = widget.findings.length;
+    final clean = count == 0;
+    return SurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.verified_rounded, color: teal, size: 22),
-              const SizedBox(width: 8),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: clean ? AppTheme.successBg : AppTheme.dangerBg,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  clean ? Icons.task_alt_rounded : Icons.gpp_bad_rounded,
+                  size: 17,
+                  color: clean ? AppTheme.success : AppTheme.danger,
+                ),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   widget.status == 'review_required'
-                      ? 'Review Required'
-                      : 'Brand Check Complete',
-                  style: style(size: 15, weight: FontWeight.w800),
+                      ? 'Review required'
+                      : 'Brand check complete',
+                  style: AppTheme.titleMedium.copyWith(fontSize: 16),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                decoration: BoxDecoration(
-                  color: redBg,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '${widget.findings.length} FINDINGS',
-                  style: style(size: 9, weight: FontWeight.w800, color: red),
-                ),
+              StatusPill(
+                label: clean ? 'Clear' : '$count findings',
+                tone: clean ? Tone.success : Tone.danger,
               ),
             ],
           ),
@@ -464,30 +402,30 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
           Container(
             padding: const EdgeInsets.all(11),
             decoration: BoxDecoration(
-              color: background,
+              color: AppTheme.background,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: border),
+              border: Border.all(color: AppTheme.border),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.policy_outlined, color: navy, size: 17),
+                const Icon(
+                  Icons.policy_outlined,
+                  size: 16,
+                  color: AppTheme.navy,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text.rich(
                     TextSpan(
-                      style: style(size: 10, color: secondary),
-                      children: [
+                      style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+                      children: const [
                         TextSpan(
                           text: 'No aggregate score: ',
-                          style: style(
-                            size: 10,
-                            weight: FontWeight.w800,
-                            color: navy,
-                          ),
+                          style: TextStyle(fontWeight: FontWeight.w800),
                         ),
-                        const TextSpan(
-                          text: 'Every finding requires individual evidence-backed resolution or authorised sign-off before publication.',
+                        TextSpan(
+                          text: 'every finding needs evidence-backed resolution or authorised sign-off before publication.',
                         ),
                       ],
                     ),
@@ -503,73 +441,98 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
 
   Widget _aiStatus() {
     final ai = widget.aiVerification;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE8F6FF),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'AI comparison: ${ai?['status'] ?? 'not supplied'}',
-            style: const TextStyle(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            ai?['message']?.toString() ?? 'Open the protected processing receipt for this check’s AI status.',
-          ),
-          if (ai?['citations'] is List)
-            ...(ai!['citations'] as List).map(
-              (c) => Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: SelectableText(
-                  'Source: ${c['title'] ?? c['fact_id']}\n${c['quote'] ?? ''}',
+    final status = ai?['status']?.toString();
+    // The title intentionally embeds the raw server status so the UI can never
+    // overstate what the AI layer actually did.
+    final Tone tone = switch (status) {
+      'completed' || 'match' => Tone.success,
+      'abstained' || 'needs_review' => Tone.warning,
+      null => Tone.neutral,
+      _ => Tone.info,
+    };
+    final title = 'AI comparison: ${status ?? 'not supplied'}';
+    final citations = ai?['citations'];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InlineNotice(
+          tone: tone,
+          title: title,
+          message: ai?['message']?.toString() ?? 'Open the protected processing receipt for this check’s comparison status.',
+        ),
+        if (citations is List && citations.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          SurfaceCard(
+            padding: const EdgeInsets.all(12),
+            radius: 14,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'CITED EVIDENCE',
+                  style: AppTheme.monoLabel(color: AppTheme.muted),
                 ),
-              ),
+                const SizedBox(height: 6),
+                ...citations.whereType<Map>().map(
+                  (c) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: SelectableText(
+                      '${c['title'] ?? c['fact_id']}\n“${c['quote'] ?? ''}”',
+                      style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          if (widget.receiptId != null)
-            TextButton(
-              onPressed: () => Navigator.pushNamed(
-                context,
-                '/receiptDetail',
-                arguments: widget.receiptId,
-              ),
-              child: const Text('View Processing Receipt'),
-            ),
+          ),
         ],
-      ),
+        if (widget.receiptId != null) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.pushNamed(
+              context,
+              '/receiptDetail',
+              arguments: widget.receiptId,
+            ),
+            icon: const Icon(Icons.receipt_long_outlined, size: 16),
+            label: const Text('View processing receipt'),
+          ),
+        ],
+      ],
     );
   }
 
-  Widget _filters() {
-    final filters = ['All Findings', 'Critical', 'Review', 'Warning'];
-
+  Widget _filterRow() {
+    final filters = _filters;
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: filters.map((filter) {
           final active = selectedFilter == filter;
-
           return Padding(
             padding: const EdgeInsets.only(right: 7),
-            child: ChoiceChip(
-              label: Text(filter),
-              selected: active,
-              onSelected: (_) {
-                setState(() => selectedFilter = filter);
-              },
-              selectedColor: navy,
-              backgroundColor: Colors.white,
-              labelStyle: style(
-                size: 10,
-                weight: FontWeight.w700,
-                color: active ? Colors.white : secondary,
+            child: GestureDetector(
+              onTap: () => setState(() => selectedFilter = filter),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: active ? AppTheme.mint : AppTheme.card,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: active ? AppTheme.teal : AppTheme.border,
+                  ),
+                ),
+                child: Text(
+                  filter,
+                  style: AppTheme.labelMedium.copyWith(
+                    fontSize: 11.5,
+                    color: active ? AppTheme.tealText : AppTheme.ink,
+                  ),
+                ),
               ),
-              side: BorderSide(color: active ? navy : border),
-              showCheckmark: false,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
             ),
           );
         }).toList(),
@@ -577,24 +540,11 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
     );
   }
 
-  List<Map<String, dynamic>> get _backendFindings {
-    return widget.findings
-        .whereType<Map>()
-        .map((finding) => Map<String, dynamic>.from(finding))
-        .toList();
-  }
-
-  List<Map<String, dynamic>> get _visibleFindings {
-    if (selectedFilter == 'All Findings') {
-      return _backendFindings;
-    }
-
-    return _backendFindings.where((finding) {
-      final severity = finding['severity']?.toString().toLowerCase() ?? '';
-
-      return severity == selectedFilter.toLowerCase();
-    }).toList();
-  }
+  Tone _severityTone(String severity) => switch (severity.toLowerCase()) {
+    'critical' || 'high' => Tone.danger,
+    'warning' || 'medium' => Tone.warning,
+    _ => Tone.info,
+  };
 
   Widget _backendFindingCard(Map<String, dynamic> finding) {
     final evidence = finding['evidence']?.toString() ?? '';
@@ -605,153 +555,155 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
     final message = finding['message']?.toString() ?? '';
     final start = finding['start_index']?.toString() ?? '';
     final end = finding['end_index']?.toString() ?? '';
+    final tone = _severityTone(severity);
 
     final key = _findingKey(finding);
     final isApplied = _appliedReplacements.containsKey(key);
 
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(ruleId, style: const TextStyle(fontWeight: FontWeight.bold)),
-              const Spacer(),
-              Text(
-                severity.toUpperCase(),
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: severity == 'warning' ? Colors.orange : Colors.red,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: SurfaceCard(
+        radius: 18,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                StatusPill(
+                  label: severity,
+                  tone: tone,
+                  solid: true,
+                  icon: tone.icon,
+                  compact: true,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    ruleId,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.monoLabel(color: AppTheme.muted),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              message,
+              style: AppTheme.labelLarge.copyWith(fontSize: 13.5, height: 1.35),
+            ),
+            if (evidence.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: tone.bg,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: tone.fg.withValues(alpha: 0.2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'MATCHED EVIDENCE · $start–$end',
+                      style: AppTheme.monoLabel(color: tone.fg),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      evidence,
+                      style: AppTheme.bodyMedium.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.ink,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-
-          Text(message, style: const TextStyle(fontSize: 14)),
-
-          const SizedBox(height: 16),
-          const Text(
-            'MATCHED EVIDENCE',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 11,
-              color: Colors.grey,
-            ),
-          ),
-          const SizedBox(height: 6),
-
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.red.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              evidence,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-
-          const SizedBox(height: 8),
-          Text(
-            'Content position: $start - $end',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-          ),
-
-          if (suggestion.isNotEmpty) ...[
-            const SizedBox(height: 18),
-            const Text(
-              'SUGGESTED ACTION',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 11,
-                color: Colors.blue,
+            if (suggestion.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                'SUGGESTED ACTION',
+                style: AppTheme.monoLabel(color: AppTheme.muted),
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(suggestion),
-
+              const SizedBox(height: 3),
+              Text(
+                suggestion,
+                style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+              ),
+            ],
             if (replacement.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              const Text(
-                'SUGGESTED REPLACEMENT',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 11,
-                  color: Colors.green,
-                ),
-              ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 10),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(11),
                 decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.06),
+                  color: AppTheme.successBg,
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppTheme.success.withValues(alpha: 0.22),
+                  ),
                 ),
-                child: Text(
-                  replacement,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'SUGGESTED REPLACEMENT',
+                      style: AppTheme.monoLabel(color: AppTheme.success),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      replacement,
+                      style: AppTheme.bodyMedium.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.ink,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                height: 44,
+                child: FilledButton.icon(
                   onPressed: isApplied ? null : () => applySuggestion(finding),
-                  child: Text(
-                    isApplied ? 'Suggestion Applied' : 'Apply Suggestion',
+                  style: FilledButton.styleFrom(backgroundColor: AppTheme.navy),
+                  icon: Icon(
+                    isApplied
+                        ? Icons.check_rounded
+                        : Icons.auto_fix_high_rounded,
+                    size: 16,
+                  ),
+                  label: Text(
+                    isApplied ? 'Suggestion applied' : 'Apply suggestion',
                   ),
                 ),
               ),
             ],
-          ],
-
-          if (finding['citations'] is List) ...[
-            const SizedBox(height: 12),
-            ...(finding['citations'] as List).map(
-              (citation) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: SelectableText(
-                  'Source: ${citation['title'] ?? citation['fact_id']}\n${citation['source_url'] ?? ''}\n${citation['quote'] ?? ''}',
+            if (finding['citations'] is List &&
+                (finding['citations'] as List).isNotEmpty) ...[
+              const SizedBox(height: 10),
+              ...(finding['citations'] as List).whereType<Map>().map(
+                (citation) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: SelectableText(
+                    'Source: ${citation['title'] ?? citation['fact_id']}\n${citation['source_url'] ?? ''}\n${citation['quote'] ?? ''}',
+                    style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+                  ),
                 ),
               ),
+            ],
+            const SizedBox(height: 8),
+            Text(
+              ruleId.startsWith('AI-')
+                  ? 'Model-assisted comparison against cited evidence; review before relying on it.'
+                  : 'Detected by the deterministic BrandGuard rule engine.',
+              style: AppTheme.monoLabel(),
             ),
           ],
-          const SizedBox(height: 12),
-          Text(
-            ruleId.startsWith('AI-')
-                ? 'Model-assisted comparison against cited evidence; review before relying on it.'
-                : 'Detected by the deterministic BrandGuard rule engine.',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _emptyFilter() {
-    return Container(
-      padding: const EdgeInsets.all(25),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: border),
-      ),
-      child: Text(
-        'No findings available in this category.',
-        textAlign: TextAlign.center,
-        style: style(size: 12, color: secondary),
+        ),
       ),
     );
   }
@@ -766,15 +718,15 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
     final appliedCount = _appliedReplacements.length;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-      decoration: BoxDecoration(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(top: BorderSide(color: border)),
+        border: Border(top: BorderSide(color: AppTheme.border)),
         boxShadow: [
           BoxShadow(
-            color: navy.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -3),
+            color: Color(0x0A142C3B),
+            blurRadius: 16,
+            offset: Offset(0, -4),
           ),
         ],
       ),
@@ -784,46 +736,47 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Suggestions applied: $appliedCount of $availableSuggestions',
-                  style: style(size: 9, color: secondary),
+                Expanded(
+                  child: Text(
+                    'Suggestions applied: $appliedCount of $availableSuggestions',
+                    style: AppTheme.monoLabel(),
+                  ),
                 ),
                 Text(
-                  'Authorised reviewer decision required',
-                  style: style(size: 9, color: red),
+                  'Reviewer decision required',
+                  style: AppTheme.monoLabel(color: AppTheme.danger),
                 ),
               ],
             ),
-            const SizedBox(height: 9),
+            const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
-              height: 49,
-              child: ElevatedButton.icon(
+              height: 50,
+              child: FilledButton(
                 onPressed: (submitted || isSubmitting) ? null : submitForReview,
-                icon: const Icon(Icons.shield_outlined, size: 19),
-                label: Text(
-                  isSubmitting
-                      ? 'Submitting to BrandGuard...'
-                      : submitted
-                      ? 'Submission Processed'
-                      : 'Submit for Authorised Review',
-                  style: style(
-                    size: 12,
-                    weight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: teal,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: teal.withValues(alpha: 0.6),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
+                style: FilledButton.styleFrom(backgroundColor: AppTheme.teal),
+                child: isSubmitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.verified_user_outlined, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            submitted
+                                ? 'Submission processed'
+                                : 'Submit for authorised review',
+                          ),
+                        ],
+                      ),
               ),
             ),
           ],

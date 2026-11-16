@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../app/app_theme.dart';
+import '../../app/ui/app_widgets.dart';
 import '../../core/network/brandguard_api_service.dart';
 import '../checks/new_brand_check_screen.dart';
 
@@ -25,7 +27,7 @@ class _DraftsScreenState extends State<DraftsScreen> {
       if (mounted) {
         setState(() {
           _items = (data['items'] as List? ?? [])
-              .map((e) => Map<String, dynamic>.from(e))
+              .map((e) => Map<String, dynamic>.from(e as Map))
               .toList();
           _error = null;
           _loading = false;
@@ -65,45 +67,131 @@ class _DraftsScreenState extends State<DraftsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Saved Drafts'),
-      actions: [IconButton(onPressed: _load, icon: const Icon(Icons.refresh))],
-    ),
-    floatingActionButton: FloatingActionButton(
-      onPressed: () => _open(),
-      child: const Icon(Icons.add),
-    ),
-    body: RefreshIndicator(
-      onRefresh: _load,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
-        children: [
-          if (_loading) const Center(child: CircularProgressIndicator()),
-          if (_error != null)
-            Text(_error!, style: const TextStyle(color: Colors.red)),
-          if (!_loading && _items.isEmpty && _error == null)
-            const Text(
-              'No saved drafts. Save one from the brand-check editor.',
-            ),
-          ..._items.map(
-            (item) => Material(
-              color: Colors.white,
-              child: ListTile(
-                onTap: () => _open(item),
-                title: Text(item['title']?.toString() ?? 'Draft'),
-                subtitle: Text(
-                  '${item['brand_name']} · revision ${item['revision']}\n${item['updated_at']}',
-                ),
-                trailing: IconButton(
-                  onPressed: () => _delete(item['id'].toString()),
-                  icon: const Icon(Icons.delete_outline),
-                ),
-              ),
-            ),
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        leading: IconButton(
+          onPressed: () => Navigator.maybePop(context),
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
+        title: const Text('Saved drafts'),
+        actions: [
+          IconButton(
+            onPressed: _load,
+            tooltip: 'Refresh',
+            icon: const Icon(Icons.refresh_rounded),
           ),
+          const SizedBox(width: 4),
         ],
       ),
-    ),
-  );
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _open(),
+        icon: const Icon(Icons.add_rounded, size: 18),
+        label: const Text('New draft'),
+      ),
+      body: SafeArea(
+        top: false,
+        child: RefreshIndicator(
+          onRefresh: _load,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+            children: [
+              const PageIntro(
+                eyebrow: 'PRIVATE WORKSPACE',
+                eyebrowTone: Tone.info,
+                title: 'Saved drafts',
+                subtitle: 'Continue a private, server-stored draft. Revision numbers protect against overwriting.',
+              ),
+              const SizedBox(height: 16),
+              if (_loading)
+                const LoadingBlock(label: 'Loading your drafts…')
+              else if (_error != null)
+                ErrorBlock(message: _error!, onRetry: _load)
+              else if (_items.isEmpty)
+                EmptyStateCard(
+                  title: 'No saved drafts',
+                  message: 'Save one from the brand-check editor and it will appear here with its revision number.',
+                  icon: Icons.edit_note_rounded,
+                  action: FilledButton.icon(
+                    onPressed: () => _open(),
+                    icon: const Icon(Icons.add_rounded, size: 16),
+                    label: const Text('Create a draft'),
+                  ),
+                )
+              else
+                ..._items.map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: SurfaceCard(
+                      padding: const EdgeInsets.all(12),
+                      radius: 16,
+                      onTap: () => _open(item),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: AppTheme.mint,
+                              borderRadius: BorderRadius.circular(11),
+                            ),
+                            child: const Icon(
+                              Icons.edit_note_rounded,
+                              size: 19,
+                              color: AppTheme.tealText,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item['title']?.toString() ?? 'Draft',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTheme.labelLarge.copyWith(
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${item['brand_name']} · revision ${item['revision']}',
+                                  style: AppTheme.monoLabel().copyWith(
+                                    fontSize: 9.5,
+                                  ),
+                                ),
+                                Text(
+                                  '${item['updated_at'] ?? ''}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTheme.monoLabel().copyWith(
+                                    fontSize: 9,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Delete draft',
+                            onPressed: () => _delete(item['id'].toString()),
+                            icon: const Icon(
+                              Icons.delete_outline_rounded,
+                              size: 18,
+                              color: AppTheme.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

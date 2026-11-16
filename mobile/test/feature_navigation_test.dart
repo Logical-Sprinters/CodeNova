@@ -20,6 +20,10 @@ import 'package:brandguard/features/receipts/receipt_detail_screen.dart';
 import 'package:brandguard/features/reviews/review_queue_screen.dart';
 import 'package:brandguard/features/workspace/workspace_hub_screen.dart';
 import 'package:brandguard/features/workspace/server_records_screen.dart';
+import 'package:brandguard/features/guidelines/guidelines_hub_screen.dart';
+import 'package:brandguard/features/auth/create_account_screen.dart';
+import 'package:brandguard/features/auth/forgot_password_screen.dart';
+import 'package:brandguard/app/ui/brandguard_shell.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -66,8 +70,12 @@ void main() {
     session.signOut();
     BrandGuardApiService.clientForTesting = http.Client();
   });
-  Future<void> open(WidgetTester tester, Widget screen) async {
-    tester.view.physicalSize = const Size(390, 844);
+  Future<void> open(
+    WidgetTester tester,
+    Widget screen, {
+    Size size = const Size(390, 844),
+  }) async {
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -116,6 +124,14 @@ void main() {
       kind: 'receipts',
       title: 'Processing Receipts',
     ),
+    'guidelines hub': () => const GuidelinesHubScreen(),
+    'create account page': () => const CreateAccountScreen(),
+    'forgot password page': () => const ForgotPasswordScreen(),
+    'embedded home tab': () => const HomeDashboardScreen(embedded: true),
+    'embedded workspace tab': () => const WorkspaceHubScreen(embedded: true),
+    'embedded review tab': () => const ReviewQueueScreen(embedded: true),
+    'embedded guidelines tab': () => const GuidelinesHubScreen(embedded: true),
+    'embedded profile tab': () => const ProfileScreen(embedded: true),
   };
   for (final entry in screens.entries) {
     testWidgets('${entry.key} lays out at phone size', (tester) async {
@@ -145,6 +161,7 @@ void main() {
         await open(tester, const WorkspaceHubScreen());
         final tile = find.widgetWithText(ListTile, entry.key);
         await tester.scrollUntilVisible(tile, 200);
+        await tester.pumpAndSettle();
         await tester.tap(tile);
         await settleTestUi(tester);
         expect(find.byType(entry.value), findsOneWidget, reason: entry.key);
@@ -345,4 +362,105 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  // Layout regression sweep: every screen must lay out without overflow or
+  // paint errors on small, standard and tablet widths.
+  for (final size in const [
+    Size(320, 640),
+    Size(360, 780),
+    Size(390, 844),
+    Size(430, 932),
+    Size(768, 1024),
+  ]) {
+    testWidgets(
+      'all screens lay out cleanly at ${size.width.toInt()}x${size.height.toInt()}',
+      (tester) async {
+        for (final entry in screens.entries) {
+          await open(tester, entry.value(), size: size);
+          expect(
+            tester.takeException(),
+            isNull,
+            reason: '${entry.key} at ${size.width}x${size.height}',
+          );
+        }
+      },
+    );
+  }
+  testWidgets('bottom navigation shell switches all five tabs cleanly', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        key: UniqueKey(),
+        theme: AppTheme.light,
+        home: const BrandGuardShell(),
+      ),
+    );
+    await settleTestUi(tester);
+    expect(find.byType(HomeDashboardScreen), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    for (final label in const [
+      'Workspace',
+      'Reviews',
+      'Guidelines',
+      'Profile',
+      'Home',
+    ]) {
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(BrandGuardShell),
+              matching: find.text(label),
+            )
+            .last,
+      );
+      await settleTestUi(tester);
+      expect(tester.takeException(), isNull, reason: 'tab $label');
+    }
+    expect(find.byType(HomeDashboardScreen), findsOneWidget);
+  });
+  testWidgets('workspace still reaches every module from the redesigned hub', (
+    tester,
+  ) async {
+    final expectations = <String, Type>{
+      'New Brand Check': NewBrandCheckScreen,
+      'Saved Drafts': DraftsScreen,
+      'Review Queue': ReviewQueueScreen,
+      'Brand Guidelines': BrandGuidelinesScreen,
+      'Enforceable Rules': UploadRuleScreen,
+      'Fact Sources': FactSourcesScreen,
+      'Analytics & Reports': AnalyticsScreen,
+      'Processing Receipts': ServerRecordsScreen,
+    };
+    for (final entry in expectations.entries) {
+      await open(tester, const WorkspaceHubScreen());
+      final tile = find.text(entry.key);
+      await tester.scrollUntilVisible(tile, 180);
+      await tester.tap(tile);
+      await settleTestUi(tester);
+      expect(find.byType(entry.value), findsOneWidget, reason: entry.key);
+      expect(tester.takeException(), isNull, reason: entry.key);
+    }
+  });
+  testWidgets('guidelines tab exposes its three library modules', (
+    tester,
+  ) async {
+    for (final entry in <String, Type>{
+      'Brand Guidelines': BrandGuidelinesScreen,
+      'Enforceable Rules': UploadRuleScreen,
+      'Fact Sources': FactSourcesScreen,
+    }.entries) {
+      await open(tester, const GuidelinesHubScreen());
+      final tile = find.text(entry.key).last;
+      await tester.scrollUntilVisible(tile, 150);
+      await tester.tap(tile);
+      await settleTestUi(tester);
+      expect(find.byType(entry.value), findsOneWidget, reason: entry.key);
+      expect(tester.takeException(), isNull, reason: entry.key);
+    }
+  });
 }

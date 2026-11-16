@@ -1,24 +1,21 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../../core/network/brandguard_api_service.dart';
+import '../../app/app_theme.dart';
+import '../../app/ui/app_widgets.dart';
+import '../../app/ui/brandguard_shell.dart';
 import '../../core/auth/session.dart';
+import '../../core/network/brandguard_api_service.dart';
 
 class ReviewQueueScreen extends StatefulWidget {
-  const ReviewQueueScreen({super.key});
+  const ReviewQueueScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   State<ReviewQueueScreen> createState() => _ReviewQueueScreenState();
 }
 
 class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
-  static const navy = Color(0xFF142C3B);
-  static const teal = Color(0xFF258F83);
-  static const background = Color(0xFFF7F8F5);
-  static const border = Color(0xFFE5ECE9);
-  static const secondary = Color(0xFF78868C);
-  static const amber = Color(0xFFB98742);
-  static const red = Color(0xFFC96B6B);
-
   String selectedTab = 'Pending';
 
   List<Map<String, dynamic>> _backendReviews = [];
@@ -34,8 +31,9 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
   }
 
   Future<void> _loadReviews() async {
+    if (!isLoading) setState(() => isLoading = true);
     try {
-      final result = await BrandGuardApiService.getReviews();
+      final result = await _reviewsWithRetry();
 
       final List<dynamic> records = result['reviews'] ?? [];
 
@@ -117,17 +115,19 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
     }
   }
 
-  TextStyle style({
-    double size = 13,
-    FontWeight weight = FontWeight.w400,
-    Color color = navy,
-  }) {
-    return TextStyle(
-      fontFamily: 'Manrope',
-      fontSize: size,
-      fontWeight: weight,
-      color: color,
-    );
+  Future<Map<String, dynamic>> _reviewsWithRetry() async {
+    Object? lastError;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await BrandGuardApiService.getReviews();
+      } catch (error) {
+        lastError = error;
+        if (attempt == 0) {
+          await Future<void>.delayed(const Duration(milliseconds: 700));
+        }
+      }
+    }
+    throw lastError ?? Exception('Review queue did not load.');
   }
 
   List<Map<String, dynamic>> get filteredReviews {
@@ -149,33 +149,33 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: navy,
+        backgroundColor: AppTheme.navy,
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
-  Color statusColor(String status) {
+  Tone statusTone(String status) {
     switch (status) {
       case 'Approved':
-        return teal;
+        return Tone.success;
       case 'Changes Requested':
-        return amber;
+        return Tone.warning;
       case 'Rejected':
-        return red;
+        return Tone.danger;
       default:
-        return const Color(0xFF66869B);
+        return Tone.info;
     }
   }
 
-  Color riskColor(String risk) {
+  Tone riskTone(String risk) {
     switch (risk) {
       case 'High':
-        return red;
+        return Tone.danger;
       case 'Medium':
-        return amber;
+        return Tone.warning;
       default:
-        return teal;
+        return Tone.success;
     }
   }
 
@@ -222,203 +222,360 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
         return StatefulBuilder(
           builder: (context, updateSheet) {
             final status = review['status'] as String;
+            final findings = (review['backendFindings'] as List)
+                .whereType<Map>()
+                .map((f) => Map<String, dynamic>.from(f))
+                .toList();
+            final canDecide =
+                (status == 'Pending' || status == 'Changes Requested') &&
+                (session.currentUser?.isReviewer ?? false) &&
+                review['creatorId'] != session.userId;
 
             return Container(
-              height: MediaQuery.of(context).size.height * 0.88,
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+              height: MediaQuery.of(context).size.height * 0.9,
               decoration: const BoxDecoration(
-                color: background,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+                color: AppTheme.background,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: SafeArea(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Center(
-                      child: Container(
-                        height: 4,
-                        width: 42,
-                        decoration: BoxDecoration(
-                          color: border,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 4,
+                      width: 42,
+                      decoration: BoxDecoration(
+                        color: AppTheme.border,
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Review Details',
-                            style: style(size: 19, weight: FontWeight.w800),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.pop(sheetContext),
-                          icon: const Icon(Icons.close_rounded),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _detailHeader(review),
-                            const SizedBox(height: 16),
-                            _detailSection('CONTENT INFORMATION', [
-                              _detailRow('Content ID', review['id']),
-                              _detailRow('Content version', review['version']),
-                              _detailRow(
-                                'Rules version',
-                                review['rulesVersion'],
-                              ),
-                              _detailRow('Creator', review['creator']),
-                              _detailRow('Channel', review['channel']),
-                              _detailRow('Submitted', review['date']),
-                            ]),
-                            const SizedBox(height: 14),
-                            _detailSection('INSPECTION SUMMARY', [
-                              _detailRow(
-                                'Total findings',
-                                '${review['findings']}',
-                              ),
-                              _detailRow('Risk level', review['risk']),
-                              _detailRow('Review status', review['status']),
-                            ]),
-                            if (review['decisionAt'] != null) ...[
-                              const SizedBox(height: 14),
-                              _detailSection('LATEST DECISION', [
-                                _detailRow('Decision', review['status']),
-                                _detailRow(
-                                  'Reviewer',
-                                  (review['decisionBy'] ??
-                                          'Authorised Reviewer')
-                                      .toString(),
-                                ),
-                                _detailRow(
-                                  'Recorded at',
-                                  _formatDecisionTime(
-                                    review['decisionAt'].toString(),
-                                  ),
-                                ),
-                                _detailRow(
-                                  'Reason',
-                                  (review['decisionReason'] ?? '—').toString(),
-                                ),
-                              ]),
-                            ],
-                            const SizedBox(height: 14),
-                            Text(
-                              'SUBMITTED CONTENT',
-                              style: style(
-                                size: 10,
-                                weight: FontWeight.w800,
-                                color: secondary,
-                              ),
-                            ),
-                            const SizedBox(height: 7),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(13),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: border),
-                              ),
-                              child: Text(
-                                (review['contentText'] as String).isNotEmpty
-                                    ? review['contentText']
-                                    : review['description'],
-                                style: style(size: 12, color: secondary),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            _integrityNotice(),
-                            const SizedBox(height: 18),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if ((status == 'Pending' ||
-                            status == 'Changes Requested') &&
-                        (session.currentUser?.isReviewer ?? false) &&
-                        review['creatorId'] != session.userId)
-                      Column(
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+                      child: Row(
                         children: [
-                          SizedBox(
-                            width: double.infinity,
-                            height: 47,
-                            child: ElevatedButton.icon(
-                              onPressed: () async {
-                                await updateReview(
-                                  review,
-                                  'Approved',
-                                  sheetContext,
-                                );
-                              },
-                              icon: const Icon(
-                                Icons.verified_rounded,
-                                size: 18,
-                              ),
-                              label: const Text('Approve Content'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: teal,
-                                foregroundColor: Colors.white,
-                              ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Authorised review',
+                                  style: AppTheme.titleMedium.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                Text(
+                                  'Review stage · the decision is bound to this exact version',
+                                  style: AppTheme.monoLabel(),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () {
-                                    Navigator.pop(
-                                      sheetContext,
-                                      'Changes Requested',
-                                    );
-                                  },
-                                  child: const Text('Request Changes'),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () {
-                                    Navigator.pop(sheetContext, 'Rejected');
-                                  },
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: red,
-                                  ),
-                                  child: const Text('Reject'),
-                                ),
-                              ),
-                            ],
+                          IconButton(
+                            onPressed: () => Navigator.pop(sheetContext),
+                            icon: const Icon(Icons.close_rounded),
                           ),
                         ],
-                      )
-                    else
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(13),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE1F5EF),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          status == 'Pending'
-                              ? 'Only a separate reviewer can decide this submission.'
-                              : 'This item has already received its final decision.',
-                          textAlign: TextAlign.center,
-                          style: style(
-                            size: 11,
-                            weight: FontWeight.w700,
-                            color: teal,
-                          ),
-                        ),
                       ),
+                    ),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+                        children: [
+                          SurfaceCard(
+                            color: AppTheme.navy,
+                            borderColor: AppTheme.navy,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    StatusPill(
+                                      label: review['version'],
+                                      tone: Tone.neutral,
+                                      solid: true,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    StatusPill(
+                                      label: status,
+                                      tone: statusTone(status),
+                                    ),
+                                    const Spacer(),
+                                    const Icon(
+                                      Icons.shield_outlined,
+                                      size: 18,
+                                      color: AppTheme.mintBright,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  review['title'],
+                                  style: AppTheme.titleMedium.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Check ${review['id']}',
+                                  style: AppTheme.monoLabel(
+                                    color: Colors.white70,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Container(
+                                  padding: const EdgeInsets.all(9),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.policy_outlined,
+                                        size: 15,
+                                        color: AppTheme.mintBright,
+                                      ),
+                                      const SizedBox(width: 7),
+                                      Expanded(
+                                        child: Text(
+                                          'Creators cannot approve their own content. Reviewer sign-off binds the exact hashed version.',
+                                          style: AppTheme.bodySmall.copyWith(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.82,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _detailSection('CONTENT INFORMATION', [
+                            _detailRow('Content ID', review['id']),
+                            _detailRow('Content version', review['version']),
+                            _detailRow('Rules version', review['rulesVersion']),
+                            _detailRow('Creator', review['creator']),
+                            _detailRow('Submitted', review['date']),
+                            if (review['contentHash'] != null)
+                              _detailRow(
+                                'Content hash',
+                                _shortHash(review['contentHash'].toString()),
+                              ),
+                          ]),
+                          if (findings.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            _detailSection('REQUIRED EVIDENCE CHECKLIST', [
+                              for (final finding in findings)
+                                _findingChecklistRow(finding),
+                            ]),
+                          ],
+                          const SizedBox(height: 12),
+                          _detailSection('INSPECTION SUMMARY', [
+                            _detailRow(
+                              'Total findings',
+                              '${review['findings']}',
+                            ),
+                            _detailRow('Risk level', review['risk']),
+                            _detailRow('Review status', review['status']),
+                          ]),
+                          if (review['decisionAt'] != null) ...[
+                            const SizedBox(height: 12),
+                            _detailSection('LATEST DECISION', [
+                              _detailRow('Decision', review['status']),
+                              _detailRow(
+                                'Reviewer',
+                                (review['decisionBy'] ?? 'Authorised Reviewer')
+                                    .toString(),
+                              ),
+                              _detailRow(
+                                'Recorded at',
+                                _formatDecisionTime(
+                                  review['decisionAt'].toString(),
+                                ),
+                              ),
+                              _detailRow(
+                                'Reason',
+                                (review['decisionReason'] ?? '—').toString(),
+                              ),
+                            ]),
+                          ],
+                          const SizedBox(height: 12),
+                          Text(
+                            'SUBMITTED CONTENT',
+                            style: AppTheme.monoLabel(),
+                          ),
+                          const SizedBox(height: 6),
+                          SurfaceCard(
+                            padding: const EdgeInsets.all(12),
+                            child: SelectableText(
+                              (review['contentText'] as String).isNotEmpty
+                                  ? review['contentText'] as String
+                                  : review['description'] as String,
+                              style: AppTheme.bodyMedium.copyWith(
+                                color: AppTheme.ink,
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          const InlineNotice(
+                            tone: Tone.info,
+                            icon: Icons.lock_outline_rounded,
+                            title: 'Approval is version-bound',
+                            message: 'Approval applies to this exact content version only. Any later edit invalidates it and requires a new review.',
+                          ),
+                          if (findings.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            SurfaceCard(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'DETECTED FINDINGS',
+                                    style: AppTheme.monoLabel(),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  ...findings.map(
+                                    (finding) => Padding(
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Icon(
+                                            Icons.flag_rounded,
+                                            size: 14,
+                                            color: riskTone(
+                                              (finding['severity']
+                                                              ?.toString() ??
+                                                          'review')
+                                                      .toLowerCase()
+                                                      .contains('critical')
+                                                  ? 'High'
+                                                  : 'Medium',
+                                            ).fg,
+                                          ),
+                                          const SizedBox(width: 7),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  finding['rule_id']
+                                                          ?.toString() ??
+                                                      'RULE',
+                                                  style: AppTheme.monoLabel(
+                                                    color: AppTheme.ink,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  finding['message']
+                                                          ?.toString() ??
+                                                      '',
+                                                  style: AppTheme.bodySmall
+                                                      .copyWith(
+                                                        color: AppTheme.ink,
+                                                      ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        border: Border(top: BorderSide(color: AppTheme.border)),
+                      ),
+                      child: canDecide
+                          ? Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 48,
+                                  child: FilledButton.icon(
+                                    key: const ValueKey('approve-review'),
+                                    onPressed: () => updateReview(
+                                      review,
+                                      'Approved',
+                                      sheetContext,
+                                    ),
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: AppTheme.teal,
+                                    ),
+                                    icon: const Icon(
+                                      Icons.lock_rounded,
+                                      size: 17,
+                                    ),
+                                    label: const Text(
+                                      'Authorise & cryptographically lock',
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton(
+                                        onPressed: () => Navigator.pop(
+                                          sheetContext,
+                                          'Changes Requested',
+                                        ),
+                                        child: const Text('Request changes'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: OutlinedButton(
+                                        key: const ValueKey('reject-review'),
+                                        onPressed: () => Navigator.pop(
+                                          sheetContext,
+                                          'Rejected',
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: AppTheme.danger,
+                                          backgroundColor: AppTheme.dangerBg,
+                                          side: BorderSide(
+                                            color: AppTheme.danger.withValues(
+                                              alpha: 0.35,
+                                            ),
+                                          ),
+                                        ),
+                                        child: const Text('Reject'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            )
+                          : InlineNotice(
+                              tone: status == 'Pending'
+                                  ? Tone.info
+                                  : Tone.success,
+                              title: status == 'Pending'
+                                  ? 'Only a separate reviewer can decide'
+                                  : 'Final decision already recorded',
+                              message: status == 'Pending'
+                                  ? 'You cannot approve your own submission. Ask another authorised reviewer.'
+                                  : 'This submission is closed. Produce a new version to request another review.',
+                            ),
+                    ),
                   ],
                 ),
               ),
@@ -435,57 +592,56 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
     }
   }
 
-  Widget _detailHeader(Map<String, dynamic> review) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: navy,
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Column(
+  String _shortHash(String value) {
+    if (value.length <= 20) return value;
+    return '${value.substring(0, 12)}…${value.substring(value.length - 6)}';
+  }
+
+  Widget _findingChecklistRow(Map<String, dynamic> finding) {
+    final severity = finding['severity']?.toString().toLowerCase() ?? 'review';
+    final tone = severity.contains('critical')
+        ? Tone.danger
+        : severity.contains('warning')
+        ? Tone.warning
+        : Tone.info;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(review['id'], style: style(size: 10, color: Colors.white70)),
-          const SizedBox(height: 7),
-          Text(
-            review['title'],
-            style: style(
-              size: 17,
-              weight: FontWeight.w800,
-              color: Colors.white,
+          Icon(tone.icon, size: 15, color: tone.fg),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  finding['rule_id']?.toString() ?? 'RULE',
+                  style: AppTheme.monoLabel(color: AppTheme.ink),
+                ),
+                Text(
+                  (finding['message'] ?? finding['evidence'] ?? '').toString(),
+                  style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _statusBadge(review['status']),
-              const SizedBox(width: 8),
-              _riskBadge(review['risk']),
-            ],
-          ),
+          const SizedBox(width: 6),
+          StatusPill(label: severity, tone: tone, compact: true),
         ],
       ),
     );
   }
 
   Widget _detailSection(String title, List<Widget> children) {
-    return Container(
-      width: double.infinity,
+    return SurfaceCard(
       padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: border),
-      ),
+      radius: 14,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: style(size: 10, weight: FontWeight.w800, color: secondary),
-          ),
-          const SizedBox(height: 10),
+          Text(title, style: AppTheme.monoLabel()),
+          const SizedBox(height: 8),
           ...children,
         ],
       ),
@@ -494,43 +650,20 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
 
   Widget _detailRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 9),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(label, style: style(size: 11, color: secondary)),
-          ),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: style(size: 11, weight: FontWeight.w700),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _integrityNotice() {
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE8F6FF),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFD7E9F2)),
-      ),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.lock_outline_rounded, color: navy, size: 19),
-          const SizedBox(width: 9),
+          Expanded(flex: 4, child: Text(label, style: AppTheme.bodySmall)),
           Expanded(
+            flex: 5,
             child: Text(
-              'Approval applies to this exact content version only. '
-              'Any subsequent edit must invalidate the approval and '
-              'trigger a new review.',
-              style: style(size: 10, color: navy),
+              value,
+              textAlign: TextAlign.right,
+              style: AppTheme.labelMedium.copyWith(
+                fontSize: 11.5,
+                color: AppTheme.ink,
+              ),
             ),
           ),
         ],
@@ -550,10 +683,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
         barrierDismissible: false,
         builder: (dialogContext) {
           return AlertDialog(
-            title: Text(
-              decision,
-              style: style(size: 17, weight: FontWeight.w800),
-            ),
+            title: Text(decision),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -561,20 +691,17 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                 children: [
                   Text(
                     decision == 'Rejected'
-                        ? 'Please provide a reason for rejecting this content.'
+                        ? 'Provide a reason for rejecting this content.'
                         : 'Describe the changes required before approval.',
-                    style: style(size: 12, color: secondary),
+                    style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: controller,
                     maxLines: 4,
                     autofocus: true,
-                    decoration: InputDecoration(
-                      hintText: 'Enter decision reason...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                    decoration: const InputDecoration(
+                      hintText: 'Enter decision reason…',
                     ),
                   ),
                 ],
@@ -585,18 +712,12 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                 onPressed: () => Navigator.pop(dialogContext),
                 child: const Text('Cancel'),
               ),
-              ElevatedButton(
+              FilledButton(
                 onPressed: () {
                   final enteredReason = controller.text.trim();
-
                   if (enteredReason.isEmpty) return;
-
                   Navigator.pop(dialogContext, enteredReason);
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: navy,
-                  foregroundColor: Colors.white,
-                ),
                 child: const Text('Confirm'),
               ),
             ],
@@ -629,7 +750,6 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
       showMessage('$decision recorded successfully.');
     } catch (e) {
       if (!mounted) return;
-
       showMessage('Unable to record decision: $e');
     } finally {
       controller.dispose();
@@ -638,217 +758,167 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _header(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 15, 16, 22),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _pageHeading(),
-                    const SizedBox(height: 18),
-                    _metrics(),
-                    const SizedBox(height: 22),
-                    _queueHeading(),
-                    const SizedBox(height: 12),
-                    _tabs(),
-                    const SizedBox(height: 14),
-                    if (isLoading)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(30),
-                          child: CircularProgressIndicator(),
-                        ),
-                      )
-                    else if (loadError != null)
-                      Center(
-                        child: Column(
-                          children: [
-                            Text(
-                              'Unable to load reviews',
-                              style: style(size: 13, weight: FontWeight.w700),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              loadError!,
-                              style: style(size: 10, color: red),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 8),
-                            TextButton(
-                              onPressed: _loadReviews,
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
-                      )
-                    else if (filteredReviews.isEmpty)
-                      _emptyState()
-                    else
-                      ...filteredReviews.map(_reviewCard),
-                    const SizedBox(height: 22),
-                    _ledgerSection(),
-                  ],
+    final body = RefreshIndicator(
+      onRefresh: _loadReviews,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 26),
+        children: [
+          PageIntro(
+            eyebrow: 'LEDGER LIVE',
+            eyebrowTone: Tone.success,
+            title: 'Authorised review queue',
+            subtitle: 'No finding without evidence. Sign-off binds the exact version reviewed.',
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: MetricCard(
+                  label: 'Pending',
+                  value: '$pendingCount',
+                  tone: pendingCount > 0 ? Tone.warning : Tone.success,
+                  icon: Icons.pending_actions_rounded,
+                  footnote: 'Awaiting decision',
                 ),
               ),
-            ),
-          ],
-        ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: MetricCard(
+                  label: 'Approved',
+                  value: '$approvedCount',
+                  tone: Tone.success,
+                  icon: Icons.verified_rounded,
+                  footnote: 'Signed off',
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: MetricCard(
+                  label: 'Rejected',
+                  value: '$rejectedCount',
+                  tone: Tone.danger,
+                  icon: Icons.cancel_outlined,
+                  footnote: 'Blocked',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          const SectionHeading(
+            title: 'Review queue',
+            caption: 'Scoped to the submissions you may inspect',
+          ),
+          const SizedBox(height: 10),
+          _tabs(),
+          const SizedBox(height: 12),
+          if (isLoading)
+            const LoadingBlock(label: 'Loading review records…')
+          else if (loadError != null)
+            ErrorBlock(
+              title: 'Unable to load reviews',
+              message: loadError!,
+              onRetry: _loadReviews,
+            )
+          else if (filteredReviews.isEmpty)
+            EmptyStateCard(
+              title: 'Nothing in this category',
+              message: 'Submitted checks appear here as soon as the backend records them.',
+              icon: Icons.inbox_outlined,
+            )
+          else
+            ...filteredReviews.map(_reviewCard),
+          const SizedBox(height: 20),
+          _ledgerSection(),
+        ],
       ),
     );
-  }
 
-  Widget _header() {
-    return Container(
-      height: 60,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: border)),
-      ),
-      child: Row(
+    if (widget.embedded) {
+      return Column(
         children: [
+          const ShellHeader(
+            title: 'Reviews',
+            subtitle: 'Evidence-bound decisions',
+          ),
+          Expanded(child: body),
+        ],
+      );
+    }
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        title: const Text('Review & approval'),
+        actions: [
           IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back_rounded, color: navy),
-          ),
-          const Icon(Icons.verified_user_rounded, color: teal, size: 25),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              'Review & Approval',
-              style: style(size: 16, weight: FontWeight.w800),
-            ),
-          ),
-          const CircleAvatar(
-            radius: 17,
-            backgroundColor: navy,
-            child: Icon(
-              Icons.admin_panel_settings_rounded,
-              color: Colors.white,
-              size: 18,
-            ),
+            tooltip: 'Reload queue',
+            onPressed: _loadReviews,
+            icon: const Icon(Icons.refresh_rounded),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _pageHeading() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Review Queue', style: style(size: 23, weight: FontWeight.w800)),
-        const SizedBox(height: 5),
-        Text(
-          'Verify evidence and make authorised publication decisions.',
-          style: style(size: 11, color: secondary),
-        ),
-      ],
-    );
-  }
-
-  Widget _metrics() {
-    return Row(
-      children: [
-        Expanded(
-          child: _metricCard(
-            'Pending',
-            '$pendingCount',
-            Icons.pending_actions_rounded,
-            amber,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _metricCard(
-            'Approved',
-            '$approvedCount',
-            Icons.verified_rounded,
-            teal,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _metricCard(
-            'Rejected',
-            '$rejectedCount',
-            Icons.edit_note_rounded,
-            const Color(0xFF66869B),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _metricCard(String title, String value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(11),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 19),
-          const SizedBox(height: 9),
-          Text(value, style: style(size: 22, weight: FontWeight.w800)),
-          Text(title, style: style(size: 9, color: secondary)),
-        ],
-      ),
-    );
-  }
-
-  Widget _queueHeading() {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            'Submitted Content',
-            style: style(size: 16, weight: FontWeight.w800),
-          ),
-        ),
-        Text(
-          '${filteredReviews.length} items',
-          style: style(size: 10, color: secondary),
-        ),
-      ],
+      body: SafeArea(top: false, child: body),
     );
   }
 
   Widget _tabs() {
     final tabs = ['Pending', 'Approved', 'Rejected', 'All'];
-
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: tabs.map((tab) {
           final active = selectedTab == tab;
-
+          final count = switch (tab) {
+            'Pending' => pendingCount,
+            'Approved' => approvedCount,
+            'Rejected' => rejectedCount,
+            _ => reviews.length,
+          };
           return Padding(
             padding: const EdgeInsets.only(right: 7),
-            child: ChoiceChip(
-              label: Text(tab),
-              selected: active,
-              onSelected: (_) {
-                setState(() => selectedTab = tab);
-              },
-              selectedColor: navy,
-              backgroundColor: Colors.white,
-              showCheckmark: false,
-              labelStyle: style(
-                size: 10,
-                weight: FontWeight.w700,
-                color: active ? Colors.white : secondary,
+            child: GestureDetector(
+              onTap: () => setState(() => selectedTab = tab),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: active ? AppTheme.mint : AppTheme.card,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: active ? AppTheme.teal : AppTheme.border,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      tab,
+                      style: AppTheme.labelMedium.copyWith(
+                        fontSize: 11.5,
+                        color: active ? AppTheme.tealText : AppTheme.ink,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: active ? AppTheme.teal : const Color(0xFFF2F5F4),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '$count',
+                        style: AppTheme.monoLabel(
+                          color: active ? Colors.white : AppTheme.muted,
+                        ).copyWith(fontSize: 9),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              side: BorderSide(color: active ? navy : border),
             ),
           );
         }).toList(),
@@ -857,173 +927,90 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
   }
 
   Widget _reviewCard(Map<String, dynamic> review) {
-    return InkWell(
-      onTap: () => openReviewDetails(review),
-      borderRadius: BorderRadius.circular(15),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 11),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: border),
-          boxShadow: [
-            BoxShadow(
-              color: navy.withValues(alpha: 0.035),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: SurfaceCard(
+        radius: 18,
+        onTap: () => openReviewDetails(review),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Expanded(
-                  child: Text(
-                    review['id'],
-                    style: style(size: 9, color: secondary),
-                  ),
+                StatusPill(
+                  label: review['version'],
+                  tone: Tone.neutral,
+                  solid: true,
+                  compact: true,
                 ),
-                _statusBadge(review['status']),
-              ],
-            ),
-            const SizedBox(height: 9),
-            Text(
-              review['title'],
-              style: style(size: 14, weight: FontWeight.w800),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Created by ${review['creator']}',
-              style: style(size: 10, color: secondary),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: [
-                _smallInfo(Icons.public, review['channel']),
-                _smallInfo(Icons.calendar_today_outlined, review['date']),
-                _smallInfo(Icons.layers_outlined, review['version']),
-              ],
-            ),
-            const Divider(height: 23, color: border),
-            Row(
-              children: [
-                Icon(
-                  Icons.flag_outlined,
-                  size: 16,
-                  color: riskColor(review['risk']),
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  '${review['risk']} Risk',
-                  style: style(
-                    size: 10,
-                    weight: FontWeight.w700,
-                    color: riskColor(review['risk']),
-                  ),
-                ),
-                const SizedBox(width: 13),
-                const Icon(
-                  Icons.rule_folder_outlined,
-                  size: 15,
-                  color: secondary,
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  '${review['findings']} Findings',
-                  style: style(size: 10, color: secondary),
+                const SizedBox(width: 6),
+                StatusPill(
+                  label: review['status'],
+                  tone: statusTone(review['status']),
+                  compact: true,
                 ),
                 const Spacer(),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: AppTheme.muted,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              review['title'],
+              style: AppTheme.labelLarge.copyWith(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
                 const Icon(
-                  Icons.arrow_forward_ios_rounded,
+                  Icons.person_outline_rounded,
                   size: 13,
-                  color: secondary,
+                  color: AppTheme.muted,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    'Created by ${review['creator']}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.monoLabel(color: AppTheme.ink),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                StatusPill(
+                  label: '${review['findings']} findings',
+                  tone: (review['findings'] as int) > 0
+                      ? Tone.danger
+                      : Tone.success,
+                  compact: true,
+                ),
+                StatusPill(
+                  label: '${review['risk']} risk',
+                  tone: riskTone(review['risk']),
+                  compact: true,
+                ),
+                StatusPill(label: review['date'], compact: true),
+                StatusPill(
+                  label: review['rulesVersion'],
+                  tone: Tone.info,
+                  compact: true,
                 ),
               ],
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _smallInfo(IconData icon, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(7),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: secondary),
-          const SizedBox(width: 5),
-          Text(value, style: style(size: 9, color: secondary)),
-        ],
-      ),
-    );
-  }
-
-  Widget _statusBadge(String status) {
-    final color = statusColor(status);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.11),
-        borderRadius: BorderRadius.circular(7),
-      ),
-      child: Text(
-        status.toUpperCase(),
-        style: style(size: 8, weight: FontWeight.w800, color: color),
-      ),
-    );
-  }
-
-  Widget _riskBadge(String risk) {
-    final color = riskColor(risk);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.11),
-        borderRadius: BorderRadius.circular(7),
-      ),
-      child: Text(
-        '$risk RISK',
-        style: style(size: 8, weight: FontWeight.w800, color: color),
-      ),
-    );
-  }
-
-  Widget _emptyState() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(25),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: border),
-      ),
-      child: Column(
-        children: [
-          const Icon(Icons.inbox_outlined, size: 36, color: secondary),
-          const SizedBox(height: 9),
-          Text(
-            'No reviews in this category',
-            style: style(size: 13, weight: FontWeight.w700),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            'Submitted content will appear here.',
-            style: style(size: 10, color: secondary),
-          ),
-        ],
       ),
     );
   }
@@ -1031,15 +1018,9 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
   String _formatDecisionTime(String value) {
     final parsed = DateTime.tryParse(value);
     if (parsed == null) return value;
-
     final local = parsed.toLocal();
-    final day = local.day.toString().padLeft(2, '0');
-    final month = local.month.toString().padLeft(2, '0');
-    final year = local.year.toString();
-    final hour = local.hour.toString().padLeft(2, '0');
-    final minute = local.minute.toString().padLeft(2, '0');
-
-    return '$day/$month/$year • $hour:$minute';
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${two(local.day)}/${two(local.month)}/${local.year} • ${two(local.hour)}:${two(local.minute)}';
   }
 
   Widget _ledgerSection() {
@@ -1053,117 +1034,81 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            const Icon(Icons.receipt_long_rounded, color: teal, size: 21),
-            const SizedBox(width: 8),
-            Text(
-              'Approval Ledger',
-              style: style(size: 16, weight: FontWeight.w800),
-            ),
-          ],
+        const SectionHeading(
+          title: 'Approval ledger',
+          caption: 'Immutable decisions returned by the API',
         ),
-        const SizedBox(height: 5),
-        Text(
-          'Decisions returned by the local BrandGuard API.',
-          style: style(size: 10, color: secondary),
-        ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         if (completedReviews.isEmpty)
-          _emptyState()
+          const EmptyStateCard(
+            title: 'No decisions recorded yet',
+            message: 'Approved and rejected submissions appear here with their reviewer and timestamp.',
+            icon: Icons.receipt_long_outlined,
+          )
         else
           ...completedReviews.map(
-            (review) => Container(
-              margin: const EdgeInsets.only(bottom: 9),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: border),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    review['status'] == 'Approved'
-                        ? Icons.verified_rounded
-                        : review['status'] == 'Rejected'
-                        ? Icons.cancel_outlined
-                        : Icons.edit_note_rounded,
-                    color: statusColor(review['status']),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+            (review) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SurfaceCard(
+                padding: const EdgeInsets.all(12),
+                radius: 14,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Text(
-                          review['title'],
-                          style: style(size: 11, weight: FontWeight.w800),
+                        Icon(
+                          statusTone(review['status']).icon,
+                          size: 16,
+                          color: statusTone(review['status']).fg,
                         ),
-                        const SizedBox(height: 3),
-                        Text(
-                          '${review['id']} • ${review['version']}',
-                          style: style(size: 9, color: secondary),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: Text(
+                            review['title'],
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTheme.labelMedium.copyWith(
+                              fontSize: 12,
+                              color: AppTheme.ink,
+                            ),
+                          ),
                         ),
-                        if (review['decisionBy'] != null) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            'Reviewer: ${review['decisionBy']}',
-                            style: style(size: 9, color: secondary),
-                          ),
-                        ],
-                        if (review['decisionAt'] != null) ...[
-                          const SizedBox(height: 3),
-                          Text(
-                            'Recorded: ${_formatDecisionTime(review['decisionAt'].toString())}',
-                            style: style(size: 9, color: secondary),
-                          ),
-                        ],
-                        if (review['decisionReason'] != null) ...[
-                          const SizedBox(height: 5),
-                          Text(
-                            'Reason: ${review['decisionReason']}',
-                            style: style(size: 9, color: secondary),
-                          ),
-                        ],
+                        StatusPill(
+                          label: review['status'],
+                          tone: statusTone(review['status']),
+                          compact: true,
+                        ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  _statusBadge(review['status']),
-                ],
+                    const SizedBox(height: 6),
+                    Text(
+                      '${review['version']} · ${review['id'].toString().length > 8 ? review['id'].toString().substring(0, 8) : review['id']}',
+                      style: AppTheme.monoLabel(),
+                    ),
+                    if (review['decisionBy'] != null)
+                      Text(
+                        'Reviewer: ${review['decisionBy']}',
+                        style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+                      ),
+                    if (review['decisionAt'] != null)
+                      Text(
+                        'Recorded: ${_formatDecisionTime(review['decisionAt'].toString())}',
+                        style: AppTheme.bodySmall,
+                      ),
+                    if (review['decisionReason'] != null)
+                      Text(
+                        'Reason: ${review['decisionReason']}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
-        const SizedBox(height: 10),
-        _ledgerNotice(),
       ],
-    );
-  }
-
-  Widget _ledgerNotice() {
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE8F6FF),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.info_outline_rounded, color: navy, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Approval decisions are recorded by the BrandGuard backend. '
-              'Each decision is associated with its original content check '
-              'and review record.',
-              style: style(size: 10, color: navy),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
