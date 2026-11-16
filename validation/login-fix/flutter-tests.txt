@@ -1,0 +1,88 @@
+00:00 +0: loading /home/user/BrandGuard-Login-Fixed/mobile/test/widget_test.dart
+00:00 +0: /home/user/BrandGuard-Login-Fixed/mobile/test/widget_test.dart: (setUpAll)
+00:00 +0: /home/user/BrandGuard-Login-Fixed/mobile/test/widget_test.dart: splash opens password login and visible enabled demo autofill
+00:01 +1: /home/user/BrandGuard-Login-Fixed/mobile/test/widget_test.dart: creator signs in through server and keeps passwords/tokens out of preferences
+00:01 +2: /home/user/BrandGuard-Login-Fixed/mobile/test/widget_test.dart: reviewer signs in through server and keeps passwords/tokens out of preferences
+00:01 +3: /home/user/BrandGuard-Login-Fixed/mobile/test/widget_test.dart: wrong password displays server error without creating a session
+00:02 +4: /home/user/BrandGuard-Login-Fixed/mobile/test/widget_test.dart: offline backend cannot be bypassed with demo credentials
+00:02 +5: /home/user/BrandGuard-Login-Fixed/mobile/test/widget_test.dart: remember email does not restore authentication
+00:02 +6: /home/user/BrandGuard-Login-Fixed/mobile/test/widget_test.dart: cloud config hides public demo values
+00:02 +7: /home/user/BrandGuard-Login-Fixed/mobile/test/widget_test.dart: signout clears tokens and returns to sign-in
+00:02 +8: /home/user/BrandGuard-Login-Fixed/mobile/test/widget_test.dart: signup dialog can be opened and dismissed without disposed-controller errors
+00:02 +9: /home/user/BrandGuard-Login-Fixed/mobile/test/widget_test.dart: local recovery exposes unavailable email honestly
+00:03 +10: /home/user/BrandGuard-Login-Fixed/mobile/test/widget_test.dart: (tearDownAll)
+00:03 +10: loading /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart
+00:03 +10: /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart: TargetPlatform.android native default never silently selects emulator localhost
+00:03 +11: /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart: TargetPlatform.iOS native default never silently selects emulator localhost
+00:03 +12: /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart: TargetPlatform.windows native default never silently selects emulator localhost
+00:03 +13: /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart: TargetPlatform.linux native default never silently selects emulator localhost
+00:03 +14: /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart: TargetPlatform.macOS native default never silently selects emulator localhost
+00:03 +15: /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart: web defaults to its own origin, keeping the local browser demo isolated
+00:03 +16: /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart: explicit API_BASE overrides both native and web and removes trailing slashes
+00:03 +17: /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart: invalid or credential-bearing API_BASE rejected: localhost
+00:03 +18: /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart: invalid or credential-bearing API_BASE rejected: ftp
+00:03 +19: /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart: invalid or credential-bearing API_BASE rejected: https
+00:03 +20: /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart: invalid or credential-bearing API_BASE rejected: https
+00:03 +21: /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart: invalid or credential-bearing API_BASE rejected: https
+00:03 +22: /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart: invalid or credential-bearing API_BASE rejected: https
+00:03 +23: /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart: login request uses the selected live origin and keeps password in POST body only
+00:03 +24: /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart: socket errors are short and do not dump the old emulator address
+00:03 +25: /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart: timeouts produce a friendly actionable error
+00:03 +26: /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart: upload uses the same network-error handling
+00:03 +27: /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart: malformed signup response cannot silently open an authenticated session
+00:03 +28: /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart: response body is covered by the timeout, not just response headers
+00:03 +29: loading /home/user/BrandGuard-Login-Fixed/mobile/test/demo_auth_test.dart
+00:04 +29: /home/user/BrandGuard-Login-Fixed/mobile/test/demo_auth_test.dart: demo values are autofill only and never create a session
+00:04 +30: /home/user/BrandGuard-Login-Fixed/mobile/test/demo_auth_test.dart: signout clears user identity and both tokens
+00:04 +31: /home/user/BrandGuard-Login-Fixed/mobile/test/demo_auth_test.dart: server user shapes and admin reviewer privileges parse
+00:04 +32: loading /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart
+00:05 +32: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: (setUpAll)
+00:05 +32: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: live dashboard lays out at phone size
+00:05 +33: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: workspace lays out at phone size
+00:06 +34: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: review queue lays out at phone size
+00:06 +35: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: brand check editor lays out at phone size
+00:06 +36: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: findings lays out at phone size
+00:06 +37: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: approval verification lays out at phone size
+00:06 +38: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: protected receipt lays out at phone size
+00:06 +39: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: shared guidelines lays out at phone size
+00:06 +40: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: live rule library lays out at phone size
+00:06 +41: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: fact sources lays out at phone size
+00:06 +42: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: notifications lays out at phone size
+00:06 +43: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: profile lays out at phone size
+00:06 +44: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: live analytics lays out at phone size
+00:06 +45: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: saved drafts lays out at phone size
+00:06 +46: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: stored version history lays out at phone size
+00:07 +47: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: stored audit ledger lays out at phone size
+00:07 +48: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: stored receipts lays out at phone size
+00:07 +49: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: workspace reaches every live feature, without sample screen fallbacks
+00:08 +50: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: dashboard shows backend totals and explicit missing-AI status
+00:08 +51: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: editor sends exact untrimmed content and displays real AI abstention
+00:09 +52: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: saved draft editor updates the same server id with revision protection
+00:09 +53: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: creator library is read-only
+00:09 +54: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: reviewer can open library editor
+00:09 +55: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: notifications display actual backend notification and persist mark-read
+00:09 +56: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: receipt response after dispose is ignored safely
+00:09 +57: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: source citations show verbatim quotes rather than invented references
+00:09 +58: /home/user/BrandGuard-Login-Fixed/mobile/test/feature_navigation_test.dart: (tearDownAll)
+00:09 +58: loading /home/user/BrandGuard-Login-Fixed/mobile/test/sign_in_connection_test.dart
+00:10 +58: /home/user/BrandGuard-Login-Fixed/mobile/test/sign_in_connection_test.dart: (setUpAll)
+00:10 +58: /home/user/BrandGuard-Login-Fixed/mobile/test/sign_in_connection_test.dart: initial loading never exposes local demo values or a seeded password
+00:11 +59: /home/user/BrandGuard-Login-Fixed/mobile/test/sign_in_connection_test.dart: unreachable config stays fail-closed and Retry rechecks the server
+00:11 +60: /home/user/BrandGuard-Login-Fixed/mobile/test/sign_in_connection_test.dart: cloud server cannot enable local credentials with a conflicting flag
+00:11 +61: /home/user/BrandGuard-Login-Fixed/mobile/test/sign_in_connection_test.dart: old remembered local email is not suggested as a hosted account
+00:11 +62: /home/user/BrandGuard-Login-Fixed/mobile/test/sign_in_connection_test.dart: empty or invalid login is validated before sending credentials
+00:11 +63: /home/user/BrandGuard-Login-Fixed/mobile/test/sign_in_connection_test.dart: email confirmation is a success notice, not an error or a fake login
+00:11 +64: /home/user/BrandGuard-Login-Fixed/mobile/test/sign_in_connection_test.dart: timeout restores Sign In and fits a narrow mobile screen
+00:12 +65: /home/user/BrandGuard-Login-Fixed/mobile/test/sign_in_connection_test.dart: (tearDownAll)
+00:12 +65: loading /home/user/BrandGuard-Login-Fixed/mobile/test/api_session_test.dart
+00:12 +65: /home/user/BrandGuard-Login-Fixed/mobile/test/api_session_test.dart: creator: all six workflow calls use bearer and no impersonable ID header
+00:12 +66: /home/user/BrandGuard-Login-Fixed/mobile/test/api_session_test.dart: reviewer: all six workflow calls use bearer and no impersonable ID header
+00:12 +67: /home/user/BrandGuard-Login-Fixed/mobile/test/api_session_test.dart: login posts a password to server and accepts only the server identity
+00:12 +68: /home/user/BrandGuard-Login-Fixed/mobile/test/api_session_test.dart: 401 refreshes once and retries with rotated tokens
+00:12 +69: /home/user/BrandGuard-Login-Fixed/mobile/test/api_session_test.dart: concurrent expired requests share refresh and never resend stale ID headers
+00:12 +70: /home/user/BrandGuard-Login-Fixed/mobile/test/api_session_test.dart: failed refresh clears tokens, and logged-out requests never reach backend
+00:12 +71: /home/user/BrandGuard-Login-Fixed/mobile/test/api_session_test.dart: logout clears local tokens immediately, even before remote response
+00:12 +72: /home/user/BrandGuard-Login-Fixed/mobile/test/api_session_test.dart: an in-flight refresh cannot restore an account after local signout
+00:12 +73: /home/user/BrandGuard-Login-Fixed/mobile/test/api_session_test.dart: signup confirmation is not treated as an authenticated session
+00:12 +74: /home/user/BrandGuard-Login-Fixed/mobile/test/api_session_test.dart: backend validation and non-JSON errors stay visible
+00:12 +75: All tests passed!

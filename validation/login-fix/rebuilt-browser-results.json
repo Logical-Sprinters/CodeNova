@@ -1,0 +1,30 @@
+{
+  "test": "new compiled bundle plus actual hosted API through a test-only same-origin bridge",
+  "results": [
+    {
+      "role": "creator",
+      "viewport": "430x932",
+      "login_http": 200,
+      "real_dashboard_endpoints": 3,
+      "fresh_session_logout_http": 200,
+      "browser_runtime_errors": 0,
+      "failed_resources": 0,
+      "test_api_bridge": true,
+      "new_bundle_hosted_in_production": false
+    },
+    {
+      "role": "reviewer",
+      "viewport": "430x932",
+      "login_http": 200,
+      "real_dashboard_endpoints": 3,
+      "fresh_session_logout_http": 200,
+      "browser_runtime_errors": 0,
+      "failed_resources": 0,
+      "test_api_bridge": true,
+      "new_bundle_hosted_in_production": false
+    }
+  ],
+  "android_device_tested": false,
+  "production_redeployed": false,
+  "no_test_emails": true
+}

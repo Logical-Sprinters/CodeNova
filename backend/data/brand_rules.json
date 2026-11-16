@@ -1,0 +1,31 @@
+{
+  "brands": {
+    "acme": {
+      "current_version": "1.0.0",
+      "versions": {
+        "1.0.0": {
+          "rules": [
+            {
+              "id": "ACME-001",
+              "name": "Restricted Phrase",
+              "pattern": "\\bfree forever\\b",
+              "severity": "review",
+              "message": "Potentially restricted brand phrase detected.",
+              "suggestion": "Avoid promising permanent free access unless this is an approved offer.",
+              "replacement": "free plan available"
+            },
+            {
+              "id": "ACME-002",
+              "name": "Unapproved Superlative",
+              "pattern": "\\bbest in the world\\b",
+              "severity": "warning",
+              "message": "Verify this superlative against brand guidelines.",
+              "suggestion": "Replace unsupported superlatives with a factual description.",
+              "replacement": "built to support business security and performance"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "application_id": "24f672f9-ef5a-4c45-8043-b98af546e6ad",
+  "url": "https://brandguard-app.antideploy.app",
+  "account": {
+    "email": "[redacted: private account contact]",
+    "login": "prafullmayanksingh",
+    "signsInWith": [
+      "Google"
+    ],
+    "label": "[redacted: private account contact] (signs in with Google)"
+  },
+  "deployment_task_id": "9e9bd8d1-ab3d-4c9f-968a-f1bae570fe13",
+  "status": "succeeded",
+  "summary": "brandguard is live at https://brandguard-app.antideploy.app, on the Antideploy account [redacted: private account contact] (signs in with Google).",
+  "spec": {
+    "framework": "Custom Dockerfile",
+    "runtime": "python",
+    "port": 8080,
+    "startCommand": null,
+    "deployable": true,
+    "notDeployableReason": null,
+    "confidence": "high"
+  },
+  "automatic_security": {
+    "status": "completed",
+    "scanId": "8f9b7117-5fa5-46e3-9904-7de385a666b0",
+    "issues": [],
+    "minor": 0,
+    "summary": "No issues found. We checked for keys in the browser code, downloadable config files, open CORS and missing security headers. This was the automatic check after your deploy. A full scan from the Security page also tests your endpoints.",
+    "report": "https://antideploy.com/security/scan/8f9b7117-5fa5-46e3-9904-7de385a666b0",
+    "message": "No security issues found in what the app shows the public."
+  },
+  "warnings": [],
+  "hazards": [],
+  "runtime_source_upload_files": 203,
+  "runtime_source_uncompressed_bytes": 18885140,
+  "normal_runtime_service_key_present": false,
+  "private_env_uploaded_as_source": false,
+  "existing_supabase_ref": "jtidayzktuzpjydshsva",
+  "previous_releases_preserved": true
+}

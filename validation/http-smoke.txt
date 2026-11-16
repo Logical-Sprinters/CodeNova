@@ -1,0 +1,39 @@
+PASS 01: health
+PASS 02: local-demo safety gate
+PASS 03: legacy ID impersonation blocked
+PASS 04: server creator login
+PASS 05: server reviewer login
+PASS 06: runtime config
+PASS 07: public signup restricted to creator
+PASS 08: real document upload/extraction
+PASS 09: owner document download
+PASS 10: other creator cannot download file
+PASS 11: durable draft with real attachment
+PASS 12: draft revision update
+PASS 13: stale draft rejected
+PASS 14: other creator draft protection
+PASS 15: creator cannot mutate shared rules
+PASS 16: reviewer creates enforceable rule
+PASS 17: scan uses new backend rule
+PASS 18: private receipt protected
+PASS 19: creator cannot approve
+PASS 20: independent reviewer approval
+PASS 21: exact-content approval verification
+PASS 22: owner edit reruns scan and clears approval
+PASS 23: stale review rejected
+PASS 24: old receipt is no longer approval-valid
+PASS 25: live analytics
+PASS 26: analytics scope
+PASS 27: real version history
+PASS 28: decision notification persisted
+PASS 29: notification read state
+PASS 30: refresh rotation
+PASS 31: old access revoked after refresh
+PASS 32: server logout
+PASS 33: logout revocation persists
+PASS 34: revoked refresh rejected
+PASS 35: reviewer removes temporary rule
+PASS 36: fresh creator session
+PASS 37: draft deletion
+
+37 actual HTTP checks passed. No cloud/AI-provider success is implied.

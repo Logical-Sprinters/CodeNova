@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "BrandGuard — Live HTTPS Backend",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "${workspaceFolder}/mobile",
+      "program": "${workspaceFolder}/mobile/lib/main.dart",
+      "toolArgs": [
+        "--dart-define=API_BASE=https://brandguard-app.antideploy.app"
+      ]
+    }
+  ]
+}

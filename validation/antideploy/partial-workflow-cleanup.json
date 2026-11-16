@@ -1,0 +1,7 @@
+{
+  "cause": "validation harness was launched outside backend and could not resolve relative CA; production TLS was unaffected",
+  "temporary_accounts_removed": 3,
+  "temporary_objects_removed": 1,
+  "temporary_rows_removed": 26,
+  "retained_evaluation_sample_preserved": true
+}

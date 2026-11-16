@@ -1,0 +1,11 @@
+{
+  "files": 203,
+  "uncompressed_bytes": 18885140,
+  "limit_bytes": 29360128,
+  "archive_bytes": 6622844,
+  "private_env_included": false,
+  "real_secret_scan": "passed",
+  "existing_supabase_kept": true,
+  "runtime_admin_key_required": false,
+  "ai_provider": "disabled"
+}

@@ -1,0 +1,45 @@
+# Local configuration / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Flutter / Dart / generated files
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+coverage/
+*.iml
+.idea/
+
+# Runtime database, secret and private uploads must never be packaged.
+backend/data/*.sqlite*
+backend/data/.jwt_secret
+backend/data/uploads/
+# JSON below is retained only for the legacy regression adapter.
+backend/data/review_records.json
+backend/data/receipts.json
+backend/data/audit_log.json
+backend/data/*.tmp
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.log
+*.swp

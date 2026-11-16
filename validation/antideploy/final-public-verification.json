@@ -1,0 +1,23 @@
+{
+  "url": "https://brandguard-app.antideploy.app",
+  "passed": 12,
+  "checks": [
+    "/ 200",
+    "/health 200",
+    "/auth/confirm 200",
+    "/auth/reset 200",
+    "/main.dart.js 200",
+    "/.env 404",
+    "/backend/.env 404",
+    "/.antideploy.json 404",
+    "/api/v1/reviews 401",
+    "creator retained cloud login and provider status",
+    "reviewer retained cloud login and provider status",
+    "unsigned email hook 401"
+  ],
+  "deployed_runtime_files_unchanged": 106,
+  "ai_enabled": false,
+  "auth_email_configured": true,
+  "evaluations_expire_at": "2026-11-16T20:00:31Z",
+  "production_documentation_updated_without_runtime_redeploy": true
+}

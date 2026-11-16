@@ -1,0 +1,39 @@
+{
+  "id": "ee8aaa4a-ac9c-4aff-90ae-b69298559f2d",
+  "applicationId": "24f672f9-ef5a-4c45-8043-b98af546e6ad",
+  "status": "completed",
+  "trigger": "manual",
+  "steps": [
+    {
+      "key": "recon",
+      "label": "Fetching your app",
+      "state": "done"
+    },
+    {
+      "key": "secrets",
+      "label": "Checking for keys in the browser code",
+      "state": "done"
+    },
+    {
+      "key": "files",
+      "label": "Checking for exposed files",
+      "state": "done"
+    },
+    {
+      "key": "access",
+      "label": "Testing endpoints and access",
+      "state": "done"
+    },
+    {
+      "key": "headers",
+      "label": "Checking headers and CORS",
+      "state": "done"
+    }
+  ],
+  "findings": [],
+  "summary": "No issues found. We checked for keys in the browser code, endpoints open without a login, SQL injection, downloadable config files, open CORS and missing security headers.",
+  "costPaise": 0,
+  "error": null,
+  "emailed": true,
+  "fixPrompt": null
+}

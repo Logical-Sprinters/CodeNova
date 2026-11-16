@@ -1,0 +1,14 @@
+PASS 43: draft survives actual API process restart
+PASS 44: review decision and text survive restart
+PASS 45: protected cloud receipt survives restart
+PASS 46: live Supabase session refresh through app
+PASS 47: refreshed session is usable
+PASS 48: cloud logout through app
+PASS 49: logged-out access denied by backend
+PASS 50: older JWT for same logged-out session also denied
+PASS 51: logged-out refresh token denied
+PASS 52: authenticated Supabase password update
+PASS 53: old password no longer signs in
+PASS 54: new password signs in through app
+PASS 55: temporary cloud objects, accounts and application rows cleaned
+TOTAL 55 live application checks passed; restart and cleanup verified.

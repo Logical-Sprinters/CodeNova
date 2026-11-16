@@ -1,0 +1,49 @@
+00:00 +0: loading mobile/test/widget_test.dart
+00:00 +0: mobile/test/widget_test.dart: (setUpAll)
+00:00 +0: mobile/test/widget_test.dart: splash opens a login screen with visible demo credentials
+00:01 +1: mobile/test/widget_test.dart: creator demo opens dashboard and creates an in-memory session
+00:02 +2: mobile/test/widget_test.dart: reviewer picker fills credentials and signs in as reviewer
+00:02 +3: mobile/test/widget_test.dart: incorrect demo password stays on login with an error
+00:03 +4: mobile/test/widget_test.dart: unknown email is not accepted with the public demo password
+00:03 +5: mobile/test/widget_test.dart: remember option saves an email, not an authenticated session
+00:03 +6: mobile/test/widget_test.dart: old non-demo saved profile email cannot break demo login
+00:04 +7: mobile/test/widget_test.dart: profile logout clears identity and returns to login
+00:04 +8: mobile/test/widget_test.dart: demo login screen also lays out at phone width
+00:05 +9: mobile/test/widget_test.dart: (tearDownAll)
+00:05 +9: loading mobile/test/demo_auth_test.dart
+00:05 +9: mobile/test/demo_auth_test.dart: creator demo maps to the backend creator identity
+00:05 +10: mobile/test/demo_auth_test.dart: reviewer demo maps to the backend reviewer identity
+00:05 +11: mobile/test/demo_auth_test.dart: email lookup trims whitespace and ignores case
+00:05 +12: mobile/test/demo_auth_test.dart: wrong passwords and unknown/blank accounts cannot sign in
+00:05 +13: mobile/test/demo_auth_test.dart: demo password matching is case-sensitive
+00:05 +14: mobile/test/demo_auth_test.dart: signing out clears the in-memory identity and role
+00:05 +15: mobile/test/demo_auth_test.dart: backend user_id and legacy id payloads both parse
+00:05 +16: loading mobile/test/feature_navigation_test.dart
+00:06 +16: mobile/test/feature_navigation_test.dart: (setUpAll)
+00:06 +16: mobile/test/feature_navigation_test.dart: dashboard opens at phone size after restructuring
+00:07 +17: mobile/test/feature_navigation_test.dart: workspace opens at phone size after restructuring
+00:07 +18: mobile/test/feature_navigation_test.dart: review queue opens at phone size after restructuring
+00:07 +19: mobile/test/feature_navigation_test.dart: brand check editor opens at phone size after restructuring
+00:08 +20: mobile/test/feature_navigation_test.dart: findings opens at phone size after restructuring
+00:08 +21: mobile/test/feature_navigation_test.dart: approval verification opens at phone size after restructuring
+00:08 +22: mobile/test/feature_navigation_test.dart: receipt opens at phone size after restructuring
+00:08 +23: mobile/test/feature_navigation_test.dart: guidelines opens at phone size after restructuring
+00:08 +24: mobile/test/feature_navigation_test.dart: rule library opens at phone size after restructuring
+00:08 +25: mobile/test/feature_navigation_test.dart: fact sources opens at phone size after restructuring
+00:08 +26: mobile/test/feature_navigation_test.dart: notifications opens at phone size after restructuring
+00:08 +27: mobile/test/feature_navigation_test.dart: profile opens at phone size after restructuring
+00:08 +28: mobile/test/feature_navigation_test.dart: sample analytics opens at phone size after restructuring
+00:08 +29: mobile/test/feature_navigation_test.dart: sample version history opens at phone size after restructuring
+00:08 +30: mobile/test/feature_navigation_test.dart: sample audit ledger opens at phone size after restructuring
+00:09 +31: mobile/test/feature_navigation_test.dart: sample receipts opens at phone size after restructuring
+00:09 +32: mobile/test/feature_navigation_test.dart: workspace links still open their moved feature screens
+00:11 +33: mobile/test/feature_navigation_test.dart: new brand check displays API findings instead of sample data
+00:11 +34: mobile/test/feature_navigation_test.dart: leaving receipt before its response does not update disposed UI
+00:11 +35: mobile/test/feature_navigation_test.dart: leaving verification before its response is safe
+00:11 +36: mobile/test/feature_navigation_test.dart: (tearDownAll)
+00:11 +36: loading mobile/test/api_session_test.dart
+00:12 +36: mobile/test/api_session_test.dart: creator identity is sent on all six API operations
+00:12 +37: mobile/test/api_session_test.dart: reviewer identity is sent on all six API operations
+00:12 +38: mobile/test/api_session_test.dart: account switching and logout never reuse a stale user header
+00:12 +39: mobile/test/api_session_test.dart: backend errors are surfaced instead of being treated as success
+00:12 +40: All tests passed!

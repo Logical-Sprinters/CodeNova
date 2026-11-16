@@ -1,0 +1,9 @@
+{
+  "project_ref": "jtidayzktuzpjydshsva",
+  "verified_with": "independent Supabase connector SQL read-back",
+  "temporary_auth_users": 0,
+  "private_bucket_objects": 0,
+  "application_entity_rows": 0,
+  "temporary_rule_brands": 0,
+  "all_temporary_test_data_removed": true
+}
