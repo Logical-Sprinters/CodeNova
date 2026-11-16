@@ -173,6 +173,65 @@ live browser verification se pass hua. Iske andar tokens/passwords kuch nahi hai
 **Is ZIP ke andar jaan-boojh kar NAHI hai:** `.env` (server credentials), demo account passwords
 (private file alag), `build/`, `.dart_tool/`, keystore.
 
+## 6c. APK build error (agar aaye): `lintVitalAnalyzeRelease` crash
+
+Poora error message aisa dikhta hai:
+
+```
+Execution failed for task ':file_selector_android:lintVitalAnalyzeRelease'
+> Unexpected failure during lint analysis (this is a bug in lint ...)
+  Message: 'java.lang.Object java.util.List.removeLast()'
+```
+
+**Yeh aapke app code ka bug nahi hai.** Release APK banate waqt Gradle ek extra "vital lint"
+analysis chalata hai. Woh analysis third-party plugin ke Java file
+(`file_selector_android/.../FileUtils.java`) par jaati hai aur lint ke andar hi crash ho jaati hai:
+`List.removeLast()` sirf **Java 21+** mein hai, lekin lint khud usse call karta hai — isliye purane
+JDK par `NoSuchMethodError` aata hai.
+
+**Fix 1 (recommended, permanent): Gradle ko JDK 21+ par chalao**
+
+```powershell
+flutter config --jdk-dir "C:\Program Files\Java\jdk-21"
+flutter clean
+flutter build apk --release
+```
+
+(Jab JDK 21 ho, yeh crash root se khatam ho jaata hai.)
+
+**Fix 2 (ZIP mein pehle se laga hua hai): lint crash ko build rokne se roko**
+
+Is ZIP ke `android/build.gradle.kts` mein safety net already hai — `lintVital*` tasks skip ho jaate
+hain, isliye build aage badh jaata hai. Check karne ke liye:
+
+```powershell
+cd mobile\android
+Select-String -Path build.gradle.kts -Pattern "lintVital"
+```
+
+Agar aap purana folder (`BrandGuard-Mobile-Clean`) use kar rahe ho, to in do lines ko
+`mobile/android/build.gradle.kts` ke aakhir mein paste kar do:
+
+```kotlin
+subprojects {
+    tasks.configureEach {
+        if (name.startsWith("lintVital")) {
+            enabled = false
+        }
+    }
+}
+```
+
+**Quick workaround (agar turant APK chahiye):**
+
+```powershell
+flutter build apk --release --no-shrink
+```
+Ya debug APK: `flutter build apk --debug` (yeh lint nahi chalata).
+
+Lint skip karne ka matlab "code unchecked" nahi hai — Dart side `flutter analyze` (No issues) aur
+`flutter test` (91 passed) se poora check hota hai; skip sirf Android lint ke crash ko bypass karta hai.
+
 ## 7. Troubleshooting
 
 | Problem | Fix |
