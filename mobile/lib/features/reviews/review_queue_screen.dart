@@ -233,7 +233,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
 
             return Container(
               height: MediaQuery.of(context).size.height * 0.9,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: AppTheme.background,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
@@ -289,18 +289,24 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    StatusPill(
-                                      label: review['version'],
-                                      tone: Tone.neutral,
-                                      solid: true,
+                                    Flexible(
+                                      child: StatusPill(
+                                        label: review['version'],
+                                        tone: Tone.neutral,
+                                        solid: true,
+                                        compact: true,
+                                      ),
                                     ),
                                     const SizedBox(width: 6),
-                                    StatusPill(
-                                      label: status,
-                                      tone: statusTone(status),
+                                    Flexible(
+                                      child: StatusPill(
+                                        label: status,
+                                        tone: statusTone(status),
+                                        compact: true,
+                                      ),
                                     ),
                                     const Spacer(),
-                                    const Icon(
+                                    Icon(
                                       Icons.shield_outlined,
                                       size: 18,
                                       color: AppTheme.mintBright,
@@ -331,7 +337,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                                   ),
                                   child: Row(
                                     children: [
-                                      const Icon(
+                                      Icon(
                                         Icons.policy_outlined,
                                         size: 15,
                                         color: AppTheme.mintBright,
@@ -498,8 +504,8 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                     ),
                     Container(
                       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
+                      decoration: BoxDecoration(
+                        color: AppTheme.card,
                         border: Border(top: BorderSide(color: AppTheme.border)),
                       ),
                       child: canDecide
@@ -758,6 +764,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     final body = RefreshIndicator(
       onRefresh: _loadReviews,
       child: ListView(
@@ -906,7 +913,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                         vertical: 1,
                       ),
                       decoration: BoxDecoration(
-                        color: active ? AppTheme.teal : const Color(0xFFF2F5F4),
+                        color: active ? AppTheme.teal : AppTheme.neutralBg,
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
@@ -937,17 +944,21 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
           children: [
             Row(
               children: [
-                StatusPill(
-                  label: review['version'],
-                  tone: Tone.neutral,
-                  solid: true,
-                  compact: true,
+                Flexible(
+                  child: StatusPill(
+                    label: review['version'],
+                    tone: Tone.neutral,
+                    solid: true,
+                    compact: true,
+                  ),
                 ),
                 const SizedBox(width: 6),
-                StatusPill(
-                  label: review['status'],
-                  tone: statusTone(review['status']),
-                  compact: true,
+                Flexible(
+                  child: StatusPill(
+                    label: review['status'],
+                    tone: statusTone(review['status']),
+                    compact: true,
+                  ),
                 ),
                 const Spacer(),
                 Icon(
@@ -968,7 +979,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
             const SizedBox(height: 4),
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.person_outline_rounded,
                   size: 13,
                   color: AppTheme.muted,

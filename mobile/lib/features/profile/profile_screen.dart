@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../../app/app_theme.dart';
+import '../../app/appearance_controller.dart';
 import '../../app/ui/app_widgets.dart';
 import '../../app/ui/brandguard_shell.dart';
 import '../../core/auth/session.dart';
@@ -20,12 +21,49 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _status;
-  String _theme = 'Light';
+  bool _savingName = false;
+  Map<String, bool> _preferences = {
+    'email_updates': true,
+    'review_activity': true,
+    'product_news': false,
+  };
+  static const _preferenceLabels = {
+    'email_updates': 'Account & security emails',
+    'review_activity': 'Review activity updates',
+    'product_news': 'Product announcements',
+  };
+  final appearance = AppearanceController.instance;
 
   @override
   void initState() {
     super.initState();
+    // The name can also change from another screen or a refresh; repainting on
+    // the session keeps every label in sync without a manual reload.
+    session.addListener(_onSessionChanged);
     _load();
+    _loadPreferences();
+  }
+
+  void _onSessionChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    session.removeListener(_onSessionChanged);
+    super.dispose();
+  }
+
+  static String _appearanceLabel(AppearanceMode mode) => switch (mode) {
+    AppearanceMode.light => 'Light',
+    AppearanceMode.dark => 'Dark',
+    AppearanceMode.system => 'System',
+  };
+
+  /// Switches appearance immediately; the root app rebuilds with the new
+  /// palette and the choice is persisted for the next launch.
+  void _selectAppearance(AppearanceMode mode) {
+    appearance.setMode(mode);
   }
 
   Future<void> _load() async {
@@ -52,10 +90,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialog, true),
-            child: const Text(
-              'Sign out',
-              style: TextStyle(color: AppTheme.danger),
-            ),
+            child: Text('Sign out', style: TextStyle(color: AppTheme.danger)),
           ),
         ],
       ),
@@ -74,27 +109,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _editName() async {
-    final controller = TextEditingController(
-      text: session.currentUser?.name ?? '',
-    );
-    final updated = await showDialog<String>(
+    final current = session.currentUser?.name ?? '';
+    final controller = TextEditingController(text: current);
+    final formKey = GlobalKey<FormState>();
+    final submitted = await showDialog<String>(
       context: context,
       builder: (dialog) => AlertDialog(
         title: const Text('Display name'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: controller,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(labelText: 'Full name'),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'The backend keeps the authoritative name. This changes your local display only for this session.',
-              style: AppTheme.bodySmall,
-            ),
-          ],
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextFormField(
+                controller: controller,
+                autofocus: true,
+                textCapitalization: TextCapitalization.words,
+                textInputAction: TextInputAction.done,
+                maxLength: 80,
+                decoration: const InputDecoration(labelText: 'Full name'),
+                onFieldSubmitted: (_) {
+                  if (formKey.currentState?.validate() ?? false) {
+                    Navigator.pop(dialog, controller.text.trim());
+                  }
+                },
+                validator: (value) {
+                  final clean = (value ?? '').trim();
+                  if (clean.length < 2) {
+                    return 'Use at least two characters.';
+                  }
+                  return null;
+                },
+              ),
+              Text(
+                'Saved to your account, so it stays after sign-out and shows up '
+                'in review headers.',
+                style: AppTheme.bodySmall,
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -102,27 +156,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(dialog, controller.text.trim()),
+            onPressed: () {
+              if (formKey.currentState?.validate() ?? false) {
+                Navigator.pop(dialog, controller.text.trim());
+              }
+            },
             child: const Text('Save'),
           ),
         ],
       ),
     );
-    controller.dispose();
-    final name = updated?.trim() ?? '';
-    final user = session.currentUser;
-    if (name.length < 2 || user == null) return;
-    session.updateUser(
-      User(userId: user.userId, name: name, role: user.role, email: user.email),
-    );
+    // The dialog route animates out after `showDialog` resolves; disposing the
+    // controller here would break that frame ("used after being disposed").
+    WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
+    final name = (submitted ?? '').trim();
+    if (name.isEmpty || name == current) return;
+    await _saveName(name);
+  }
+
+  /// Persists the name on the server, then reflects it immediately.
+  Future<void> _saveName(String name) async {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Display name updated for this session.')),
+    setState(() => _savingName = true);
+    try {
+      final user = await BrandGuardApiService.updateDisplayName(name);
+      if (!mounted) return;
+      setState(() => _savingName = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Display name saved as "${user.name}".')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _savingName = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not save the name: ${error.toString().replaceFirst('ApiException: ', '')}',
+          ),
+        ),
+      );
+    }
+  }
+
+  int _enabledPreferenceCount() =>
+      _preferences.values.where((value) => value).length;
+
+  Future<void> _loadPreferences() async {
+    try {
+      final data = await BrandGuardApiService.getPreferences();
+      if (!mounted) return;
+      setState(() {
+        _preferences = {
+          for (final key in _preferenceLabels.keys) key: data[key] != false,
+        };
+      });
+    } catch (_) {
+      // Preferences are informational here; the sheet reports its own errors.
+    }
+  }
+
+  /// Opens the notification preferences sheet backed by the server.
+  Future<void> _openPreferences() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const _NotificationPreferencesSheet(),
     );
+    await _loadPreferences();
   }
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     final user = session.currentUser;
     final isReviewer = user?.isReviewer == true;
     final body = ListView(
@@ -186,9 +291,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
-                onPressed: _editName,
-                icon: const Icon(Icons.edit_outlined, size: 16),
-                label: const Text('Edit display name'),
+                onPressed: _savingName ? null : _editName,
+                icon: _savingName
+                    ? SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppTheme.tealText,
+                        ),
+                      )
+                    : const Icon(Icons.edit_outlined, size: 16),
+                label: Text(_savingName ? 'Saving…' : 'Edit display name'),
               ),
             ],
           ),
@@ -219,11 +333,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         const SizedBox(height: 8),
         NavigationRow(
-          icon: Icons.notifications_none_rounded,
-          title: 'Notification preferences',
+          icon: Icons.inbox_outlined,
+          title: 'Notification inbox',
           subtitle: 'In-app events recorded by the backend',
           tone: Tone.warning,
           onTap: () => _open(const NotificationsScreen()),
+        ),
+        const SizedBox(height: 8),
+        NavigationRow(
+          icon: Icons.tune_rounded,
+          title: 'Notification preferences',
+          subtitle:
+              '${_enabledPreferenceCount()} of ${_preferenceLabels.length} enabled · saved to your account',
+          tone: Tone.info,
+          onTap: _openPreferences,
         ),
         const SizedBox(height: 18),
         const SectionHeading(title: 'Preferences & appearance'),
@@ -234,7 +357,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.palette_outlined,
                     size: 18,
                     color: AppTheme.tealText,
@@ -246,64 +369,72 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       style: AppTheme.labelLarge.copyWith(fontSize: 13),
                     ),
                   ),
-                  StatusPill(label: 'Light', tone: Tone.success),
+                  StatusPill(label: appearance.label, tone: Tone.success),
                 ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                appearance.mode == AppearanceMode.system
+                    ? 'Following your device setting '
+                          '(${appearance.systemIsDark ? 'dark' : 'light'}).'
+                    : 'Saved on this device.',
+                style: AppTheme.bodySmall,
               ),
               const SizedBox(height: 10),
               Row(
                 children: [
-                  for (final option in ['Light', 'Dark', 'System'])
+                  for (final option in AppearanceMode.values)
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.only(right: 6),
-                        child: GestureDetector(
-                          onTap: () {
-                            if (option == 'Light') {
-                              setState(() => _theme = option);
-                              return;
-                            }
-                            setState(() => _theme = option);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  '$option appearance is not shipped yet — the audited light theme stays active.',
+                        child: Semantics(
+                          button: true,
+                          selected: appearance.mode == option,
+                          label: '${_appearanceLabel(option)} appearance',
+                          child: GestureDetector(
+                            onTap: () => _selectAppearance(option),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              decoration: BoxDecoration(
+                                color: appearance.mode == option
+                                    ? AppTheme.mint
+                                    : AppTheme.card,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: appearance.mode == option
+                                      ? AppTheme.teal
+                                      : AppTheme.border,
                                 ),
                               ),
-                            );
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            decoration: BoxDecoration(
-                              color: _theme == option
-                                  ? AppTheme.mint
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: _theme == option
-                                    ? AppTheme.teal
-                                    : AppTheme.border,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  option == 'Light'
-                                      ? Icons.light_mode_outlined
-                                      : option == 'Dark'
-                                      ? Icons.dark_mode_outlined
-                                      : Icons.brightness_auto_outlined,
-                                  size: 15,
-                                  color: AppTheme.tealText,
-                                ),
-                                const SizedBox(width: 5),
-                                Text(
-                                  option,
-                                  style: AppTheme.labelMedium.copyWith(
-                                    fontSize: 11.5,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    switch (option) {
+                                      AppearanceMode.light =>
+                                        Icons.light_mode_outlined,
+                                      AppearanceMode.dark =>
+                                        Icons.dark_mode_outlined,
+                                      AppearanceMode.system =>
+                                        Icons.brightness_auto_outlined,
+                                    },
+                                    size: 15,
+                                    color: AppTheme.tealText,
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: 5),
+                                  Flexible(
+                                    child: Text(
+                                      _appearanceLabel(option),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: AppTheme.labelMedium.copyWith(
+                                        fontSize: 11.5,
+                                        color: AppTheme.ink,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -431,6 +562,7 @@ class _SessionInfoSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     final user = session.currentUser;
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -462,6 +594,168 @@ class _SessionInfoSheet extends StatelessWidget {
             message: 'Supabase-hosted accounts: use “Reset access?” on the sign-in screen. Local server accounts: the API requires your current password, so ask an administrator.',
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Notification preferences backed by the server document.
+///
+/// Every toggle is saved immediately through `PUT /api/v1/auth/preferences`, so
+/// the state survives sign-out and is identical on the next device.
+class _NotificationPreferencesSheet extends StatefulWidget {
+  const _NotificationPreferencesSheet();
+
+  @override
+  State<_NotificationPreferencesSheet> createState() =>
+      _NotificationPreferencesSheetState();
+}
+
+class _NotificationPreferencesSheetState
+    extends State<_NotificationPreferencesSheet> {
+  static const _labels = {
+    'email_updates': (
+      'Account & security emails',
+      'Sign-in, password and account notices.',
+    ),
+    'review_activity': (
+      'Review activity updates',
+      'When your submission is approved, rejected or needs changes.',
+    ),
+    'product_news': (
+      'Product announcements',
+      'Occasional notes about new BrandGuard rules and screens.',
+    ),
+  };
+
+  Map<String, bool> _values = {
+    'email_updates': true,
+    'review_activity': true,
+    'product_news': false,
+  };
+  bool _loading = true;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final data = await BrandGuardApiService.getPreferences();
+      if (!mounted) return;
+      setState(() {
+        _values = {for (final key in _labels.keys) key: data[key] != false};
+        _loading = false;
+        _error = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = error.toString().replaceFirst('ApiException: ', '');
+      });
+    }
+  }
+
+  Future<void> _toggle(String key, bool value) async {
+    final previous = Map<String, bool>.from(_values);
+    setState(() {
+      _values[key] = value;
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final saved = await BrandGuardApiService.savePreferences(_values);
+      if (!mounted) return;
+      setState(() {
+        _values = {for (final k in _labels.keys) k: saved[k] != false};
+        _saving = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _values = previous;
+        _saving = false;
+        _error = error.toString().replaceFirst('ApiException: ', '');
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    AppTheme.watch(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Notification preferences',
+                    style: AppTheme.titleMedium.copyWith(
+                      color: AppTheme.inkStrong,
+                    ),
+                  ),
+                ),
+                if (_saving)
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Saved to your account on the server — not just this device.',
+              style: AppTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else
+              for (final entry in _labels.entries)
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: _values[entry.key] ?? false,
+                  onChanged: _saving
+                      ? null
+                      : (value) => _toggle(entry.key, value),
+                  title: Text(
+                    entry.value.$1,
+                    style: AppTheme.labelLarge.copyWith(color: AppTheme.ink),
+                  ),
+                  subtitle: Text(entry.value.$2, style: AppTheme.bodySmall),
+                ),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              InlineNotice(
+                tone: Tone.danger,
+                title: 'Could not save preferences',
+                message: _error!,
+              ),
+            ],
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Done'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -71,6 +71,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return Scaffold(
       backgroundColor: AppTheme.navyDeep,
       body: Stack(
@@ -102,101 +103,188 @@ class _SplashScreenState extends State<SplashScreen>
           ),
           const Positioned.fill(child: CustomPaint(painter: GridPainter())),
           SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _chip(
-                        'VAULT SECURE',
-                        dot: AppTheme.mintBright,
-                        onDark: true,
+            // The splash must never overflow: on very short screens or with
+            // large system text the hero column scrolls instead of breaking.
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                physics: const ClampingScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 20,
                       ),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.lock_outline_rounded,
-                            size: 13,
-                            color: AppTheme.mintBright,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            'SESSION TOKENS IN MEMORY',
-                            style: AppTheme.monoLabel(
-                              color: AppTheme.mintBright,
-                            ).copyWith(fontSize: 9),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  FadeTransition(
-                    opacity: _fade,
-                    child: SlideTransition(
-                      position: _slide,
                       child: Column(
                         children: [
-                          AnimatedBuilder(
-                            animation: _pulse,
-                            builder: (context, child) => Transform.scale(
-                              scale: 1 + _pulse.value * 0.03,
-                              child: child,
-                            ),
-                            child: SizedBox(
-                              width: 190,
-                              height: 190,
-                              child: Stack(
-                                alignment: Alignment.center,
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              _chip(
+                                'VAULT SECURE',
+                                dot: AppTheme.mintBright,
+                                onDark: true,
+                              ),
+                              Flexible(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    Icon(
+                                      Icons.lock_outline_rounded,
+                                      size: 13,
+                                      color: AppTheme.mintBright,
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Flexible(
+                                      child: Text(
+                                        'SESSION TOKENS IN MEMORY',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.end,
+                                        style: AppTheme.monoLabel(
+                                          color: AppTheme.mintBright,
+                                        ).copyWith(fontSize: 9),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Spacer(),
+                          FadeTransition(
+                            opacity: _fade,
+                            child: SlideTransition(
+                              position: _slide,
+                              child: Column(
                                 children: [
                                   AnimatedBuilder(
-                                    animation: _orbit,
+                                    animation: _pulse,
                                     builder: (context, child) =>
-                                        Transform.rotate(
-                                          angle: _orbit.value * 2 * math.pi,
+                                        Transform.scale(
+                                          scale: 1 + _pulse.value * 0.03,
                                           child: child,
                                         ),
-                                    child: CustomPaint(
-                                      size: const Size(190, 190),
-                                      painter: OrbitPainter(),
-                                    ),
-                                  ),
-                                  Container(
-                                    width: 124,
-                                    height: 124,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(28),
-                                      gradient: const LinearGradient(
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                        colors: [
-                                          Color(0xFF20394A),
-                                          Color(0xFF0C202C),
+                                    child: SizedBox(
+                                      width: 190,
+                                      height: 190,
+                                      child: Stack(
+                                        alignment: Alignment.center,
+                                        children: [
+                                          AnimatedBuilder(
+                                            animation: _orbit,
+                                            builder: (context, child) =>
+                                                Transform.rotate(
+                                                  angle:
+                                                      _orbit.value *
+                                                      2 *
+                                                      math.pi,
+                                                  child: child,
+                                                ),
+                                            child: CustomPaint(
+                                              size: const Size(190, 190),
+                                              painter: OrbitPainter(),
+                                            ),
+                                          ),
+                                          Container(
+                                            width: 124,
+                                            height: 124,
+                                            decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(28),
+                                              gradient: const LinearGradient(
+                                                begin: Alignment.topCenter,
+                                                end: Alignment.bottomCenter,
+                                                colors: [
+                                                  Color(0xFF20394A),
+                                                  Color(0xFF0C202C),
+                                                ],
+                                              ),
+                                              border: Border.all(
+                                                color: AppTheme.teal.withValues(
+                                                  alpha: 0.6,
+                                                ),
+                                                width: 1.4,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: AppTheme.teal
+                                                      .withValues(alpha: 0.22),
+                                                  blurRadius: 42,
+                                                  spreadRadius: 6,
+                                                ),
+                                              ],
+                                            ),
+                                            child: Center(
+                                              child: Icon(
+                                                Icons.verified_user_rounded,
+                                                color: AppTheme.mintBright,
+                                                size: 58,
+                                              ),
+                                            ),
+                                          ),
                                         ],
                                       ),
-                                      border: Border.all(
-                                        color: AppTheme.teal.withValues(
-                                          alpha: 0.6,
-                                        ),
-                                        width: 1.4,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: AppTheme.teal.withValues(
-                                            alpha: 0.22,
-                                          ),
-                                          blurRadius: 42,
-                                          spreadRadius: 6,
-                                        ),
-                                      ],
                                     ),
-                                    child: const Center(
-                                      child: Icon(
-                                        Icons.verified_user_rounded,
+                                  ),
+                                  const SizedBox(height: 18),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF17394A),
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(
+                                        color: AppTheme.mintBright.withValues(
+                                          alpha: 0.25,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'PRE-PUBLICATION GOVERNANCE',
+                                      style: AppTheme.monoLabel(
                                         color: AppTheme.mintBright,
-                                        size: 58,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Flexible(
+                                        child: FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Text(
+                                            'BrandGuard',
+                                            style: AppTheme.headlineLarge
+                                                .copyWith(
+                                                  color: Colors.white,
+                                                  fontSize: 34,
+                                                ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          color: AppTheme.mintBright,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Your brand. Always protected.',
+                                    style: AppTheme.bodyMedium.copyWith(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.72,
                                       ),
                                     ),
                                   ),
@@ -204,149 +292,105 @@ class _SplashScreenState extends State<SplashScreen>
                               ),
                             ),
                           ),
+                          const Spacer(),
+                          AnimatedBuilder(
+                            animation: _progress,
+                            builder: (context, _) => Column(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(999),
+                                  child: LinearProgressIndicator(
+                                    value: _progress.value,
+                                    minHeight: 5,
+                                    backgroundColor: Colors.white.withValues(
+                                      alpha: 0.12,
+                                    ),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      AppTheme.teal,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.settings_ethernet_rounded,
+                                      size: 13,
+                                      color: AppTheme.mintBright,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        _step,
+                                        maxLines: 2,
+                                        textAlign: TextAlign.center,
+                                        style: AppTheme.monoLabel(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.8,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
                           const SizedBox(height: 18),
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
-                              vertical: 5,
+                              vertical: 7,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF17394A),
+                              color: Colors.white.withValues(alpha: 0.06),
                               borderRadius: BorderRadius.circular(999),
                               border: Border.all(
-                                color: AppTheme.mintBright.withValues(
-                                  alpha: 0.25,
-                                ),
+                                color: Colors.white.withValues(alpha: 0.12),
                               ),
                             ),
-                            child: Text(
-                              'PRE-PUBLICATION GOVERNANCE',
-                              style: AppTheme.monoLabel(
-                                color: AppTheme.mintBright,
-                              ),
+                            child: Wrap(
+                              alignment: WrapAlignment.center,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 6,
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.teal,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                Text(
+                                  'Evidence-backed reviews',
+                                  style: AppTheme.monoLabel(
+                                    color: Colors.white.withValues(alpha: 0.85),
+                                  ).copyWith(fontSize: 9),
+                                ),
+                                Text(
+                                  '· v2.4',
+                                  style: AppTheme.monoLabel(
+                                    color: AppTheme.mintBright,
+                                  ).copyWith(fontSize: 9),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 14),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'BrandGuard',
-                                style: AppTheme.headlineLarge.copyWith(
-                                  color: Colors.white,
-                                  fontSize: 34,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: const BoxDecoration(
-                                  color: AppTheme.mintBright,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 8),
                           Text(
-                            'Your brand. Always protected.',
-                            style: AppTheme.bodyMedium.copyWith(
-                              color: Colors.white.withValues(alpha: 0.72),
-                            ),
+                            'No finding without evidence. No approval without a version.',
+                            textAlign: TextAlign.center,
+                            style: AppTheme.monoLabel(
+                              color: Colors.white.withValues(alpha: 0.45),
+                            ).copyWith(fontSize: 9),
                           ),
                         ],
                       ),
                     ),
                   ),
-                  const Spacer(),
-                  AnimatedBuilder(
-                    animation: _progress,
-                    builder: (context, _) => Column(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(999),
-                          child: LinearProgressIndicator(
-                            value: _progress.value,
-                            minHeight: 5,
-                            backgroundColor: Colors.white.withValues(
-                              alpha: 0.12,
-                            ),
-                            valueColor: const AlwaysStoppedAnimation<Color>(
-                              AppTheme.teal,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.settings_ethernet_rounded,
-                              size: 13,
-                              color: AppTheme.mintBright,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              _step,
-                              style: AppTheme.monoLabel(
-                                color: Colors.white.withValues(alpha: 0.8),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.12),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: const BoxDecoration(
-                            color: AppTheme.teal,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Evidence-backed reviews',
-                          style: AppTheme.monoLabel(
-                            color: Colors.white.withValues(alpha: 0.85),
-                          ).copyWith(fontSize: 9),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '· v2.4',
-                          style: AppTheme.monoLabel(color: AppTheme.mintBright)
-                              .copyWith(fontSize: 9),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'No finding without evidence. No approval without a version.',
-                    textAlign: TextAlign.center,
-                    style: AppTheme.monoLabel(
-                      color: Colors.white.withValues(alpha: 0.45),
-                    ).copyWith(fontSize: 9),
-                  ),
-                ],
+                ),
               ),
             ),
           ),

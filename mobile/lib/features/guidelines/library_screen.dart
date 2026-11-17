@@ -253,6 +253,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     final isRules = widget.kind == 'rules';
     final isFacts = widget.kind == 'facts';
     final readOnly = !_canManage;
@@ -444,7 +445,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 ),
                 if (_canManage)
                   PopupMenuButton<String>(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.more_horiz_rounded,
                       size: 18,
                       color: AppTheme.muted,

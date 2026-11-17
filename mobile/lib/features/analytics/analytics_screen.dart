@@ -55,6 +55,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     final total = _num('total_checks');
     final approved = _num('approved');
     final ruleCounts = (_data?['rule_counts'] as Map?) ?? const {};

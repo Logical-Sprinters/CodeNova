@@ -26,6 +26,7 @@ class WorkspaceHubScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     final isReviewer = session.currentUser?.isReviewer == true;
     final groups = <(String, String, List<(String, String, IconData, Widget)>)>[
       (
@@ -129,7 +130,7 @@ class WorkspaceHubScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [Color(0xFF1A3A4B), AppTheme.navyDeep],
@@ -149,7 +150,7 @@ class WorkspaceHubScreen extends StatelessWidget {
                         color: AppTheme.mintBright.withValues(alpha: 0.14),
                         borderRadius: BorderRadius.circular(11),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.layers_rounded,
                         size: 19,
                         color: AppTheme.mintBright,
@@ -168,7 +169,7 @@ class WorkspaceHubScreen extends StatelessWidget {
                     IconButton(
                       tooltip: 'Refresh',
                       onPressed: () {},
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.refresh,
                         color: AppTheme.mintBright,
                         size: 20,
@@ -184,20 +185,20 @@ class WorkspaceHubScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Row(
+                // At large system text the chip alone can fill the row, so the
+                // pair wraps instead of overflowing the hero card.
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     RoleChip(isReviewer: isReviewer, onDark: true),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        isReviewer
-                            ? 'Can review and manage rules'
-                            : 'Creator: own drafts and checks',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTheme.monoLabel(
-                          color: Colors.white.withValues(alpha: 0.7),
-                        ),
+                    Text(
+                      isReviewer
+                          ? 'Can review and manage rules'
+                          : 'Creator: own drafts and checks',
+                      style: AppTheme.monoLabel(
+                        color: Colors.white.withValues(alpha: 0.7),
                       ),
                     ),
                   ],
@@ -212,7 +213,7 @@ class WorkspaceHubScreen extends StatelessWidget {
             onTap: () => _push(context, const NotificationsScreen()),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.notifications_none_rounded,
                   size: 18,
                   color: AppTheme.tealText,
@@ -224,11 +225,7 @@ class WorkspaceHubScreen extends StatelessWidget {
                     style: AppTheme.labelLarge.copyWith(fontSize: 13),
                   ),
                 ),
-                const Icon(
-                  Icons.chevron_right,
-                  size: 18,
-                  color: AppTheme.muted,
-                ),
+                Icon(Icons.chevron_right, size: 18, color: AppTheme.muted),
               ],
             ),
           ),
@@ -265,7 +262,7 @@ class WorkspaceHubScreen extends StatelessWidget {
                       ),
                     ),
                     subtitle: Text(entry.$2, style: AppTheme.bodySmall),
-                    trailing: const Icon(
+                    trailing: Icon(
                       Icons.chevron_right,
                       size: 18,
                       color: AppTheme.muted,

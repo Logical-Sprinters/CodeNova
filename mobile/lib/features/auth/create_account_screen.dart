@@ -108,6 +108,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -205,12 +206,17 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             const SizedBox(height: 8),
             Row(
               children: [
-                Text(
-                  'STRENGTH: ${_strengthLabel.toUpperCase()}',
-                  style: AppTheme.monoLabel(
-                    color: _strength >= 3 ? AppTheme.success : AppTheme.muted,
+                Flexible(
+                  child: Text(
+                    'STRENGTH: ${_strengthLabel.toUpperCase()}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.monoLabel(
+                      color: _strength >= 3 ? AppTheme.success : AppTheme.muted,
+                    ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 const Spacer(),
                 Text('$_strength of 4', style: AppTheme.monoLabel()),
               ],
@@ -252,7 +258,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 prefixIcon: const Icon(Icons.lock_reset_rounded),
                 suffixIcon:
                     _confirm.text.isNotEmpty && _confirm.text == _password.text
-                    ? const Icon(
+                    ? Icon(
                         Icons.check_circle_rounded,
                         color: AppTheme.success,
                         size: 20,

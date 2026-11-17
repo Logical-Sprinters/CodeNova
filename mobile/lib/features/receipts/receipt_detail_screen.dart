@@ -47,6 +47,7 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     final receipt = _receipt;
     final error = receipt?['error']?.toString();
     final ai = receipt?['ai_verification'] is Map
@@ -128,18 +129,27 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
                       children: [
                         Row(
                           children: [
-                            Text(
-                              'RECEIPT IDENTIFIER',
-                              style: AppTheme.monoLabel(),
+                            Expanded(
+                              child: Text(
+                                'RECEIPT IDENTIFIER',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTheme.monoLabel(),
+                              ),
                             ),
-                            const Spacer(),
-                            StatusPill(
-                              label: approvalValid ? 'Verified' : 'Recorded',
-                              tone: approvalValid ? Tone.success : Tone.neutral,
-                              icon: approvalValid
-                                  ? Icons.verified_rounded
-                                  : Icons.receipt_long_outlined,
-                              solid: true,
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: StatusPill(
+                                label: approvalValid ? 'Verified' : 'Recorded',
+                                tone: approvalValid
+                                    ? Tone.success
+                                    : Tone.neutral,
+                                icon: approvalValid
+                                    ? Icons.verified_rounded
+                                    : Icons.receipt_long_outlined,
+                                solid: true,
+                                compact: true,
+                              ),
                             ),
                           ],
                         ),

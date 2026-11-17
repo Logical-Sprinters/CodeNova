@@ -83,6 +83,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     final content = RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -230,7 +231,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [Color(0xFF1A3A4B), AppTheme.navyDeep],
@@ -258,7 +259,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                     Container(
                       width: 6,
                       height: 6,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         color: AppTheme.mintBright,
                         shape: BoxShape.circle,
                       ),
@@ -376,10 +377,15 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
             children: [
               Row(
                 children: [
-                  Text(
-                    'DECISION MIX',
-                    style: AppTheme.monoLabel(color: AppTheme.muted),
+                  Flexible(
+                    child: Text(
+                      'DECISION MIX',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.monoLabel(color: AppTheme.muted),
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   const Spacer(),
                   Flexible(
                     child: Text(
@@ -462,7 +468,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: unread ? AppTheme.infoBg : const Color(0xFFF2F5F4),
+                color: unread ? AppTheme.infoBg : AppTheme.neutralBg,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
@@ -504,7 +510,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                 width: 7,
                 height: 7,
                 margin: const EdgeInsets.only(top: 4, left: 4),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: AppTheme.info,
                   shape: BoxShape.circle,
                 ),

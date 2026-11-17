@@ -63,6 +63,7 @@ class _BrandGuardShellState extends State<BrandGuardShell> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     const pages = [
       HomeDashboardScreen(embedded: true),
       WorkspaceHubScreen(embedded: true),
@@ -102,6 +103,7 @@ class _BottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     final items = <(IconData, IconData, String, int?)>[
       (Icons.home_outlined, Icons.home_rounded, 'Home', null),
       (
@@ -121,8 +123,8 @@ class _BottomBar extends StatelessWidget {
     ];
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.96),
-        border: const Border(top: BorderSide(color: AppTheme.border)),
+        color: AppTheme.card.withValues(alpha: 0.96),
+        border: Border(top: BorderSide(color: AppTheme.border)),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0A142C3B),
@@ -171,6 +173,7 @@ class _BottomItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     final color = selected ? AppTheme.teal : AppTheme.muted;
     return Semantics(
       button: true,
@@ -257,6 +260,7 @@ class ShellHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     final user = session.currentUser;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 8, 6),
@@ -306,6 +310,7 @@ class RoleChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
@@ -319,6 +324,8 @@ class RoleChip extends StatelessWidget {
           ),
         ),
       ),
+      // A long role label at a large system font must not push the chip past
+      // its parent (hero cards, headers). The text ellipsizes instead.
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -328,10 +335,14 @@ class RoleChip extends StatelessWidget {
             color: onDark ? AppTheme.mintBright : AppTheme.tealText,
           ),
           const SizedBox(width: 4),
-          Text(
-            isReviewer ? 'AUTHORISED REVIEWER' : 'CREATOR',
-            style: AppTheme.monoLabel(
-              color: onDark ? AppTheme.mintBright : AppTheme.tealText,
+          Flexible(
+            child: Text(
+              isReviewer ? 'AUTHORISED REVIEWER' : 'CREATOR',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.monoLabel(
+                color: onDark ? AppTheme.mintBright : AppTheme.tealText,
+              ),
             ),
           ),
         ],

@@ -13,16 +13,18 @@ extension ToneColors on Tone {
     Tone.warning => AppTheme.warning,
     Tone.danger => AppTheme.danger,
     Tone.info => AppTheme.info,
-    Tone.navy => AppTheme.navy,
+    Tone.navy => AppTheme.ink,
   };
 
+  /// Tinted chip background: soft mint in light mode, a muted dark tint in
+  /// dark mode so the pill reads as part of the surface instead of glowing.
   Color get bg => switch (this) {
-    Tone.neutral => const Color(0xFFF2F5F4),
+    Tone.neutral => AppTheme.neutralBg,
     Tone.success => AppTheme.successBg,
     Tone.warning => AppTheme.warningBg,
     Tone.danger => AppTheme.dangerBg,
     Tone.info => AppTheme.infoBg,
-    Tone.navy => const Color(0xFFE9EEF1),
+    Tone.navy => AppTheme.neutralBg,
   };
 
   IconData get icon => switch (this) {
@@ -55,6 +57,7 @@ class BrandMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     final box = Container(
       width: size,
       height: size,
@@ -130,6 +133,7 @@ class StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     final foreground = solid
         ? (tone == Tone.warning ? AppTheme.navyDeep : Colors.white)
         : tone.fg;
@@ -188,6 +192,7 @@ class PageIntro extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -231,6 +236,7 @@ class SectionHeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -238,7 +244,10 @@ class SectionHeading extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: AppTheme.titleMedium),
+              Text(
+                title,
+                style: AppTheme.titleMedium.copyWith(color: AppTheme.inkStrong),
+              ),
               if (caption != null) ...[
                 const SizedBox(height: 2),
                 Text(caption!, style: AppTheme.bodySmall),
@@ -254,13 +263,14 @@ class SectionHeading extends StatelessWidget {
 
 /// Tier 1 white audit surface.
 class SurfaceCard extends StatelessWidget {
-  const SurfaceCard({
+  // ignore: prefer_const_constructors_in_immutables
+  SurfaceCard({
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(16),
     this.radius = 20,
     this.borderColor,
-    this.color = AppTheme.card,
+    this.color,
     this.onTap,
     this.shadow = true,
   });
@@ -269,12 +279,13 @@ class SurfaceCard extends StatelessWidget {
   final EdgeInsets padding;
   final double radius;
   final Color? borderColor;
-  final Color color;
+  final Color? color;
   final VoidCallback? onTap;
   final bool shadow;
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     // The background lives on a Material so descendants such as ListTile and
     // InkWell paint their ink on the same surface (avoids invisible splashes).
     return Container(
@@ -285,7 +296,7 @@ class SurfaceCard extends StatelessWidget {
         boxShadow: shadow ? AppTheme.cardShadow : null,
       ),
       child: Material(
-        color: color,
+        color: color ?? AppTheme.card,
         borderRadius: BorderRadius.circular(radius),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -316,6 +327,7 @@ class MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return SurfaceCard(
       padding: const EdgeInsets.all(14),
       radius: 16,
@@ -388,6 +400,7 @@ class InlineNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -443,6 +456,7 @@ class EmptyStateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return SurfaceCard(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
       child: Column(
@@ -486,6 +500,7 @@ class HashChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -515,23 +530,25 @@ class HashChip extends StatelessWidget {
 
 /// Thin progress line with optional caption.
 class ProgressLine extends StatelessWidget {
-  const ProgressLine({
+  // ignore: prefer_const_constructors_in_immutables
+  ProgressLine({
     super.key,
     required this.value,
     this.caption,
-    this.color = AppTheme.teal,
-    this.background = AppTheme.border,
+    this.color,
+    this.background,
     this.height = 6,
   });
 
   final double value;
   final String? caption;
-  final Color color;
-  final Color background;
+  final Color? color;
+  final Color? background;
   final double height;
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     final clamped = value.isFinite ? value.clamp(0.0, 1.0) : 0.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -541,8 +558,8 @@ class ProgressLine extends StatelessWidget {
           child: LinearProgressIndicator(
             value: clamped,
             minHeight: height,
-            backgroundColor: background,
-            valueColor: AlwaysStoppedAnimation<Color>(color),
+            backgroundColor: background ?? AppTheme.border,
+            valueColor: AlwaysStoppedAnimation<Color>(color ?? AppTheme.teal),
           ),
         ),
         if (caption != null) ...[
@@ -556,42 +573,61 @@ class ProgressLine extends StatelessWidget {
 
 /// Key/value audit row.
 class DetailRow extends StatelessWidget {
-  const DetailRow({
+  // ignore: prefer_const_constructors_in_immutables
+  DetailRow({
     super.key,
     required this.label,
     required this.value,
-    this.valueColor = AppTheme.ink,
+    this.valueColor,
     this.monospace = false,
   });
 
   final String label;
   final String value;
-  final Color valueColor;
+  final Color? valueColor;
   final bool monospace;
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
+    // The label column was a fixed 132 px, which overflows on narrow phones
+    // (and at large system text). It now flexes with the available width and
+    // stacks vertically when there is simply not enough room for two columns.
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 132,
-            child: Text(label.toUpperCase(), style: AppTheme.monoLabel()),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: monospace
-                  ? AppTheme.monoLabel(color: valueColor).copyWith(fontSize: 11)
-                  : AppTheme.bodyMedium.copyWith(
-                      color: valueColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-            ),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final labelText = Text(
+            label.toUpperCase(),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppTheme.monoLabel(),
+          );
+          final resolved = valueColor ?? AppTheme.ink;
+          final text = Text(
+            value,
+            style: monospace
+                ? AppTheme.monoLabel(color: resolved).copyWith(fontSize: 11)
+                : AppTheme.bodyMedium.copyWith(
+                    color: resolved,
+                    fontWeight: FontWeight.w600,
+                  ),
+          );
+          if (constraints.maxWidth < 230) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [labelText, const SizedBox(height: 2), text],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Flexible(flex: 2, child: labelText),
+              const SizedBox(width: 8),
+              Expanded(flex: 3, child: text),
+            ],
+          );
+        },
       ),
     );
   }
@@ -618,6 +654,7 @@ class NavigationRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return SurfaceCard(
       padding: const EdgeInsets.all(12),
       radius: 16,
@@ -651,7 +688,7 @@ class NavigationRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           trailing ??
-              const Icon(Icons.chevron_right, size: 20, color: AppTheme.muted),
+              Icon(Icons.chevron_right, size: 20, color: AppTheme.muted),
         ],
       ),
     );
@@ -673,6 +710,7 @@ class InitialsAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
     final initials = parts.isEmpty
         ? 'BG'
@@ -721,6 +759,7 @@ class LoadingBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 36),
       child: Column(
@@ -730,7 +769,7 @@ class LoadingBlock extends StatelessWidget {
             height: 26,
             child: animate
                 ? const CircularProgressIndicator(strokeWidth: 2.5)
-                : const Icon(
+                : Icon(
                     Icons.hourglass_top_rounded,
                     size: 22,
                     color: AppTheme.teal,
@@ -759,6 +798,7 @@ class ErrorBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return SurfaceCard(
       borderColor: AppTheme.danger.withValues(alpha: 0.35),
       child: Column(
@@ -766,11 +806,7 @@ class ErrorBlock extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(
-                Icons.cloud_off_rounded,
-                color: AppTheme.danger,
-                size: 18,
-              ),
+              Icon(Icons.cloud_off_rounded, color: AppTheme.danger, size: 18),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

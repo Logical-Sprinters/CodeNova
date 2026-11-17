@@ -171,6 +171,7 @@ class _SignInScreenState extends State<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
@@ -228,7 +229,7 @@ class _SignInScreenState extends State<SignInScreen> {
                       children: [
                         Row(
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.domain_verification_outlined,
                               size: 18,
                               color: AppTheme.tealText,
@@ -337,7 +338,7 @@ class _SignInScreenState extends State<SignInScreen> {
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Icon(
+                                  Icon(
                                     Icons.error_outline_rounded,
                                     size: 16,
                                     color: AppTheme.danger,
@@ -446,11 +447,7 @@ class _SignInScreenState extends State<SignInScreen> {
       // automated layout tests wait for a frame that never settles.
       return Row(
         children: [
-          const Icon(
-            Icons.hourglass_top_rounded,
-            size: 14,
-            color: AppTheme.muted,
-          ),
+          Icon(Icons.hourglass_top_rounded, size: 14, color: AppTheme.muted),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -484,7 +481,7 @@ class _SignInScreenState extends State<SignInScreen> {
         Container(
           width: 7,
           height: 7,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppTheme.success,
             shape: BoxShape.circle,
           ),
@@ -524,11 +521,7 @@ class _SignInScreenState extends State<SignInScreen> {
         children: [
           Row(
             children: [
-              const Icon(
-                Icons.science_outlined,
-                size: 16,
-                color: AppTheme.tealText,
-              ),
+              Icon(Icons.science_outlined, size: 16, color: AppTheme.tealText),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -539,7 +532,7 @@ class _SignInScreenState extends State<SignInScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'creator@brandguard.demo\nreviewer@brandguard.demo',
             style: TextStyle(
               fontFamily: 'Manrope',
@@ -618,6 +611,7 @@ class EntityChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     final text = provider == null
         ? 'CHECKING'
         : provider == 'supabase'

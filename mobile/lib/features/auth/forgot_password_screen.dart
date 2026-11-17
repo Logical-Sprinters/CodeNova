@@ -51,6 +51,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -101,7 +102,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     width: 4,
                   ),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.lock_reset_rounded,
                   color: AppTheme.tealText,
                   size: 32,
@@ -133,7 +134,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           style: AppTheme.labelLarge,
                         ),
                       ),
-                      StatusPill(label: 'Server verified', tone: Tone.neutral),
+                      const SizedBox(width: 6),
+                      // The pill must shrink with the label at large text
+                      // scales instead of pushing the row out of the card.
+                      Flexible(
+                        child: StatusPill(
+                          label: 'Server verified',
+                          tone: Tone.neutral,
+                          compact: true,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 10),
@@ -179,8 +189,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             )
                           : const Row(
                               mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text('Send Reset Link'),
+                                Flexible(
+                                  child: Text(
+                                    'Send Reset Link',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
                                 SizedBox(width: 8),
                                 Icon(Icons.arrow_forward_rounded, size: 18),
                               ],

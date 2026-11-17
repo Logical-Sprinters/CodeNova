@@ -86,6 +86,7 @@ class _GuidelinesHubScreenState extends State<GuidelinesHubScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     final isReviewer = session.currentUser?.isReviewer == true;
     final body = RefreshIndicator(
       onRefresh: _load,

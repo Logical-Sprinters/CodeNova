@@ -173,7 +173,7 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
         barrierDismissible: false,
         builder: (dialogContext) {
           return AlertDialog(
-            icon: const Icon(
+            icon: Icon(
               Icons.fact_check_rounded,
               color: AppTheme.teal,
               size: 40,
@@ -285,6 +285,7 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -313,7 +314,7 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.campaign_outlined,
                         size: 15,
                         color: AppTheme.muted,
@@ -389,12 +390,16 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
                   widget.status == 'review_required'
                       ? 'Review required'
                       : 'Brand check complete',
+                  maxLines: 2,
                   style: AppTheme.titleMedium.copyWith(fontSize: 16),
                 ),
               ),
-              StatusPill(
-                label: clean ? 'Clear' : '$count findings',
-                tone: clean ? Tone.success : Tone.danger,
+              const SizedBox(width: 6),
+              Flexible(
+                child: StatusPill(
+                  label: clean ? 'Clear' : '$count findings',
+                  tone: clean ? Tone.success : Tone.danger,
+                ),
               ),
             ],
           ),
@@ -409,11 +414,7 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
-                  Icons.policy_outlined,
-                  size: 16,
-                  color: AppTheme.navy,
-                ),
+                Icon(Icons.policy_outlined, size: 16, color: AppTheme.navy),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text.rich(
@@ -719,8 +720,8 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: AppTheme.card,
         border: Border(top: BorderSide(color: AppTheme.border)),
         boxShadow: [
           BoxShadow(
@@ -735,13 +736,14 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              spacing: 8,
+              runSpacing: 4,
               children: [
-                Expanded(
-                  child: Text(
-                    'Suggestions applied: $appliedCount of $availableSuggestions',
-                    style: AppTheme.monoLabel(),
-                  ),
+                Text(
+                  'Suggestions applied: $appliedCount of $availableSuggestions',
+                  style: AppTheme.monoLabel(),
                 ),
                 Text(
                   'Reviewer decision required',
@@ -757,23 +759,29 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
                 onPressed: (submitted || isSubmitting) ? null : submitForReview,
                 style: FilledButton.styleFrom(backgroundColor: AppTheme.teal),
                 child: isSubmitting
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.onPrimary,
                         ),
                       )
                     : Row(
                         mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           const Icon(Icons.verified_user_outlined, size: 18),
                           const SizedBox(width: 8),
-                          Text(
-                            submitted
-                                ? 'Submission processed'
-                                : 'Submit for authorised review',
+                          Flexible(
+                            child: Text(
+                              submitted
+                                  ? 'Submission processed'
+                                  : 'Submit for authorised review',
+                              maxLines: 2,
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),

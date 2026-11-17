@@ -57,6 +57,7 @@ class _ApprovalVerificationScreenState
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     final valid = _result?['valid'] == true;
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -114,12 +115,12 @@ class _ApprovalVerificationScreenState
                     child: FilledButton.icon(
                       onPressed: _isLoading ? null : _verify,
                       icon: _isLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Colors.white,
+                                color: Theme.of(context).colorScheme.onPrimary,
                               ),
                             )
                           : const Icon(Icons.verified_user_outlined, size: 18),

@@ -74,6 +74,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -145,7 +146,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             decoration: BoxDecoration(
                               color: unread
                                   ? AppTheme.infoBg
-                                  : const Color(0xFFF2F5F4),
+                                  : AppTheme.neutralBg,
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Icon(
@@ -188,7 +189,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             visualDensity: VisualDensity.compact,
                             tooltip: 'Delete notification',
                             onPressed: () => _act('DELETE', '/${item['id']}'),
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.delete_outline_rounded,
                               size: 18,
                               color: AppTheme.muted,

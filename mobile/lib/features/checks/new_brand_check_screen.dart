@@ -180,6 +180,7 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -218,7 +219,7 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
                       color: AppTheme.teal.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.auto_awesome_motion_outlined,
                       size: 18,
                       color: AppTheme.tealText,
@@ -345,7 +346,7 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
                             color: AppTheme.mint,
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.description_outlined,
                             size: 19,
                             color: AppTheme.tealText,
@@ -379,7 +380,7 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
                               ? null
                               : () =>
                                     setState(() => _attachments.remove(asset)),
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.close_rounded,
                             size: 18,
                             color: AppTheme.danger,
@@ -450,12 +451,12 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
                   minimumSize: const Size(0, 52),
                 ),
                 child: _busy
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.onPrimary,
                         ),
                       )
                     : const Row(
@@ -569,7 +570,7 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
                 color: AppTheme.mint,
                 borderRadius: BorderRadius.circular(9),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.tune_rounded,
                 size: 16,
                 color: AppTheme.tealText,

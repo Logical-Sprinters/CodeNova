@@ -129,6 +129,7 @@ class _ServerRecordsScreenState extends State<ServerRecordsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -232,7 +233,7 @@ class _ServerRecordsScreenState extends State<ServerRecordsScreen> {
                             )
                           else if (widget.kind == 'receipts')
                             const StatusPill(label: 'Recorded', compact: true),
-                          const Icon(
+                          Icon(
                             Icons.chevron_right_rounded,
                             size: 18,
                             color: AppTheme.muted,

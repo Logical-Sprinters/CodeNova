@@ -68,6 +68,7 @@ class _DraftsScreenState extends State<DraftsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppTheme.watch(context);
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -137,7 +138,7 @@ class _DraftsScreenState extends State<DraftsScreen> {
                               color: AppTheme.mint,
                               borderRadius: BorderRadius.circular(11),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.edit_note_rounded,
                               size: 19,
                               color: AppTheme.tealText,
@@ -177,7 +178,7 @@ class _DraftsScreenState extends State<DraftsScreen> {
                           IconButton(
                             tooltip: 'Delete draft',
                             onPressed: () => _delete(item['id'].toString()),
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.delete_outline_rounded,
                               size: 18,
                               color: AppTheme.muted,

@@ -226,6 +226,32 @@ class BrandGuardApiService {
     '/api/v1/brand/check',
     body: {'brand_name': brandName, 'content': content, 'content_type': 'text'},
   );
+
+  /// Persists the display name on the server and refreshes the session user.
+  static Future<User> updateDisplayName(String name) async {
+    final data = await request(
+      'PATCH',
+      '/api/v1/auth/profile',
+      body: {'name': name},
+    );
+    final raw = data['user'];
+    if (raw is! Map) {
+      throw const ApiException(
+        'The server did not return your updated profile.',
+      );
+    }
+    final user = User.fromJson(Map<String, dynamic>.from(raw));
+    session.updateUser(user);
+    return user;
+  }
+
+  static Future<Map<String, dynamic>> getPreferences() =>
+      getJson('/api/v1/auth/preferences');
+
+  static Future<Map<String, dynamic>> savePreferences(
+    Map<String, bool> values,
+  ) => request('PUT', '/api/v1/auth/preferences', body: values);
+
   static Future<Map<String, dynamic>> getReviews({String? status}) => getJson(
     '/api/v1/reviews${status == null ? '' : '?status=${Uri.encodeQueryComponent(status)}'}',
   );
