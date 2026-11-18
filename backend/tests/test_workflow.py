@@ -140,6 +140,115 @@ def test_approval_requires_exact_content_brand_and_rules(
     assert verify(client, check_id)["valid"] is False
 
 
+
+def test_trusted_source_conflict_is_visible_and_blocks_approval(
+    client, creator_headers, reviewer_headers
+):
+    common = {
+        "title": "Canada availability",
+        "brand_name": "Acme",
+        "category": "Product Claims",
+        "enabled": True,
+    }
+    positive = client.post(
+        "/api/v1/library/guidelines",
+        json={**common, "content": "Acme is available in Canada."},
+        headers=reviewer_headers,
+    )
+    negative = client.post(
+        "/api/v1/library/guidelines",
+        json={**common, "content": "Acme is not available in Canada."},
+        headers=reviewer_headers,
+    )
+    assert positive.status_code == 201, positive.text
+    assert negative.status_code == 201, negative.text
+
+    result = create_check(client, creator_headers, content="A product announcement.")
+    check_id = result["check_id"]
+
+    queue = client.get("/api/v1/reviews", headers=reviewer_headers)
+    assert queue.status_code == 200, queue.text
+    review = next(r for r in queue.json()["reviews"] if r["check_id"] == check_id)
+    assert review["source_conflicts"]
+    assert len(review["source_conflicts"][0]["evidence"]) == 2
+
+    blocked = decide(client, check_id, reviewer_headers, "approved")
+    assert blocked.status_code == 409
+    assert "source_conflicts" in blocked.json()["detail"]
+    assert approval_store.get_record(check_id)["status"] == "pending"
+
+    rejected = decide(client, check_id, reviewer_headers, "rejected")
+    assert rejected.status_code == 200
+
+def test_approval_fingerprint_is_saved_and_detects_metadata_tampering(
+    client, creator_headers, reviewer_headers
+):
+    result = create_check(client, creator_headers)
+    check_id = result["check_id"]
+    approved = decide(client, check_id, reviewer_headers)
+    assert approved.status_code == 200, approved.text
+
+    record = approval_store.get_record(check_id)
+    fingerprint = record.get("approval_fingerprint")
+    assert fingerprint
+    assert len(fingerprint) == 64
+    assert record["approval_fingerprint_algorithm"] == "SHA-256"
+    assert record["versions"][-1]["approval_fingerprint"] == fingerprint
+
+    receipt = receipt_store.get_receipt(record["receipt_id"])
+    assert receipt["approval_fingerprint"] == fingerprint
+    assert verify(client, check_id)["valid"] is True
+
+    records = approval_store.load_records()
+    stored = next(row for row in records if row["check_id"] == check_id)
+    stored["reviewer"] = "tampered-reviewer"
+    approval_store.save_records(records)
+    checked = verify(client, check_id)
+    assert checked["valid"] is False
+    assert "fingerprint mismatch" in checked["reason"].lower()
+
+
+def test_resubmission_clears_active_fingerprint_but_preserves_old_snapshot(
+    client, creator_headers, reviewer_headers
+):
+    result = create_check(client, creator_headers)
+    check_id = result["check_id"]
+    assert decide(client, check_id, reviewer_headers).status_code == 200
+    approved_record = approval_store.get_record(check_id)
+    old_fingerprint = approved_record["approval_fingerprint"]
+
+    edited = "Updated demo offer. TODO: legal review."
+    response = client.post(
+        f"/api/v1/brand/{check_id}/versions",
+        json={"content": edited},
+        headers=creator_headers,
+    )
+    assert response.status_code == 200
+    updated = approval_store.get_record(check_id)
+    assert updated["status"] == "pending"
+    assert updated["approval_fingerprint"] is None
+    assert updated["versions"][-2]["approval_fingerprint"] == old_fingerprint
+    assert verify(client, check_id, content=edited)["valid"] is False
+
+
+def test_legacy_approval_without_fingerprint_fails_closed(
+    client, creator_headers, reviewer_headers
+):
+    result = create_check(client, creator_headers)
+    check_id = result["check_id"]
+    assert decide(client, check_id, reviewer_headers).status_code == 200
+
+    records = approval_store.load_records()
+    stored = next(row for row in records if row["check_id"] == check_id)
+    stored.pop("approval_fingerprint", None)
+    stored.pop("approval_fingerprint_algorithm", None)
+    approval_store.save_records(records)
+
+    checked = verify(client, check_id)
+    assert checked["valid"] is False
+    assert "no approval-time" in checked["reason"].lower()
+
+
 def test_version_resets_approval_and_writes_separate_audit_and_receipt(
     client, creator_headers, reviewer_headers
 ):

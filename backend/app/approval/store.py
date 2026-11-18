@@ -21,6 +21,26 @@ def generate_content_hash(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
+def generate_approval_fingerprint(record: dict) -> str:
+    # Fingerprint the approved version and its approval metadata.
+    import json
+
+    payload = {
+        "check_id": record.get("check_id"),
+        "brand_name": record.get("brand_name"),
+        "content_hash": record.get("content_hash"),
+        "content_version": record.get("content_version"),
+        "rules_version": record.get("rules_version"),
+        "reviewer": record.get("reviewer"),
+        "decided_at": record.get("decided_at"),
+        "receipt_id": record.get("receipt_id"),
+    }
+    canonical = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def snapshot(record):
     keys = (
         "content",
@@ -34,6 +54,9 @@ def snapshot(record):
         "decided_at",
         "receipt_id",
         "visual_analysis",
+        "source_conflicts",
+        "approval_fingerprint",
+        "approval_fingerprint_algorithm",
     )
     return {
         "version": record["content_version"],
@@ -74,6 +97,11 @@ def decide_record(check_id: str, decision: str, reviewer: str, note: str):
             review_note=note,
             decided_at=datetime.now(timezone.utc).isoformat(),
         )
+        record["approval_fingerprint"] = None
+        record["approval_fingerprint_algorithm"] = None
+        if decision == "approved":
+            record["approval_fingerprint"] = generate_approval_fingerprint(record)
+            record["approval_fingerprint_algorithm"] = "SHA-256"
         if record.get("versions"):
             record["versions"][-1] = snapshot(record)
         save_records(records)
@@ -94,11 +122,26 @@ def verify_approval(
         return {"valid": False, "reason": "Content has changed since approval."}
     if record.get("rules_version") != current_rules_version:
         return {"valid": False, "reason": "Brand rules have changed since approval."}
+    stored_fingerprint = record.get("approval_fingerprint")
+    if not stored_fingerprint:
+        return {
+            "valid": False,
+            "reason": "No approval-time SHA-256 fingerprint exists for this approval.",
+        }
+    expected_fingerprint = generate_approval_fingerprint(record)
+    import hmac
+    if not hmac.compare_digest(stored_fingerprint, expected_fingerprint):
+        return {
+            "valid": False,
+            "reason": "Approval fingerprint mismatch. Approval metadata may have been modified.",
+        }
     return {
         "valid": True,
-        "reason": "Exact content and current brand rules match the approved version.",
+        "reason": "Content, approval fingerprint and current brand rules match.",
         "check_id": check_id,
         "content_hash": record["content_hash"],
+        "approval_fingerprint": stored_fingerprint,
+        "approval_fingerprint_algorithm": record.get("approval_fingerprint_algorithm"),
         "content_version": record["content_version"],
         "rules_version": record.get("rules_version"),
     }

@@ -35,7 +35,13 @@ def get_receipt(receipt_id: str):
 
 
 def record_decision(
-    check_id: str, content_version: int, decision: str, reviewer: str, note: str
+    check_id: str,
+    content_version: int,
+    decision: str,
+    reviewer: str,
+    note: str,
+    approval_fingerprint: str | None = None,
+    approval_fingerprint_algorithm: str | None = None,
 ):
     with STORE_LOCK:
         receipts = load_receipts()
@@ -49,5 +55,7 @@ def record_decision(
                     reviewer=reviewer,
                     review_note=note,
                     decided_at=datetime.now(timezone.utc).isoformat(),
+                    approval_fingerprint=approval_fingerprint,
+                    approval_fingerprint_algorithm=approval_fingerprint_algorithm,
                 )
         save_receipts(receipts)

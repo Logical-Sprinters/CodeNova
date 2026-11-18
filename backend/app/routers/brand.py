@@ -17,6 +17,7 @@ from app.auth import get_user
 from app.checks.deterministic.engine import run_deterministic_checks
 from app.checks.llm.verifier import run_ai_verification
 from app.checks.multimodal import analyze_image
+from app.checks.source_conflicts import detect_source_conflicts
 from app.receipts.store import create_receipt
 from app.rules_store.store import get_brand_rule_versions
 from app.schemas.brand import (
@@ -48,6 +49,7 @@ def inspect_content(content, brand_name):
         "deterministic_count": len(deterministic),
         "scan_status": "findings_detected" if findings else "passed",
         "ai_verification": ai_result,
+        "source_conflicts": detect_source_conflicts(brand_name),
     }
 
 
@@ -90,6 +92,7 @@ def response_for(record):
         ai_verification=record.get("ai_verification"),
         visual_analysis=record.get("visual_analysis"),
         checked_content=record["content"],
+        source_conflicts=record.get("source_conflicts", []),
     )
 
 
@@ -246,6 +249,8 @@ async def submit_version(
             reviewer=None,
             review_note=None,
             decided_at=None,
+            approval_fingerprint=None,
+            approval_fingerprint_algorithm=None,
             updated_at=datetime.now(timezone.utc).isoformat(),
         )
         attach_receipt(record)

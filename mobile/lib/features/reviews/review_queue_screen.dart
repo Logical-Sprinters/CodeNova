@@ -108,6 +108,10 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
           'visualAnalysis': visualAnalysis,
           'visualFindings': visualViolations.toList(),
           'brandName': review['brand_name']?.toString() ?? '',
+          'sourceConflicts': (review['source_conflicts'] as List? ?? [])
+              .whereType<Map>()
+              .map((conflict) => Map<String, dynamic>.from(conflict))
+              .toList(),
         };
       }).toList();
 
@@ -239,6 +243,11 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                 .whereType<Map>()
                 .map((f) => Map<String, dynamic>.from(f))
                 .toList();
+            final sourceConflicts = (review['sourceConflicts'] as List? ?? [])
+                .whereType<Map>()
+                .map((conflict) => Map<String, dynamic>.from(conflict))
+                .toList();
+            final hasSourceConflicts = sourceConflicts.isNotEmpty;
             final canDecide =
                 (status == 'Pending' || status == 'Changes Requested') &&
                 (session.currentUser?.isReviewer ?? false) &&
@@ -385,6 +394,10 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                                 _shortHash(review['contentHash'].toString()),
                               ),
                           ]),
+                          if (hasSourceConflicts) ...[
+                            const SizedBox(height: 12),
+                            _sourceConflictEvidence(sourceConflicts),
+                          ],
                           if (findings.isNotEmpty) ...[
                             const SizedBox(height: 12),
                             _detailSection('REQUIRED EVIDENCE CHECKLIST', [
@@ -449,6 +462,15 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                             ),
                           ),
                           const SizedBox(height: 12),
+                          if (hasSourceConflicts) ...[
+                            const InlineNotice(
+                              tone: Tone.danger,
+                              icon: Icons.gpp_bad_outlined,
+                              title: 'Approval blocked — source conflict',
+                              message: 'Trusted brand sources disagree. Reconcile the conflicting library records before approving this submission. Rejection remains available.',
+                            ),
+                            const SizedBox(height: 12),
+                          ],
                           const InlineNotice(
                             tone: Tone.info,
                             icon: Icons.lock_outline_rounded,
@@ -538,11 +560,13 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                                   height: 48,
                                   child: FilledButton.icon(
                                     key: const ValueKey('approve-review'),
-                                    onPressed: () => updateReview(
-                                      review,
-                                      'Approved',
-                                      sheetContext,
-                                    ),
+                                    onPressed: hasSourceConflicts
+                                        ? null
+                                        : () => updateReview(
+                                            review,
+                                            'Approved',
+                                            sheetContext,
+                                          ),
                                     style: FilledButton.styleFrom(
                                       backgroundColor: AppTheme.teal,
                                     ),
@@ -550,8 +574,10 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                                       Icons.lock_rounded,
                                       size: 17,
                                     ),
-                                    label: const Text(
-                                      'Authorise & cryptographically lock',
+                                    label: Text(
+                                      hasSourceConflicts
+                                          ? 'Approval blocked by source conflict'
+                                          : 'Authorise & cryptographically lock',
                                     ),
                                   ),
                                 ),
@@ -622,6 +648,103 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
   String _shortHash(String value) {
     if (value.length <= 20) return value;
     return '${value.substring(0, 12)}…${value.substring(value.length - 6)}';
+  }
+
+  Widget _sourceConflictEvidence(List<Map<String, dynamic>> conflicts) {
+    return SurfaceCard(
+      padding: const EdgeInsets.all(13),
+      radius: 14,
+      borderColor: AppTheme.danger.withValues(alpha: 0.45),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                color: AppTheme.danger,
+                size: 18,
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  'SOURCE-OF-TRUTH CONFLICTS',
+                  style: AppTheme.monoLabel(color: AppTheme.danger),
+                ),
+              ),
+              StatusPill(
+                label: '${conflicts.length} unresolved',
+                tone: Tone.danger,
+                compact: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Approval is paused until an authorised reviewer reconciles these trusted sources.',
+            style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+          ),
+          const SizedBox(height: 10),
+          for (var index = 0; index < conflicts.length; index++) ...[
+            if (index > 0) Divider(color: AppTheme.border),
+            Text(
+              'Conflict ${index + 1}: ${conflicts[index]['claim'] ?? 'Contradictory claim'}',
+              style: AppTheme.labelMedium.copyWith(
+                color: AppTheme.ink,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 7),
+            for (final rawEvidence
+                in (conflicts[index]['evidence'] as List? ?? []))
+              if (rawEvidence is Map) ...[
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 7),
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: AppTheme.background,
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(color: AppTheme.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${rawEvidence['source_title'] ?? 'Untitled source'} · ${rawEvidence['source_type'] ?? 'source'}',
+                        style: AppTheme.labelMedium.copyWith(
+                          color: AppTheme.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      SelectableText(
+                        (rawEvidence['statement'] ?? '').toString(),
+                        style: AppTheme.bodySmall.copyWith(
+                          color: AppTheme.ink,
+                          height: 1.4,
+                        ),
+                      ),
+                      if ((rawEvidence['source_url'] ?? '')
+                          .toString()
+                          .isNotEmpty)
+                        Text(
+                          rawEvidence['source_url'].toString(),
+                          style: AppTheme.bodySmall.copyWith(
+                            color: AppTheme.teal,
+                          ),
+                        ),
+                      Text(
+                        'Source ID: ${rawEvidence['source_id'] ?? '—'}',
+                        style: AppTheme.monoLabel(),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+          ],
+        ],
+      ),
+    );
   }
 
   Widget _findingChecklistRow(Map<String, dynamic> finding) {
@@ -1110,6 +1233,12 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                   tone: riskTone(review['risk']),
                   compact: true,
                 ),
+                if ((review['sourceConflicts'] as List? ?? []).isNotEmpty)
+                  const StatusPill(
+                    label: 'Source conflict',
+                    tone: Tone.danger,
+                    compact: true,
+                  ),
                 StatusPill(label: review['date'], compact: true),
                 StatusPill(
                   label: review['rulesVersion'],

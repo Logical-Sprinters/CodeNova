@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.checks.source_conflicts import detect_source_conflicts
 from app.approval.store import (
     decide_record,
     generate_content_hash,
@@ -23,6 +24,9 @@ async def get_reviews(status: str | None = None, user: dict = Depends(get_user))
     if status is not None and status not in {"pending", "approved", "rejected"}:
         raise HTTPException(422, "Status must be pending, approved or rejected")
     records = [record for record in list_records(status) if can_read(record, user)]
+    for record in records:
+        # Re-evaluate against the latest trusted library sources for reviewer visibility.
+        record["source_conflicts"] = detect_source_conflicts(record["brand_name"])
     return {"reviews": records, "total": len(records)}
 
 
@@ -49,6 +53,17 @@ async def review_decision(
             )
         if record["status"] != "pending":
             raise HTTPException(409, "This version already has a decision.")
+        current_conflicts = detect_source_conflicts(record["brand_name"])
+        record["source_conflicts"] = current_conflicts
+        if request.decision == "approved" and current_conflicts:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "Approval blocked: trusted brand sources conflict. "
+                    "A reviewer must reconcile the source records before approval.",
+                    "source_conflicts": current_conflicts,
+                },
+            )
         rules = get_brand_rule_versions(record["brand_name"])
         current_rules = rules["current_version"] if rules else None
         if current_rules != record.get("rules_version"):
@@ -68,6 +83,8 @@ async def review_decision(
             request.decision,
             user["user_id"],
             request.note.strip(),
+            approval_fingerprint=result.get("approval_fingerprint"),
+            approval_fingerprint_algorithm=result.get("approval_fingerprint_algorithm"),
         )
         log_audit(
             "review_decision",
@@ -79,6 +96,8 @@ async def review_decision(
                 "content_hash": result["content_hash"],
                 "rules_version": result["rules_version"],
                 "receipt_id": result["receipt_id"],
+                "approval_fingerprint": result.get("approval_fingerprint"),
+                "approval_fingerprint_algorithm": result.get("approval_fingerprint_algorithm"),
             },
         )
         notify(

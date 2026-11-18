@@ -59,6 +59,7 @@ class BrandCheckResponse(BaseModel):
     ai_verification: dict | None = None
     visual_analysis: dict | None = None
     checked_content: str | None = None
+    source_conflicts: list[dict] = Field(default_factory=list)
 
 
 class ReviewDecisionRequest(BaseModel):
