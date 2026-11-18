@@ -1,0 +1,40 @@
+{
+  "checks": [
+    {
+      "check": "creator real cloud demo login",
+      "result": "passed"
+    },
+    {
+      "check": "reviewer real cloud demo login",
+      "result": "passed"
+    },
+    {
+      "check": "expired evaluation user cannot sign into app",
+      "result": "passed"
+    },
+    {
+      "check": "expired evaluation JWT cannot upload directly to Storage",
+      "result": "passed"
+    },
+    {
+      "check": "active evaluation creator uploads actual private cloud file",
+      "result": "passed"
+    },
+    {
+      "check": "active evaluation reviewer reads sample document",
+      "result": "passed"
+    },
+    {
+      "check": "expired reviewer cannot directly read another users sample file",
+      "result": "passed"
+    },
+    {
+      "check": "expired negative-test account removed",
+      "result": "passed"
+    }
+  ],
+  "evaluation_accounts_kept_for_user": 2,
+  "evaluation_access_hours": 24,
+  "app_and_storage_expiry_enforced": true,
+  "email_delivery_tested": false
+}

@@ -1,0 +1,43 @@
+PASS 01: live API health
+PASS 02: cloud auth config, no seeded demo
+PASS 03: impersonable demo ID header rejected
+PASS 04: public signup cannot request reviewer role
+PASS 05: creator real server login
+PASS 06: reviewer real server login
+PASS 07: other real server login
+PASS 08: actual PostgreSQL and Supabase Storage runtime
+PASS 09: creator cannot manage shared library
+PASS 10: reviewer creates shared guideline
+PASS 11: creator reads cloud library
+PASS 12: URL-only facts rejected
+PASS 13: reviewer creates versioned enforceable rule
+PASS 14: reviewer adds verified source text
+PASS 15: app uploads actual private cloud document
+PASS 16: owner cloud document download
+PASS 17: reviewer cloud document download
+PASS 18: document extraction preview
+PASS 19: other creator cannot read file
+PASS 20: draft and attachment persist in PostgreSQL
+PASS 21: draft revision update
+PASS 22: stale draft conflict
+PASS 23: other creator cannot attach private object
+PASS 24: real scan uses cloud rule and explicit AI abstention
+PASS 25: other creator cannot read receipt
+PASS 26: creator cannot approve
+PASS 27: independent reviewer approves exact version
+PASS 28: exact text verifies human approval
+PASS 29: rule edit creates a new rule snapshot
+PASS 30: rule edit invalidates older approval
+PASS 31: owner edit rechecks and clears decision
+PASS 32: stale review cannot approve a newer version
+PASS 33: reviewer rejection and reason persist
+PASS 34: actual decision notifications
+PASS 35: notification read state
+PASS 36: other creator notifications are private
+PASS 37: live creator analytics
+PASS 38: other creator analytics scope
+PASS 39: cloud version history
+PASS 40: other creator version-history scope
+PASS 41: independent SQL read confirms actual remote record
+PASS 42: PostgreSQL transaction rollback verified
+PHASE_PREPARE_PASSED. Restart the actual API process, then resume.

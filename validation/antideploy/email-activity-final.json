@@ -1,0 +1,59 @@
+{
+  "applicationId": "24f672f9-ef5a-4c45-8043-b98af546e6ad",
+  "scope": "application",
+  "reporting": true,
+  "rows": [
+    {
+      "id": "3d23aae5-bb1a-4b66-a2aa-4032b3a82e54",
+      "applicationId": "24f672f9-ef5a-4c45-8043-b98af546e6ad",
+      "at": "2026-11-15T21:01:01.101Z",
+      "recipients": 1,
+      "status": "accepted",
+      "outcome": "delivered",
+      "detail": null,
+      "application": "brandguard"
+    },
+    {
+      "id": "ce8aea48-215b-44d5-8fe6-3896ebe39268",
+      "applicationId": "24f672f9-ef5a-4c45-8043-b98af546e6ad",
+      "at": "2026-11-15T21:00:48.706Z",
+      "recipients": 1,
+      "status": "accepted",
+      "outcome": "delivered",
+      "detail": null,
+      "application": "brandguard"
+    },
+    {
+      "id": "ed2d14db-f2ca-4428-8642-e13dda3315a7",
+      "applicationId": "24f672f9-ef5a-4c45-8043-b98af546e6ad",
+      "at": "2026-11-15T20:56:22.043Z",
+      "recipients": 1,
+      "status": "accepted",
+      "outcome": "delivered",
+      "detail": null,
+      "application": "brandguard"
+    },
+    {
+      "id": "21d61e43-3db0-4421-90f2-8caf56a6a7da",
+      "applicationId": "24f672f9-ef5a-4c45-8043-b98af546e6ad",
+      "at": "2026-11-15T20:50:03.505Z",
+      "recipients": 1,
+      "status": "accepted",
+      "outcome": "delivered",
+      "detail": null,
+      "application": "brandguard"
+    },
+    {
+      "id": "aaf579c0-6801-4093-9fde-17b71486f406",
+      "applicationId": "24f672f9-ef5a-4c45-8043-b98af546e6ad",
+      "at": "2026-11-15T20:40:33.750Z",
+      "recipients": 1,
+      "status": "accepted",
+      "outcome": "delivered",
+      "detail": null,
+      "application": "brandguard"
+    }
+  ],
+  "next": null,
+  "note": "Newest first. For more, send `before` with the `next` of this answer. `status` is what the relay did with the message (accepted by Resend, or rejected), `outcome` is what Resend reported afterwards (delivered, bounced, complained, delayed, failed, suppressed) and stays null until it has reported, or always while `reporting` is false. No subject, body or address is kept, so none is shown."
+}

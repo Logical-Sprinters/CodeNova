@@ -1,0 +1,31 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.18, pytest-9.0.3, pluggy-1.7.0 -- /home/user/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: backend
+configfile: pytest.ini
+testpaths: tests
+plugins: platformdirs-4.14.5, anyio-4.16.0
+collecting ... collected 14 items
+
+tests/test_workflow.py::test_health_and_routes PASSED                    [  7%]
+tests/test_workflow.py::test_missing_or_unknown_user_cannot_create_or_list[headers0] PASSED [ 14%]
+tests/test_workflow.py::test_missing_or_unknown_user_cannot_create_or_list[headers1] PASSED [ 21%]
+tests/test_workflow.py::test_known_rules_and_unknown_brand PASSED        [ 28%]
+tests/test_workflow.py::test_check_findings_receipt_and_queue PASSED     [ 35%]
+tests/test_workflow.py::test_creator_cannot_escalate_role_with_a_header PASSED [ 42%]
+tests/test_workflow.py::test_reviewer_cannot_approve_own_submission PASSED [ 50%]
+tests/test_workflow.py::test_reviewer_can_decide_pending_content[approved] PASSED [ 57%]
+tests/test_workflow.py::test_reviewer_can_decide_pending_content[rejected] PASSED [ 64%]
+tests/test_workflow.py::test_approval_requires_exact_content_brand_and_rules PASSED [ 71%]
+tests/test_workflow.py::test_version_resets_approval_and_writes_separate_audit_and_receipt PASSED [ 78%]
+tests/test_workflow.py::test_invalid_decision_and_missing_records PASSED [ 85%]
+tests/test_workflow.py::test_current_clean_text_response_and_empty_body_validation PASSED [ 92%]
+tests/test_workflow.py::test_store_paths_do_not_depend_on_current_working_directory PASSED [100%]
+
+=============================== warnings summary ===============================
+../../.venv/lib/python3.13/site-packages/fastapi/testclient.py:1
+  /home/user/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 14 passed, 1 warning in 0.26s =========================

@@ -1,0 +1,20 @@
+{
+  "release": "2.0.1+3",
+  "native_default": "https://brandguard-app.antideploy.app",
+  "source_only_no_apk": true,
+  "backend_tests": 113,
+  "flutter_tests": 75,
+  "new_flutter_regressions": 26,
+  "analyzer": "clean",
+  "live_native_dart_https_checks": 13,
+  "rebuilt_rendered_real_cloud_login_roles": [
+    "creator",
+    "reviewer"
+  ],
+  "compiled_api_override_tests": 19,
+  "documentation_local_links_checked": 25,
+  "private_actual_value_scan": "passed before packaging and repeated on every ZIP entry",
+  "private_env_runtime_cache_signing_files": "excluded",
+  "production_backend_redeployed": false,
+  "earlier_zip_hashes_preserved": true
+}

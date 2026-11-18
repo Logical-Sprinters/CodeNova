@@ -1,0 +1,34 @@
+{
+  "command": "flutter build web --release --no-wasm-dry-run --no-web-resources-cdn",
+  "bundled_files": 26,
+  "uncompressed_bytes": 18155372,
+  "renderer": "canvaskit, generic and Chromium builds retained",
+  "local_resources": true,
+  "service_worker_registration": false,
+  "unused_assets_removed": [
+    ".last_build_id",
+    "canvaskit/canvaskit.js.symbols",
+    "canvaskit/chromium/canvaskit.js.symbols",
+    "canvaskit/skwasm.js",
+    "canvaskit/skwasm.js.symbols",
+    "canvaskit/skwasm.wasm",
+    "canvaskit/skwasm_heavy.js",
+    "canvaskit/skwasm_heavy.js.symbols",
+    "canvaskit/skwasm_heavy.wasm",
+    "canvaskit/webparagraph/canvaskit.js",
+    "canvaskit/webparagraph/canvaskit.js.symbols",
+    "canvaskit/webparagraph/canvaskit.wasm",
+    "canvaskit/wimp.js",
+    "canvaskit/wimp.js.symbols",
+    "canvaskit/wimp.wasm",
+    "flutter.js.map",
+    "flutter_service_worker.js"
+  ],
+  "main_js_sha256": "d93ec8155d2d3e3b71983bba13b0cb08b02aaf484fa8bce1038c8670d795ed66",
+  "version": {
+    "app_name": "brandguard",
+    "version": "2.0.1",
+    "build_number": "3",
+    "package_name": "brandguard"
+  }
+}

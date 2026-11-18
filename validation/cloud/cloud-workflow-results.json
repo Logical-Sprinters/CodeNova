@@ -1,0 +1,234 @@
+{
+  "brand": "CloudValidation-3194aec3bd",
+  "checks": [
+    {
+      "check": "live API health",
+      "result": "passed"
+    },
+    {
+      "check": "cloud auth config, no seeded demo",
+      "result": "passed"
+    },
+    {
+      "check": "impersonable demo ID header rejected",
+      "result": "passed"
+    },
+    {
+      "check": "public signup cannot request reviewer role",
+      "result": "passed"
+    },
+    {
+      "check": "creator real server login",
+      "result": "passed"
+    },
+    {
+      "check": "reviewer real server login",
+      "result": "passed"
+    },
+    {
+      "check": "other real server login",
+      "result": "passed"
+    },
+    {
+      "check": "actual PostgreSQL and Supabase Storage runtime",
+      "result": "passed"
+    },
+    {
+      "check": "creator cannot manage shared library",
+      "result": "passed"
+    },
+    {
+      "check": "reviewer creates shared guideline",
+      "result": "passed"
+    },
+    {
+      "check": "creator reads cloud library",
+      "result": "passed"
+    },
+    {
+      "check": "URL-only facts rejected",
+      "result": "passed"
+    },
+    {
+      "check": "reviewer creates versioned enforceable rule",
+      "result": "passed"
+    },
+    {
+      "check": "reviewer adds verified source text",
+      "result": "passed"
+    },
+    {
+      "check": "app uploads actual private cloud document",
+      "result": "passed"
+    },
+    {
+      "check": "owner cloud document download",
+      "result": "passed"
+    },
+    {
+      "check": "reviewer cloud document download",
+      "result": "passed"
+    },
+    {
+      "check": "document extraction preview",
+      "result": "passed"
+    },
+    {
+      "check": "other creator cannot read file",
+      "result": "passed"
+    },
+    {
+      "check": "draft and attachment persist in PostgreSQL",
+      "result": "passed"
+    },
+    {
+      "check": "draft revision update",
+      "result": "passed"
+    },
+    {
+      "check": "stale draft conflict",
+      "result": "passed"
+    },
+    {
+      "check": "other creator cannot attach private object",
+      "result": "passed"
+    },
+    {
+      "check": "real scan uses cloud rule and explicit AI abstention",
+      "result": "passed"
+    },
+    {
+      "check": "other creator cannot read receipt",
+      "result": "passed"
+    },
+    {
+      "check": "creator cannot approve",
+      "result": "passed"
+    },
+    {
+      "check": "independent reviewer approves exact version",
+      "result": "passed"
+    },
+    {
+      "check": "exact text verifies human approval",
+      "result": "passed"
+    },
+    {
+      "check": "rule edit creates a new rule snapshot",
+      "result": "passed"
+    },
+    {
+      "check": "rule edit invalidates older approval",
+      "result": "passed"
+    },
+    {
+      "check": "owner edit rechecks and clears decision",
+      "result": "passed"
+    },
+    {
+      "check": "stale review cannot approve a newer version",
+      "result": "passed"
+    },
+    {
+      "check": "reviewer rejection and reason persist",
+      "result": "passed"
+    },
+    {
+      "check": "actual decision notifications",
+      "result": "passed"
+    },
+    {
+      "check": "notification read state",
+      "result": "passed"
+    },
+    {
+      "check": "other creator notifications are private",
+      "result": "passed"
+    },
+    {
+      "check": "live creator analytics",
+      "result": "passed"
+    },
+    {
+      "check": "other creator analytics scope",
+      "result": "passed"
+    },
+    {
+      "check": "cloud version history",
+      "result": "passed"
+    },
+    {
+      "check": "other creator version-history scope",
+      "result": "passed"
+    },
+    {
+      "check": "independent SQL read confirms actual remote record",
+      "result": "passed"
+    },
+    {
+      "check": "PostgreSQL transaction rollback verified",
+      "result": "passed"
+    },
+    {
+      "check": "draft survives actual API process restart",
+      "result": "passed"
+    },
+    {
+      "check": "review decision and text survive restart",
+      "result": "passed"
+    },
+    {
+      "check": "protected cloud receipt survives restart",
+      "result": "passed"
+    },
+    {
+      "check": "live Supabase session refresh through app",
+      "result": "passed"
+    },
+    {
+      "check": "refreshed session is usable",
+      "result": "passed"
+    },
+    {
+      "check": "cloud logout through app",
+      "result": "passed"
+    },
+    {
+      "check": "logged-out access denied by backend",
+      "result": "passed"
+    },
+    {
+      "check": "older JWT for same logged-out session also denied",
+      "result": "passed"
+    },
+    {
+      "check": "logged-out refresh token denied",
+      "result": "passed"
+    },
+    {
+      "check": "authenticated Supabase password update",
+      "result": "passed"
+    },
+    {
+      "check": "old password no longer signs in",
+      "result": "passed"
+    },
+    {
+      "check": "new password signs in through app",
+      "result": "passed"
+    },
+    {
+      "check": "temporary cloud objects, accounts and application rows cleaned",
+      "result": "passed"
+    }
+  ],
+  "cleaned": true,
+  "project_name": "BrandGuard",
+  "project_ref": "jtidayzktuzpjydshsva",
+  "live_application_checks": 55,
+  "database": "postgresql",
+  "sslmode": "verify-full",
+  "api_process_restart_tested": true,
+  "real_ai_provider_tested": false,
+  "email_delivery_tested": false
+}

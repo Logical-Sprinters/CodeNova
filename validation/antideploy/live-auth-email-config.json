@@ -1,0 +1,7 @@
+{
+  "site_url": "https://brandguard-app.antideploy.app",
+  "hook_send_email_enabled": true,
+  "hook_send_email_uri": "[redacted: private account contact]",
+  "mailer_autoconfirm": false,
+  "uri_allow_list": "https://brandguard-app.antideploy.app,https://brandguard-app.antideploy.app/,https://brandguard-app.antideploy.app/auth/reset,https://brandguard-app.antideploy.app/auth/confirm"
+}

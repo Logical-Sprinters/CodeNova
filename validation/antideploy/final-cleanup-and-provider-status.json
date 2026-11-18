@@ -1,0 +1,28 @@
+{
+  "test_auth_users_remaining": 0,
+  "test_brand_rows_remaining": 0,
+  "retained_demo_users": 2,
+  "demo_expiry_unchanged": true,
+  "retained_demo_sample_preserved": true,
+  "sql_ssl_in_use": true,
+  "auth_email_receipts_without_pii": 4,
+  "private_checkpoints_removed": true,
+  "email_health": {
+    "windowDays": 7,
+    "sent": 5,
+    "delivered": 5,
+    "bounced": 0,
+    "complained": 0,
+    "delayed": 0,
+    "failed": 0,
+    "suppressed": 0,
+    "bounceRate": 0,
+    "complaintRate": 0,
+    "enough": false,
+    "state": "healthy",
+    "reasons": []
+  },
+  "email_reporting": true,
+  "ai_wallet_balance_paise": 0,
+  "ai_funded_live_tested": false
+}
