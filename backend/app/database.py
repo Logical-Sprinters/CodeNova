@@ -51,6 +51,13 @@ KEYS = {
     "audit_log": "audit_id",
     "users": "user_id",
     "auth_users": "user_id",
+    "user_preferences": "user_id",
+    "finding_overrides": "override_id",
+    "clarity_tickets": "ticket_id",
+    "conflicts": "conflict_id",
+    "approval_seals": "seal_id",
+    "library_facts": "id",
+    "library_guidelines": "id",
 }
 
 

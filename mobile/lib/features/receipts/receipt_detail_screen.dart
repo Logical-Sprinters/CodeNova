@@ -283,6 +283,22 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
                               ? AppTheme.success
                               : AppTheme.muted,
                         ),
+                        if (receipt?['channel'] != null)
+                          DetailRow(
+                            label: 'Channel',
+                            value: receipt!['channel'].toString(),
+                          ),
+                        if (receipt?['check_at'] != null)
+                          DetailRow(
+                            label: 'Check time',
+                            value: receipt!['check_at'].toString(),
+                          ),
+                        if (receipt?['composite_hash'] != null)
+                          DetailRow(
+                            label: 'Composite seal',
+                            value: _short(receipt!['composite_hash'], keep: 20),
+                            monospace: true,
+                          ),
                         if (receipt?['reviewer'] != null)
                           DetailRow(
                             label: 'Reviewer',

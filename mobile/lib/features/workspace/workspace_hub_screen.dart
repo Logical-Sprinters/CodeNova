@@ -8,6 +8,8 @@ import '../analytics/analytics_screen.dart';
 import '../approvals/approval_verification_screen.dart';
 import '../checks/new_brand_check_screen.dart';
 import '../drafts/drafts_screen.dart';
+import '../governance/clarity_tickets_screen.dart';
+import '../governance/conflicts_screen.dart';
 import '../guidelines/brand_guidelines_screen.dart';
 import '../guidelines/fact_sources_screen.dart';
 import '../guidelines/upload_rule_screen.dart';
@@ -80,6 +82,18 @@ class WorkspaceHubScreen extends StatelessWidget {
             'Ingest documents and verify eligible evidence.',
             Icons.fact_check_outlined,
             const FactSourcesScreen(),
+          ),
+          (
+            'Clarity Tickets',
+            'Review rule friction tickets opened by repeated coded overrides.',
+            Icons.support_agent_rounded,
+            const ClarityTicketsScreen(),
+          ),
+          (
+            'Policy Conflicts',
+            'Resolve contradictory rules or verified facts side-by-side.',
+            Icons.balance_rounded,
+            const ConflictsScreen(),
           ),
         ],
       ),

@@ -1,6 +1,7 @@
-"""Private TXT/Markdown/PDF storage and extraction. No fake image/OCR support."""
+"""Private TXT/Markdown/PDF and multimodal image storage, OCR, and visual inspection."""
 
 from datetime import datetime, timezone
+import hashlib
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import quote
@@ -13,10 +14,17 @@ from pypdf import PdfReader
 
 from app import config
 from app.auth import can_read, get_user, require_reviewer
+from app.checks.visual.inspector import extract_image_metadata
 from app.storage import STORE_LOCK, read_json, write_json
 
 router = APIRouter(prefix="/api/v1/files", tags=["Private document storage"])
 MAX_BYTES = 5 * 1024 * 1024
+IMAGE_SUFFIXES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+}
 
 
 def extract(filename, raw):
@@ -26,7 +34,17 @@ def extract(filename, raw):
             text = raw.decode("utf-8-sig")[:100000]
             if not text.strip():
                 raise HTTPException(422, "The document has no readable text")
-            return text, "text/plain; charset=utf-8"
+            return {
+                "extracted_text": text,
+                "mime": "text/plain; charset=utf-8",
+                "is_image": False,
+                "file_sha256": hashlib.sha256(raw).hexdigest(),
+                "width": None,
+                "height": None,
+                "dominant_colors": [],
+                "ocr_status": "not_applicable",
+                "ocr_words": [],
+            }
         if suffix == ".pdf" and raw.startswith(b"%PDF"):
             reader = PdfReader(BytesIO(raw))
             if reader.is_encrypted or len(reader.pages) > 30:
@@ -37,18 +55,43 @@ def extract(filename, raw):
             if not text.strip():
                 raise HTTPException(
                     422,
-                    "No text was extracted. Scanned/image PDFs need OCR, which is not configured.",
+                    "No text was extracted. Scanned/image PDFs need PDF-to-image OCR, which is not configured.",
                 )
-            return text, "application/pdf"
+            return {
+                "extracted_text": text,
+                "mime": "application/pdf",
+                "is_image": False,
+                "file_sha256": hashlib.sha256(raw).hexdigest(),
+                "width": None,
+                "height": None,
+                "dominant_colors": [],
+                "ocr_status": "not_applicable",
+                "ocr_words": [],
+            }
+        if suffix in IMAGE_SUFFIXES:
+            meta = extract_image_metadata(raw)
+            return {
+                "extracted_text": meta["extracted_text"],
+                "mime": IMAGE_SUFFIXES[suffix],
+                "is_image": True,
+                "file_sha256": meta["file_sha256"],
+                "width": meta["width"],
+                "height": meta["height"],
+                "dominant_colors": meta["dominant_colors"],
+                "ocr_status": meta["ocr_status"],
+                "ocr_words": meta["ocr_words"],
+            }
     except HTTPException:
         raise
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
     except Exception as error:
         raise HTTPException(
-            422, "Cannot extract readable UTF-8/PDF text from this document"
+            422, "Cannot extract readable UTF-8/PDF/image data from this file"
         ) from error
     raise HTTPException(
         415,
-        "Supported uploads: .txt, .md and text-based .pdf only. Image OCR is not configured.",
+        "Supported uploads: .txt, .md, text-based .pdf, and images (.png, .jpg, .jpeg, .webp).",
     )
 
 
@@ -79,7 +122,7 @@ async def upload(
     as_fact: bool = False,
     brand_name: str = "Acme",
     user=Depends(get_user),
-    authorization: str = Header(),
+    authorization: str = Header(default=""),
 ):
     if as_fact:
         require_reviewer(user)
@@ -87,7 +130,15 @@ async def upload(
     if not raw or len(raw) > MAX_BYTES:
         raise HTTPException(413, "Upload a nonempty document no larger than 5 MB")
     name = Path((file.filename or "document.txt").replace("\\", "/")).name[:160]
-    content, mime = extract(name, raw)
+    info = extract(name, raw)
+    content = info["extracted_text"]
+    mime = info["mime"]
+    if as_fact and not content.strip():
+        raise HTTPException(
+            422,
+            "Cannot ingest as a factual source because no readable text/OCR text was extracted.",
+        )
+
     asset_id = str(uuid4())
     key = f'{user["user_id"]}/{asset_id}{Path(name).suffix.lower()}'
     if config.AUTH_PROVIDER == "supabase":
@@ -104,6 +155,13 @@ async def upload(
             "storage_key": key,
             "bytes": len(raw),
             "content_type": mime,
+            "file_sha256": info["file_sha256"],
+            "is_image": info["is_image"],
+            "width": info["width"],
+            "height": info["height"],
+            "dominant_colors": info["dominant_colors"],
+            "ocr_status": info["ocr_status"],
+            "extracted_text": content,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         items = read_json(config.DATA_DIR / "assets.json", [])
@@ -131,14 +189,26 @@ async def upload(
         "id": asset_id,
         "name": name,
         "bytes": len(raw),
+        "content_type": mime,
+        "file_sha256": info["file_sha256"],
+        "is_image": info["is_image"],
+        "width": info["width"],
+        "height": info["height"],
+        "dominant_colors": info["dominant_colors"],
+        "ocr_status": info["ocr_status"],
+        "ocr_words": info["ocr_words"],
         "extracted_text": content,
         "fact": fact,
         "extraction_limit": 100000,
-        "message": "Uploaded. Extracted source text is unverified until a reviewer verifies it.",
+        "message": (
+            "Image uploaded and inspected (OCR + dominant colors)."
+            if info["is_image"]
+            else "Uploaded. Extracted source text is unverified until a reviewer verifies it."
+        ),
     }
 
 
-def load_asset(asset_id, user, authorization):
+def load_asset(asset_id, user, authorization=""):
     asset = next(
         (
             r
@@ -152,9 +222,8 @@ def load_asset(asset_id, user, authorization):
     if not can_read(asset, user):
         raise HTTPException(403, "File access denied")
     if config.AUTH_PROVIDER == "supabase":
-        raw = storage_request(
-            "GET", asset["storage_key"], authorization.split(" ", 1)[1]
-        )
+        token = authorization.split(" ", 1)[1] if " " in authorization else authorization
+        raw = storage_request("GET", asset["storage_key"], token)
     else:
         root = (config.DATA_DIR / "uploads").resolve()
         path = (root / asset["storage_key"]).resolve()
@@ -165,25 +234,39 @@ def load_asset(asset_id, user, authorization):
 
 
 @router.get("/{asset_id}")
-def preview(asset_id: str, user=Depends(get_user), authorization: str = Header()):
+def preview(asset_id: str, user=Depends(get_user), authorization: str = Header(default="")):
     asset, raw = load_asset(asset_id, user, authorization)
-    content, _ = extract(asset["name"], raw)
+    info = extract(asset["name"], raw)
     return {
         "id": asset["id"],
         "name": asset["name"],
         "bytes": asset["bytes"],
-        "extracted_text": content,
+        "content_type": info["mime"],
+        "file_sha256": info["file_sha256"],
+        "is_image": info["is_image"],
+        "width": info["width"],
+        "height": info["height"],
+        "dominant_colors": info["dominant_colors"],
+        "ocr_status": info["ocr_status"],
+        "ocr_words": info["ocr_words"],
+        "extracted_text": info["extracted_text"],
         "extraction_limit": 100000,
     }
 
 
 @router.get("/{asset_id}/download")
-def download(asset_id: str, user=Depends(get_user), authorization: str = Header()):
+def download(
+    asset_id: str,
+    inline: bool = False,
+    user=Depends(get_user),
+    authorization: str = Header(default=""),
+):
     asset, raw = load_asset(asset_id, user, authorization)
+    disposition = "inline" if inline else "attachment"
     return Response(
         raw,
         media_type=asset["content_type"],
         headers={
-            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(asset['name'])}"
+            "Content-Disposition": f"{disposition}; filename*=UTF-8''{quote(asset['name'])}"
         },
     )

@@ -5,6 +5,7 @@ import '../../app/ui/app_widgets.dart';
 import '../../app/ui/brandguard_shell.dart';
 import '../../core/auth/session.dart';
 import '../../core/network/brandguard_api_service.dart';
+import '../governance/conflicts_screen.dart';
 
 class ReviewQueueScreen extends StatefulWidget {
   const ReviewQueueScreen({super.key, this.embedded = false});
@@ -16,6 +17,15 @@ class ReviewQueueScreen extends StatefulWidget {
 }
 
 class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
+  static const List<(String, String)> _overrideReasons = [
+    ('FALSE_POSITIVE', 'False positive'),
+    ('APPROVED_EXCEPTION', 'Approved exception'),
+    ('AMBIGUOUS_RULE_TEXT', 'Ambiguous rule text'),
+    ('OUTDATED_RULE_OR_FACT', 'Outdated rule/fact'),
+    ('CONTEXTUAL_QUALIFIER', 'Contextual qualifier'),
+    ('CHANNEL_EXEMPTION', 'Channel exemption'),
+  ];
+
   String selectedTab = 'Pending';
 
   List<Map<String, dynamic>> _backendReviews = [];
@@ -41,6 +51,8 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
         final review = Map<String, dynamic>.from(item);
 
         final findings = (review['findings'] as List?) ?? [];
+        final assetIds = (review['asset_ids'] as List?) ?? [];
+        final conflicts = (review['conflicts'] as List?) ?? [];
 
         final createdAt = DateTime.tryParse(
           review['created_at']?.toString() ?? '',
@@ -59,31 +71,34 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
             : 'Low';
 
         final rawStatus = review['status']?.toString() ?? 'pending';
+        final mappedStatus = switch (rawStatus) {
+          'approved' => 'Approved',
+          'rejected' => 'Rejected',
+          'review_paused_conflict' => 'Conflict',
+          'completed' => 'Completed',
+          _ => 'Pending',
+        };
 
         return <String, dynamic>{
           'id': review['check_id']?.toString() ?? '',
           'title': '${review['brand_name'] ?? 'Unknown'} Brand Check',
           'creator': review['creator_id']?.toString() ?? 'Unknown',
-          'channel': 'Text',
+          'channel': review['channel']?.toString() ?? 'all',
+          'checkAt': review['check_at']?.toString(),
+          'assetIds': assetIds.map((e) => e.toString()).toList(),
+          'conflicts': conflicts,
           'date': createdAt == null
               ? 'Unknown'
               : '${createdAt.day.toString().padLeft(2, '0')} '
                     '${createdAt.month.toString().padLeft(2, '0')} '
                     '${createdAt.year}',
-          'status': rawStatus == 'approved'
-              ? 'Approved'
-              : rawStatus == 'rejected'
-              ? 'Rejected'
-              : rawStatus == 'pending_review' || rawStatus == 'pending'
-              ? 'Pending'
-              : rawStatus == 'completed'
-              ? 'Completed'
-              : 'Pending',
+          'status': mappedStatus,
           'findings': findings.length,
           'version': 'v${review['content_version'] ?? 1}',
           'contentVersion': review['content_version'] as int?,
           'creatorId': review['creator_id'],
           'contentText': review['content']?.toString() ?? '',
+          'ocrText': review['ocr_text']?.toString() ?? '',
           'rulesVersion': review['rules_version']?.toString() ?? 'Base rules',
           'risk': risk,
           'description':
@@ -139,6 +154,9 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
   int get pendingCount =>
       reviews.where((item) => item['status'] == 'Pending').length;
 
+  int get conflictCount =>
+      reviews.where((item) => item['status'] == 'Conflict').length;
+
   int get approvedCount =>
       reviews.where((item) => item['status'] == 'Approved').length;
 
@@ -159,6 +177,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
     switch (status) {
       case 'Approved':
         return Tone.success;
+      case 'Conflict':
       case 'Changes Requested':
         return Tone.warning;
       case 'Rejected':
@@ -176,6 +195,149 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
         return Tone.warning;
       default:
         return Tone.success;
+    }
+  }
+
+  Future<void> _overrideFindingFromQueue(
+    String checkId,
+    Map<String, dynamic> finding,
+  ) async {
+    final findingId = finding['finding_id']?.toString() ?? '';
+    if (findingId.isEmpty) return;
+
+    var selectedReason = _overrideReasons.first.$1;
+    final noteCtrl = TextEditingController();
+    var busy = false;
+    String? dlgError;
+
+    final route = DialogRoute<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          title: const Text('Log coded override'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Select why ${finding['rule_id']} is being overridden:',
+                    style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+                  ),
+                  const SizedBox(height: 8),
+                  for (final item in _overrideReasons)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: SurfaceCard(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        radius: 10,
+                        borderColor: selectedReason == item.$1
+                            ? AppTheme.teal
+                            : AppTheme.border,
+                        color: selectedReason == item.$1
+                            ? AppTheme.mint
+                            : AppTheme.card,
+                        onTap: () => setDlg(() => selectedReason = item.$1),
+                        child: Row(
+                          children: [
+                            Icon(
+                              selectedReason == item.$1
+                                  ? Icons.radio_button_checked_rounded
+                                  : Icons.radio_button_unchecked_rounded,
+                              size: 15,
+                              color: selectedReason == item.$1
+                                  ? AppTheme.teal
+                                  : AppTheme.muted,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                item.$2,
+                                style: AppTheme.labelMedium.copyWith(
+                                  color: AppTheme.ink,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: noteCtrl,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Reviewer note',
+                    ),
+                  ),
+                  if (dlgError != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      dlgError!,
+                      style: AppTheme.bodySmall.copyWith(
+                        color: AppTheme.danger,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: busy ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      setDlg(() {
+                        busy = true;
+                        dlgError = null;
+                      });
+                      try {
+                        final res = await BrandGuardApiService.overrideFinding(
+                          checkId: checkId,
+                          findingId: findingId,
+                          reasonCode: selectedReason,
+                          note: noteCtrl.text.trim(),
+                        );
+                        if (ctx.mounted) Navigator.pop(ctx, res);
+                      } catch (e) {
+                        if (ctx.mounted) {
+                          setDlg(() {
+                            busy = false;
+                            dlgError = e.toString();
+                          });
+                        }
+                      }
+                    },
+              child: Text(busy ? 'Saving...' : 'Confirm override'),
+            ),
+          ],
+        ),
+      ),
+    );
+    try {
+      final result = await Navigator.of(context).push(route);
+      if (result != null && mounted) {
+        await _loadReviews();
+        final opened = result['clarity_ticket'] != null;
+        showMessage(
+          opened
+              ? 'Override logged — Clarity Ticket opened.'
+              : 'Override logged ($selectedReason).',
+        );
+      }
+    } finally {
+      await route.completed;
+      noteCtrl.dispose();
     }
   }
 
@@ -214,6 +376,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
   }
 
   Future<void> openReviewDetails(Map<String, dynamic> review) async {
+    Map<String, dynamic>? overrideTarget;
     final decision = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -226,9 +389,13 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                 .whereType<Map>()
                 .map((f) => Map<String, dynamic>.from(f))
                 .toList();
+            final assetIds = (review['assetIds'] as List? ?? [])
+                .map((e) => e.toString())
+                .toList();
+            final isReviewer = session.currentUser?.isReviewer ?? false;
             final canDecide =
                 (status == 'Pending' || status == 'Changes Requested') &&
-                (session.currentUser?.isReviewer ?? false) &&
+                isReviewer &&
                 review['creatorId'] != session.userId;
 
             return Container(
@@ -264,7 +431,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                                   ),
                                 ),
                                 Text(
-                                  'Review stage · the decision is bound to this exact version',
+                                  'Review stage · composite seal binds caption & assets',
                                   style: AppTheme.monoLabel(),
                                 ),
                               ],
@@ -345,7 +512,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                                       const SizedBox(width: 7),
                                       Expanded(
                                         child: Text(
-                                          'Creators cannot approve their own content. Reviewer sign-off binds the exact hashed version.',
+                                          'Creators cannot approve their own content. Reviewer sign-off cryptographically seals this exact text & asset bundle.',
                                           style: AppTheme.bodySmall.copyWith(
                                             color: Colors.white.withValues(
                                               alpha: 0.82,
@@ -359,11 +526,35 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                               ],
                             ),
                           ),
+                          if (status == 'Conflict') ...[
+                            const SizedBox(height: 12),
+                            InlineNotice(
+                              tone: Tone.warning,
+                              title: 'Paused due to internal rule conflict',
+                              message:
+                                  'Resolve the contradictory rule or fact source before this submission can be approved.',
+                              action: FilledButton.icon(
+                                onPressed: () => Navigator.pop(
+                                  sheetContext,
+                                  'OPEN_CONFLICTS',
+                                ),
+                                icon: const Icon(Icons.balance_rounded, size: 16),
+                                label: const Text('Resolve conflict'),
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 12),
                           _detailSection('CONTENT INFORMATION', [
                             _detailRow('Content ID', review['id']),
                             _detailRow('Content version', review['version']),
                             _detailRow('Rules version', review['rulesVersion']),
+                            _detailRow('Channel', review['channel'].toString()),
+                            if (review['checkAt'] != null)
+                              _detailRow(
+                                'Check date',
+                                review['checkAt'].toString(),
+                              ),
+                            _detailRow('Attached assets', '${assetIds.length}'),
                             _detailRow('Creator', review['creator']),
                             _detailRow('Submitted', review['date']),
                             if (review['contentHash'] != null)
@@ -376,7 +567,18 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                             const SizedBox(height: 12),
                             _detailSection('REQUIRED EVIDENCE CHECKLIST', [
                               for (final finding in findings)
-                                _findingChecklistRow(finding),
+                                _findingChecklistRow(
+                                  finding,
+                                  checkId: review['id'].toString(),
+                                  isReviewer: isReviewer,
+                                  onOverrideTap: () {
+                                    overrideTarget = finding;
+                                    Navigator.pop(
+                                      sheetContext,
+                                      'OVERRIDE_FINDING',
+                                    );
+                                  },
+                                ),
                             ]),
                           ],
                           const SizedBox(height: 12),
@@ -427,78 +629,31 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                               ),
                             ),
                           ),
+                          if ((review['ocrText'] as String).isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              'IMAGE OCR TEXT',
+                              style: AppTheme.monoLabel(),
+                            ),
+                            const SizedBox(height: 6),
+                            SurfaceCard(
+                              padding: const EdgeInsets.all(12),
+                              child: SelectableText(
+                                review['ocrText'] as String,
+                                style: AppTheme.bodySmall.copyWith(
+                                  color: AppTheme.ink,
+                                ),
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 12),
                           const InlineNotice(
                             tone: Tone.info,
                             icon: Icons.lock_outline_rounded,
-                            title: 'Approval is version-bound',
-                            message: 'Approval applies to this exact content version only. Any later edit invalidates it and requires a new review.',
+                            title: 'Approval is version-bound & sealed',
+                            message:
+                                'Approval seals this exact text, asset hashes, and rule version. Any later edit invalidates the seal.',
                           ),
-                          if (findings.isNotEmpty) ...[
-                            const SizedBox(height: 12),
-                            SurfaceCard(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'DETECTED FINDINGS',
-                                    style: AppTheme.monoLabel(),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  ...findings.map(
-                                    (finding) => Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Icon(
-                                            Icons.flag_rounded,
-                                            size: 14,
-                                            color: riskTone(
-                                              (finding['severity']
-                                                              ?.toString() ??
-                                                          'review')
-                                                      .toLowerCase()
-                                                      .contains('critical')
-                                                  ? 'High'
-                                                  : 'Medium',
-                                            ).fg,
-                                          ),
-                                          const SizedBox(width: 7),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  finding['rule_id']
-                                                          ?.toString() ??
-                                                      'RULE',
-                                                  style: AppTheme.monoLabel(
-                                                    color: AppTheme.ink,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  finding['message']
-                                                          ?.toString() ??
-                                                      '',
-                                                  style: AppTheme.bodySmall
-                                                      .copyWith(
-                                                        color: AppTheme.ink,
-                                                      ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                     ),
@@ -571,13 +726,19 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                               ],
                             )
                           : InlineNotice(
-                              tone: status == 'Pending'
+                              tone: status == 'Conflict'
+                                  ? Tone.warning
+                                  : status == 'Pending'
                                   ? Tone.info
                                   : Tone.success,
-                              title: status == 'Pending'
+                              title: status == 'Conflict'
+                                  ? 'Blocked on open policy conflict'
+                                  : status == 'Pending'
                                   ? 'Only a separate reviewer can decide'
                                   : 'Final decision already recorded',
-                              message: status == 'Pending'
+                              message: status == 'Conflict'
+                                  ? 'Resolve the conflicting rule or fact first.'
+                                  : status == 'Pending'
                                   ? 'You cannot approve your own submission. Ask another authorised reviewer.'
                                   : 'This submission is closed. Produce a new version to request another review.',
                             ),
@@ -593,6 +754,23 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
 
     if (!mounted || decision == null) return;
 
+    if (decision == 'OPEN_CONFLICTS') {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ConflictsScreen()),
+      );
+      if (mounted) await _loadReviews();
+      return;
+    }
+
+    if (decision == 'OVERRIDE_FINDING' && overrideTarget != null) {
+      await _overrideFindingFromQueue(
+        review['id'].toString(),
+        overrideTarget!,
+      );
+      return;
+    }
+
     if (decision == 'Rejected' || decision == 'Changes Requested') {
       await _showDecisionDialog(review, decision);
     }
@@ -603,37 +781,72 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
     return '${value.substring(0, 12)}…${value.substring(value.length - 6)}';
   }
 
-  Widget _findingChecklistRow(Map<String, dynamic> finding) {
+  Widget _findingChecklistRow(
+    Map<String, dynamic> finding, {
+    required String checkId,
+    required bool isReviewer,
+    required VoidCallback onOverrideTap,
+  }) {
     final severity = finding['severity']?.toString().toLowerCase() ?? 'review';
     final tone = severity.contains('critical')
         ? Tone.danger
         : severity.contains('warning')
         ? Tone.warning
         : Tone.info;
+    final overridden = finding['overridden'] == true;
+    final findingId = finding['finding_id']?.toString() ?? '';
+    final quote = finding['rule_quote']?.toString() ?? '';
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(tone.icon, size: 15, color: tone.fg),
-          const SizedBox(width: 7),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  finding['rule_id']?.toString() ?? 'RULE',
-                  style: AppTheme.monoLabel(color: AppTheme.ink),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(tone.icon, size: 15, color: tone.fg),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${finding['rule_id'] ?? 'RULE'} · v${finding['rule_version'] ?? '1.0.0'}',
+                      style: AppTheme.monoLabel(color: AppTheme.ink),
+                    ),
+                    Text(
+                      (finding['message'] ?? finding['evidence'] ?? '')
+                          .toString(),
+                      style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+                    ),
+                    if (quote.isNotEmpty)
+                      Text(
+                        '“$quote”',
+                        style: AppTheme.bodySmall.copyWith(
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                  ],
                 ),
-                Text(
-                  (finding['message'] ?? finding['evidence'] ?? '').toString(),
-                  style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 6),
+              StatusPill(
+                label: overridden ? 'Overridden' : severity,
+                tone: overridden ? Tone.warning : tone,
+                compact: true,
+              ),
+            ],
           ),
-          const SizedBox(width: 6),
-          StatusPill(label: severity, tone: tone, compact: true),
+          if (isReviewer && !overridden && findingId.isNotEmpty)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: onOverrideTap,
+                icon: const Icon(Icons.rule_folder_outlined, size: 14),
+                label: const Text('Override finding'),
+              ),
+            ),
         ],
       ),
     );
@@ -682,58 +895,58 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
     String decision,
   ) async {
     final controller = TextEditingController();
+    final route = DialogRoute<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(decision),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  decision == 'Rejected'
+                      ? 'Provide a reason for rejecting this content.'
+                      : 'Describe the changes required before approval.',
+                  style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  maxLines: 4,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    hintText: 'Enter decision reason…',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final enteredReason = controller.text.trim();
+                if (enteredReason.isEmpty) return;
+                Navigator.pop(dialogContext, enteredReason);
+              },
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    );
 
     try {
-      final reason = await showDialog<String>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) {
-          return AlertDialog(
-            title: Text(decision),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    decision == 'Rejected'
-                        ? 'Provide a reason for rejecting this content.'
-                        : 'Describe the changes required before approval.',
-                    style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: controller,
-                    maxLines: 4,
-                    autofocus: true,
-                    decoration: const InputDecoration(
-                      hintText: 'Enter decision reason…',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  final enteredReason = controller.text.trim();
-                  if (enteredReason.isEmpty) return;
-                  Navigator.pop(dialogContext, enteredReason);
-                },
-                child: const Text('Confirm'),
-              ),
-            ],
-          );
-        },
-      );
+      final reason = await Navigator.of(context).push(route);
 
       if (!mounted || reason == null || reason.isEmpty) return;
 
-      // The current backend supports approved and rejected decisions.
       const backendDecision = 'rejected';
 
       final backendReason = decision == 'Changes Requested'
@@ -758,6 +971,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
       if (!mounted) return;
       showMessage('Unable to record decision: $e');
     } finally {
+      await route.completed;
       controller.dispose();
     }
   }
@@ -775,7 +989,8 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
             eyebrow: 'LEDGER LIVE',
             eyebrowTone: Tone.success,
             title: 'Authorised review queue',
-            subtitle: 'No finding without evidence. Sign-off binds the exact version reviewed.',
+            subtitle:
+                'No finding without evidence. Sign-off binds the exact text & asset bundle.',
           ),
           const SizedBox(height: 16),
           Row(
@@ -830,7 +1045,8 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
           else if (filteredReviews.isEmpty)
             EmptyStateCard(
               title: 'Nothing in this category',
-              message: 'Submitted checks appear here as soon as the backend records them.',
+              message:
+                  'Submitted checks appear here as soon as the backend records them.',
               icon: Icons.inbox_outlined,
             )
           else
@@ -869,7 +1085,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
   }
 
   Widget _tabs() {
-    final tabs = ['Pending', 'Approved', 'Rejected', 'All'];
+    final tabs = ['Pending', 'Conflict', 'Approved', 'Rejected', 'All'];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -877,6 +1093,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
           final active = selectedTab == tab;
           final count = switch (tab) {
             'Pending' => pendingCount,
+            'Conflict' => conflictCount,
             'Approved' => approvedCount,
             'Rejected' => rejectedCount,
             _ => reviews.length,
@@ -934,6 +1151,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
   }
 
   Widget _reviewCard(Map<String, dynamic> review) {
+    final assetCount = (review['assetIds'] as List? ?? []).length;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: SurfaceCard(
@@ -1012,6 +1230,17 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                   tone: riskTone(review['risk']),
                   compact: true,
                 ),
+                StatusPill(
+                  label: review['channel'].toString(),
+                  tone: Tone.navy,
+                  compact: true,
+                ),
+                if (assetCount > 0)
+                  StatusPill(
+                    label: '$assetCount asset${assetCount == 1 ? '' : 's'}',
+                    tone: Tone.info,
+                    compact: true,
+                  ),
                 StatusPill(label: review['date'], compact: true),
                 StatusPill(
                   label: review['rulesVersion'],
@@ -1053,7 +1282,8 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
         if (completedReviews.isEmpty)
           const EmptyStateCard(
             title: 'No decisions recorded yet',
-            message: 'Approved and rejected submissions appear here with their reviewer and timestamp.',
+            message:
+                'Approved and rejected submissions appear here with their reviewer and timestamp.',
             icon: Icons.receipt_long_outlined,
           )
         else

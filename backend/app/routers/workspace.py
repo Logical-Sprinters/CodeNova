@@ -136,6 +136,7 @@ def analytics(user=Depends(get_user)):
         "pending": counts["pending"],
         "approved": counts["approved"],
         "rejected": counts["rejected"],
+        "paused_conflict": counts["paused_conflict"],
         "total_findings": sum(len(r["findings"]) for r in records),
         "scan_passed": sum(r.get("scan_status") == "passed" for r in records),
         "rule_counts": dict(

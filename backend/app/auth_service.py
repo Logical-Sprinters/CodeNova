@@ -349,3 +349,68 @@ def logout(token):
                 if session["id"] == claims["sid"]:
                     session["revoked"] = True
             save("auth_sessions", sessions)
+
+
+DEFAULT_PREFERENCES = {
+    "email_updates": True,
+    "review_activity": True,
+    "product_news": False,
+}
+
+
+def update_display_name(user, name: str, token: str | None = None):
+    clean = name.strip()[:80]
+    if len(clean) < 2:
+        raise HTTPException(422, "Display name must contain at least two characters")
+    if config.AUTH_PROVIDER == "supabase":
+        if token:
+            supabase_request("PUT", "user", {"data": {"name": clean}}, token=token)
+        with STORE_LOCK:
+            profiles = load("users")
+            updated = dict(user) | {"name": clean}
+            profiles = [u for u in profiles if u.get("user_id") != user["user_id"]]
+            profiles.append(public_user(updated))
+            save("users", profiles)
+            return public_user(updated)
+    with STORE_LOCK:
+        auth_users = load("auth_users")
+        target = next((u for u in auth_users if u["user_id"] == user["user_id"]), None)
+        if target is None:
+            raise HTTPException(404, "User account not found")
+        target["name"] = clean
+        save("auth_users", auth_users)
+        profiles = [p for p in load("users") if p.get("user_id") != user["user_id"]]
+        updated = public_user(target)
+        profiles.append(updated)
+        save("users", profiles)
+        return updated
+
+
+def get_preferences(user_id: str):
+    with STORE_LOCK:
+        rows = load("user_preferences")
+        row = next((r for r in rows if r.get("user_id") == user_id), None)
+        return {
+            key: bool(row.get(key, default)) if row else default
+            for key, default in DEFAULT_PREFERENCES.items()
+        }
+
+
+def save_preferences(user_id: str, values: dict):
+    with STORE_LOCK:
+        rows = load("user_preferences")
+        current = next((r for r in rows if r.get("user_id") == user_id), None) or {
+            "user_id": user_id,
+            **DEFAULT_PREFERENCES,
+        }
+        updated = {
+            "user_id": user_id,
+            **{
+                key: bool(values[key]) if key in values else bool(current.get(key, default))
+                for key, default in DEFAULT_PREFERENCES.items()
+            },
+        }
+        rows = [r for r in rows if r.get("user_id") != user_id]
+        rows.append(updated)
+        save("user_preferences", rows)
+        return {key: updated[key] for key in DEFAULT_PREFERENCES}

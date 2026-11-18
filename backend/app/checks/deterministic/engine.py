@@ -1,26 +1,12 @@
+import hashlib
 import regex as re
 from fastapi import HTTPException
 
+from app.checks.grounding import extract_verbatim_quote
+from app.rules_store.store import DEFAULT_BASE_RULES, resolve_active_rules
 from app.schemas.brand import Finding
-from app.rules_store.store import get_brand_rules
 
-BASE_RULES = [
-    {
-        "id": "BG-001",
-        "pattern": r"\blorem ipsum\b|\bTODO\b|\[insert[^\]]*\]",
-        "severity": "warning",
-        "message": "Unfinished placeholder detected.",
-        "suggestion": "Replace this placeholder with complete, relevant content.",
-        "replacement": "Please insert verified and relevant content here.",
-    },
-    {
-        "id": "BG-002",
-        "pattern": r"\bguarantee(?:s|d)?(?:\s+\w+){0,3}|\b100%\s*(?:safe|secure|effective)\b|\brisk[- ]free\b",
-        "severity": "review",
-        "message": "Potentially unsupported absolute claim. Verify before publication.",
-        "suggestion": "Avoid absolute guarantees unless supported by verifiable evidence.",
-    },
-]
+BASE_RULES = DEFAULT_BASE_RULES
 
 
 def get_suggestion(rule, evidence):
@@ -47,21 +33,50 @@ def get_suggestion(rule, evidence):
     return rule.get("suggestion"), None
 
 
-def run_deterministic_checks(content: str, brand_name: str):
+def _stable_finding_id(rule_id: str, rule_version: str, start: int, end: int, origin: str) -> str:
+    raw = f"{rule_id}:{rule_version}:{origin}:{start}:{end}".encode("utf-8")
+    return "fnd-" + hashlib.sha256(raw).hexdigest()[:16]
+
+
+def run_deterministic_checks(
+    content: str,
+    brand_name: str,
+    check_at=None,
+    channel: str = "all",
+    source_origin: str = "caption",
+    active_rules: list[dict] | None = None,
+):
     findings = []
-    brand_data = get_brand_rules(brand_name)
-    all_rules = BASE_RULES + (brand_data["rules"] if brand_data else [])
+    if active_rules is None:
+        active_rules, _ = resolve_active_rules(
+            brand_name, check_at=check_at, channel=channel
+        )
     try:
-        for rule in all_rules:
+        for rule in active_rules:
             if not rule.get("enabled", True):
                 continue
+            if rule.get("rule_type", "regex") != "regex" or not rule.get("pattern"):
+                continue
+            rule_id = rule.get("id", rule.get("rule_id"))
+            rule_version = str(rule.get("version") or "1.0.0")
+            rule_text = rule.get("rule_text") or rule.get("message") or ""
+            quote, q_start, q_end = extract_verbatim_quote(
+                rule_text, rule.get("rule_quote")
+            )
             for match in re.finditer(
                 rule["pattern"], content, flags=re.IGNORECASE, timeout=0.2
             ):
                 suggestion, replacement = get_suggestion(rule, match.group())
                 findings.append(
                     Finding(
-                        rule_id=rule.get("id", rule.get("rule_id")),
+                        finding_id=_stable_finding_id(
+                            rule_id, rule_version, match.start(), match.end(), source_origin
+                        ),
+                        rule_id=rule_id,
+                        rule_version=rule_version,
+                        rule_quote=quote,
+                        rule_quote_start=q_start,
+                        rule_quote_end=q_end,
                         severity=rule["severity"],
                         message=rule["message"],
                         evidence=match.group(),
@@ -69,6 +84,8 @@ def run_deterministic_checks(content: str, brand_name: str):
                         end_index=match.end(),
                         suggestion=suggestion,
                         replacement=replacement,
+                        source_origin=source_origin,
+                        channel=(channel or "all").lower(),
                     )
                 )
     except (TimeoutError, re.error) as error:

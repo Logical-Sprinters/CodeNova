@@ -16,6 +16,8 @@ from app.routers.workspace import router as workspace_router
 from app.routers.files import router as files_router
 from app.routers.audit import router as audit_router
 from app.routers.brand import router as brand_router
+from app.routers.conflicts import router as conflicts_router
+from app.routers.overrides import router as overrides_router
 from app.routers.receipts import router as receipts_router
 from app.routers.reviews import router as reviews_router
 
@@ -47,6 +49,8 @@ app.include_router(library_router)
 app.include_router(workspace_router)
 app.include_router(files_router)
 app.include_router(brand_router)
+app.include_router(conflicts_router)
+app.include_router(overrides_router)
 app.include_router(reviews_router)
 app.include_router(receipts_router)
 app.include_router(audit_router)

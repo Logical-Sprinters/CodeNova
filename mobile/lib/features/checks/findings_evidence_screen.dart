@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../app/app_theme.dart';
 import '../../app/ui/app_widgets.dart';
+import '../../core/auth/session.dart';
 import '../../core/network/brandguard_api_service.dart';
 
 class FindingsEvidenceScreen extends StatefulWidget {
@@ -15,6 +16,12 @@ class FindingsEvidenceScreen extends StatefulWidget {
   final int? contentVersion;
   final Map<String, dynamic>? aiVerification;
   final List<dynamic> findings;
+  final List<dynamic> conflicts;
+  final String ocrText;
+  final List<dynamic> visualSummary;
+  final List<String> assetIds;
+  final String channel;
+  final String? checkAt;
 
   const FindingsEvidenceScreen({
     super.key,
@@ -27,6 +34,12 @@ class FindingsEvidenceScreen extends StatefulWidget {
     this.receiptId,
     this.contentVersion,
     this.aiVerification,
+    this.conflicts = const [],
+    this.ocrText = '',
+    this.visualSummary = const [],
+    this.assetIds = const [],
+    this.channel = 'all',
+    this.checkAt,
   });
 
   @override
@@ -34,25 +47,42 @@ class FindingsEvidenceScreen extends StatefulWidget {
 }
 
 class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
+  static const List<(String, String, String)> _overrideReasons = [
+    ('FALSE_POSITIVE', 'False positive', 'Rule matched harmless or unrelated phrasing'),
+    ('APPROVED_EXCEPTION', 'Approved exception', 'Executive or legal pre-approved exception'),
+    ('AMBIGUOUS_RULE_TEXT', 'Ambiguous rule text', 'Rule wording is unclear for this edge case'),
+    ('OUTDATED_RULE_OR_FACT', 'Outdated rule/fact', 'Rule or fact appears stale vs current policy'),
+    ('CONTEXTUAL_QUALIFIER', 'Contextual qualifier', 'Required disclaimer or qualifier is nearby'),
+    ('CHANNEL_EXEMPTION', 'Channel exemption', 'Rule does not apply cleanly to this channel'),
+  ];
+
   String selectedFilter = 'All Findings';
 
   bool submitted = false;
   bool isSubmitting = false;
 
   late String _currentContent;
+  late String _status;
+  late List<dynamic> _findings;
+  late List<dynamic> _conflicts;
 
   // Stores replacements already applied to the original content.
   final Map<String, Map<String, dynamic>> _appliedReplacements = {};
+  final Map<String, Map<String, dynamic>> _localOverrides = {};
 
   @override
   void initState() {
     super.initState();
     _currentContent = widget.contentText;
+    _status = widget.status;
+    _findings = List<dynamic>.from(widget.findings);
+    _conflicts = List<dynamic>.from(widget.conflicts);
   }
 
   String get updatedContent => _currentContent;
 
   void showMessage(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -63,10 +93,15 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
   }
 
   String _findingKey(Map<String, dynamic> finding) {
-    return '${finding['rule_id']}_${finding['start_index']}_${finding['end_index']}';
+    return '${finding['finding_id'] ?? ''}_${finding['rule_id']}_${finding['start_index']}_${finding['end_index']}';
   }
 
   void applySuggestion(Map<String, dynamic> finding) {
+    if ((finding['source_origin']?.toString() ?? 'caption') != 'caption') {
+      showMessage('This finding is from image OCR/visual inspection — update the banner asset to resolve it.');
+      return;
+    }
+
     final evidence = finding['evidence']?.toString() ?? '';
     final replacement = finding['replacement']?.toString() ?? '';
 
@@ -93,7 +128,6 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
       return;
     }
 
-    // Calculate how previous replacements shifted this phrase.
     int shift = 0;
 
     for (final applied in _appliedReplacements.values) {
@@ -140,6 +174,309 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
     showMessage('Suggestion applied successfully.');
   }
 
+  Future<void> _openOverrideDialog(Map<String, dynamic> finding) async {
+    final findingId = finding['finding_id']?.toString() ?? '';
+    if (findingId.isEmpty) {
+      showMessage('Finding ID missing.');
+      return;
+    }
+    var selectedReason = _overrideReasons.first.$1;
+    final noteCtrl = TextEditingController();
+    var busy = false;
+    String? dlgError;
+
+    final route = DialogRoute<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          title: const Text('Override finding (coded reason)'),
+          content: SizedBox(
+            width: 440,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Select a coded governance reason for overriding ${finding['rule_id']}. Repeated overrides open a Clarity Ticket without mutating rules.',
+                    style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+                  ),
+                  const SizedBox(height: 10),
+                  for (final item in _overrideReasons)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: SurfaceCard(
+                        padding: const EdgeInsets.all(9),
+                        radius: 10,
+                        borderColor: selectedReason == item.$1
+                            ? AppTheme.teal
+                            : AppTheme.border,
+                        color: selectedReason == item.$1
+                            ? AppTheme.mint
+                            : AppTheme.card,
+                        onTap: () => setDlg(() => selectedReason = item.$1),
+                        child: Row(
+                          children: [
+                            Icon(
+                              selectedReason == item.$1
+                                  ? Icons.radio_button_checked_rounded
+                                  : Icons.radio_button_unchecked_rounded,
+                              size: 16,
+                              color: selectedReason == item.$1
+                                  ? AppTheme.teal
+                                  : AppTheme.muted,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.$2,
+                                    style: AppTheme.labelMedium.copyWith(
+                                      color: AppTheme.ink,
+                                    ),
+                                  ),
+                                  Text(item.$3, style: AppTheme.bodySmall),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: noteCtrl,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Reviewer note (optional)',
+                      hintText: 'Context for clarity telemetry...',
+                    ),
+                  ),
+                  if (dlgError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      dlgError!,
+                      style: AppTheme.bodySmall.copyWith(
+                        color: AppTheme.danger,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: busy ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      setDlg(() {
+                        busy = true;
+                        dlgError = null;
+                      });
+                      try {
+                        final data = await BrandGuardApiService.overrideFinding(
+                          checkId: widget.checkId,
+                          findingId: findingId,
+                          reasonCode: selectedReason,
+                          note: noteCtrl.text.trim(),
+                        );
+                        if (ctx.mounted) Navigator.pop(ctx, data);
+                      } catch (e) {
+                        if (ctx.mounted) {
+                          setDlg(() {
+                            busy = false;
+                            dlgError = e.toString();
+                          });
+                        }
+                      }
+                    },
+              child: Text(busy ? 'Saving...' : 'Log override'),
+            ),
+          ],
+        ),
+      ),
+    );
+    try {
+      final res = await Navigator.of(context).push(route);
+
+      if (res != null && mounted) {
+        setState(() {
+          _localOverrides[findingId] = {
+            'reason_code': selectedReason,
+            'note': noteCtrl.text.trim(),
+          };
+        });
+        final ticketOpened = res['clarity_ticket'] != null;
+        showMessage(
+          ticketOpened
+              ? 'Override logged ($selectedReason) — Clarity Ticket opened for guideline owner!'
+              : 'Override logged ($selectedReason).',
+        );
+      }
+    } finally {
+      await route.completed;
+      noteCtrl.dispose();
+    }
+  }
+
+  Future<void> _resolveConflictDialog(Map<String, dynamic> conflict) async {
+    final clauses = (conflict['clauses'] as List? ?? [])
+        .whereType<Map>()
+        .map((c) => Map<String, dynamic>.from(c))
+        .toList();
+    if (clauses.isEmpty) return;
+
+    var selectedIdx = 0;
+    final noteCtrl = TextEditingController();
+    var busy = false;
+    String? dlgError;
+
+    final route = DialogRoute<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          title: const Text('Resolve & pin active rule'),
+          content: SizedBox(
+            width: 450,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Topic "${conflict['topic_key']}" has contradictory active sources. Choose the authoritative rule or fact:',
+                    style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+                  ),
+                  const SizedBox(height: 10),
+                  for (var i = 0; i < clauses.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: SurfaceCard(
+                        padding: const EdgeInsets.all(10),
+                        radius: 10,
+                        borderColor: selectedIdx == i
+                            ? AppTheme.teal
+                            : AppTheme.border,
+                        color: selectedIdx == i
+                            ? AppTheme.mint
+                            : AppTheme.card,
+                        onTap: () => setDlg(() => selectedIdx = i),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              selectedIdx == i
+                                  ? Icons.radio_button_checked_rounded
+                                  : Icons.radio_button_unchecked_rounded,
+                              size: 16,
+                              color: selectedIdx == i
+                                  ? AppTheme.teal
+                                  : AppTheme.muted,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${clauses[i]['source_type']?.toString().toUpperCase()} · ${clauses[i]['source_id']} (${clauses[i]['canonical_value'] ?? ''})',
+                                    style: AppTheme.labelMedium.copyWith(
+                                      color: AppTheme.ink,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    clauses[i]['excerpt']?.toString() ?? '',
+                                    style: AppTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: noteCtrl,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Resolution note',
+                    ),
+                  ),
+                  if (dlgError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      dlgError!,
+                      style: AppTheme.bodySmall.copyWith(
+                        color: AppTheme.danger,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: busy ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      setDlg(() {
+                        busy = true;
+                        dlgError = null;
+                      });
+                      try {
+                        final winner = clauses[selectedIdx];
+                        final data = await BrandGuardApiService.resolveConflict(
+                          conflictId: conflict['conflict_id'].toString(),
+                          winningSourceType: winner['source_type'].toString(),
+                          winningSourceId: winner['source_id'].toString(),
+                          resolutionNote: noteCtrl.text.trim(),
+                        );
+                        if (ctx.mounted) Navigator.pop(ctx, data);
+                      } catch (e) {
+                        if (ctx.mounted) {
+                          setDlg(() {
+                            busy = false;
+                            dlgError = e.toString();
+                          });
+                        }
+                      }
+                    },
+              child: Text(busy ? 'Pinning...' : 'Pin winner & recheck'),
+            ),
+          ],
+        ),
+      ),
+    );
+    try {
+      final result = await Navigator.of(context).push(route);
+
+      if (result != null && mounted) {
+        setState(() {
+          _conflicts = [];
+          _status = 'review_required';
+        });
+        showMessage('Conflict resolved! Check unlocked and re-evaluated.');
+      }
+    } finally {
+      await route.completed;
+      noteCtrl.dispose();
+    }
+  }
+
   Future<void> submitForReview() async {
     if (submitted || isSubmitting) return;
 
@@ -148,11 +485,13 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
     });
 
     try {
-      // Submit the updated content to the real backend.
       final response = await BrandGuardApiService.submitEditedContent(
         checkId: widget.checkId,
         expectedVersion: widget.contentVersion,
         content: updatedContent,
+        assetIds: widget.assetIds.isEmpty ? null : widget.assetIds,
+        channel: widget.channel == 'all' ? null : widget.channel,
+        checkAt: widget.checkAt,
       );
 
       final checkId = response['check_id']?.toString() ?? 'N/A';
@@ -253,9 +592,16 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
   }
 
   List<Map<String, dynamic>> get _backendFindings {
-    return widget.findings
+    return _findings
         .whereType<Map>()
         .map((finding) => Map<String, dynamic>.from(finding))
+        .toList();
+  }
+
+  List<Map<String, dynamic>> get _conflictList {
+    return _conflicts
+        .whereType<Map>()
+        .map((c) => Map<String, dynamic>.from(c))
         .toList();
   }
 
@@ -283,9 +629,19 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
         .toList();
   }
 
+  Color? _parseHexColor(String hex) {
+    final cleaned = hex.replaceAll('#', '').trim();
+    if (cleaned.length != 6) return null;
+    final val = int.tryParse(cleaned, radix: 16);
+    if (val == null) return null;
+    return Color(0xFF000000 | val);
+  }
+
   @override
   Widget build(BuildContext context) {
     AppTheme.watch(context);
+    final isConflict =
+        _status == 'review_paused_conflict' || _conflictList.isNotEmpty;
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -298,8 +654,12 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: StatusPill(
-              label: '${widget.findings.length} findings',
-              tone: widget.findings.isEmpty ? Tone.success : Tone.danger,
+              label: isConflict ? 'Paused' : '${_findings.length} findings',
+              tone: isConflict
+                  ? Tone.warning
+                  : _findings.isEmpty
+                  ? Tone.success
+                  : Tone.danger,
             ),
           ),
         ],
@@ -322,25 +682,56 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          '${widget.brandName} · check ${_shortId(widget.checkId)}',
+                          '${widget.brandName} · check ${_shortId(widget.checkId)} · ${widget.channel}',
                           style: AppTheme.monoLabel(color: AppTheme.ink),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 10),
-                  _statusCard(),
+                  if (isConflict) ...[
+                    _conflictEscalationSection(),
+                    const SizedBox(height: 12),
+                  ],
+                  _statusCard(isConflict),
                   const SizedBox(height: 12),
                   _aiStatus(),
+                  if (widget.ocrText.trim().isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    SurfaceCard(
+                      padding: const EdgeInsets.all(12),
+                      radius: 14,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'IMAGE OCR TEXT FUSED INTO CHECK',
+                            style: AppTheme.monoLabel(color: AppTheme.info),
+                          ),
+                          const SizedBox(height: 6),
+                          SelectableText(
+                            widget.ocrText,
+                            style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 14),
                   _filterRow(),
                   const SizedBox(height: 12),
-                  if (_visibleFindings.isEmpty)
+                  if (isConflict)
+                    const EmptyStateCard(
+                      title: 'Review paused — conflict abstention',
+                      message: 'BrandGuard abstained from emitting guessed findings while internal policies disagree. Resolve the conflict above first.',
+                      icon: Icons.balance_rounded,
+                    )
+                  else if (_visibleFindings.isEmpty)
                     EmptyStateCard(
-                      title: widget.findings.isEmpty
+                      title: _findings.isEmpty
                           ? 'No rule violations detected'
                           : 'Nothing in this category',
-                      message: widget.findings.isEmpty
+                      message: _findings.isEmpty
                           ? 'The deterministic rules returned no findings for this exact text. This is not human approval — an authorised reviewer still has to decide.'
                           : 'Switch the filter to see the other findings on this check.',
                       icon: Icons.task_alt_rounded,
@@ -357,14 +748,129 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
     );
   }
 
+  Widget _conflictEscalationSection() {
+    final isReviewer = session.currentUser?.isReviewer ?? false;
+    return Column(
+      children: _conflictList.map((conflict) {
+        final clauses = (conflict['clauses'] as List? ?? [])
+            .whereType<Map>()
+            .map((c) => Map<String, dynamic>.from(c))
+            .toList();
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: SurfaceCard(
+            borderColor: AppTheme.warning.withValues(alpha: 0.55),
+            color: AppTheme.warningBg,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: AppTheme.warning),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'REVIEW PAUSED — INTERNAL RULE CONFLICT',
+                        style: AppTheme.labelLarge.copyWith(
+                          color: AppTheme.navyDeep,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Topic "${conflict['topic_key'] ?? 'policy'}" has conflicting active sources:',
+                  style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+                ),
+                const SizedBox(height: 10),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final wide = constraints.maxWidth >= 520 && clauses.length >= 2;
+                    if (wide) {
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (var i = 0; i < clauses.length; i++) ...[
+                            Expanded(child: _conflictClauseCard(clauses[i])),
+                            if (i != clauses.length - 1) const SizedBox(width: 8),
+                          ],
+                        ],
+                      );
+                    }
+                    return Column(
+                      children: [
+                        for (var i = 0; i < clauses.length; i++) ...[
+                          _conflictClauseCard(clauses[i]),
+                          if (i != clauses.length - 1) const SizedBox(height: 8),
+                        ],
+                      ],
+                    );
+                  },
+                ),
+                if (isReviewer) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => _resolveConflictDialog(conflict),
+                      icon: const Icon(Icons.gavel_rounded, size: 16),
+                      label: const Text('Resolve & Pin Active Rule'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _conflictClauseCard(Map<String, dynamic> clause) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${clause['source_type']?.toString().toUpperCase()} · ${clause['source_id']} v${clause['version'] ?? '1.0.0'}',
+            style: AppTheme.monoLabel(color: AppTheme.tealText),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            clause['title']?.toString() ?? '',
+            style: AppTheme.labelMedium.copyWith(color: AppTheme.ink),
+          ),
+          if ((clause['canonical_value']?.toString() ?? '').isNotEmpty)
+            Text(
+              'Value: ${clause['canonical_value']}',
+              style: AppTheme.monoLabel(color: AppTheme.danger),
+            ),
+          const SizedBox(height: 4),
+          Text(
+            clause['excerpt']?.toString() ?? '',
+            style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _shortId(String value) {
     if (value.length <= 8) return value;
     return value.substring(0, 8);
   }
 
-  Widget _statusCard() {
-    final count = widget.findings.length;
-    final clean = count == 0;
+  Widget _statusCard(bool isConflict) {
+    final count = _findings.length;
+    final clean = count == 0 && !isConflict;
     return SurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -375,19 +881,33 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: clean ? AppTheme.successBg : AppTheme.dangerBg,
+                  color: isConflict
+                      ? AppTheme.warningBg
+                      : clean
+                      ? AppTheme.successBg
+                      : AppTheme.dangerBg,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
-                  clean ? Icons.task_alt_rounded : Icons.gpp_bad_rounded,
+                  isConflict
+                      ? Icons.balance_rounded
+                      : clean
+                      ? Icons.task_alt_rounded
+                      : Icons.gpp_bad_rounded,
                   size: 17,
-                  color: clean ? AppTheme.success : AppTheme.danger,
+                  color: isConflict
+                      ? AppTheme.warning
+                      : clean
+                      ? AppTheme.success
+                      : AppTheme.danger,
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  widget.status == 'review_required'
+                  isConflict
+                      ? 'Review paused on conflict'
+                      : _status == 'review_required'
                       ? 'Review required'
                       : 'Brand check complete',
                   maxLines: 2,
@@ -397,8 +917,16 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
               const SizedBox(width: 6),
               Flexible(
                 child: StatusPill(
-                  label: clean ? 'Clear' : '$count findings',
-                  tone: clean ? Tone.success : Tone.danger,
+                  label: isConflict
+                      ? 'Abstained'
+                      : clean
+                      ? 'Clear'
+                      : '$count findings',
+                  tone: isConflict
+                      ? Tone.warning
+                      : clean
+                      ? Tone.success
+                      : Tone.danger,
                 ),
               ),
             ],
@@ -422,11 +950,11 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
                       style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
                       children: const [
                         TextSpan(
-                          text: 'No aggregate score: ',
+                          text: 'No finding without evidence: ',
                           style: TextStyle(fontWeight: FontWeight.w800),
                         ),
                         TextSpan(
-                          text: 'every finding needs evidence-backed resolution or authorised sign-off before publication.',
+                          text: 'every finding carries its active rule version and verbatim stored rule quote.',
                         ),
                       ],
                     ),
@@ -443,10 +971,8 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
   Widget _aiStatus() {
     final ai = widget.aiVerification;
     final status = ai?['status']?.toString();
-    // The title intentionally embeds the raw server status so the UI can never
-    // overstate what the AI layer actually did.
     final Tone tone = switch (status) {
-      'completed' || 'match' => Tone.success,
+      'completed' || 'match' || 'supported' => Tone.success,
       'abstained' || 'needs_review' => Tone.warning,
       null => Tone.neutral,
       _ => Tone.info,
@@ -548,18 +1074,32 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
   };
 
   Widget _backendFindingCard(Map<String, dynamic> finding) {
+    final findingId = finding['finding_id']?.toString() ?? '';
     final evidence = finding['evidence']?.toString() ?? '';
     final suggestion = finding['suggestion']?.toString() ?? '';
     final replacement = finding['replacement']?.toString() ?? '';
     final ruleId = finding['rule_id']?.toString() ?? 'UNKNOWN';
+    final ruleVersion = finding['rule_version']?.toString() ?? '1.0.0';
+    final ruleQuote = finding['rule_quote']?.toString() ?? '';
+    final sourceOrigin = finding['source_origin']?.toString() ?? 'caption';
     final severity = finding['severity']?.toString() ?? 'review';
     final message = finding['message']?.toString() ?? '';
     final start = finding['start_index']?.toString() ?? '';
     final end = finding['end_index']?.toString() ?? '';
+    final visualEv = finding['visual_evidence'] is Map
+        ? Map<String, dynamic>.from(finding['visual_evidence'] as Map)
+        : null;
+    final overrideInfo = _localOverrides[findingId] ??
+        (finding['override'] is Map
+            ? Map<String, dynamic>.from(finding['override'] as Map)
+            : null);
+    final isOverridden =
+        finding['overridden'] == true || overrideInfo != null;
     final tone = _severityTone(severity);
 
     final key = _findingKey(finding);
     final isApplied = _appliedReplacements.containsKey(key);
+    final isReviewer = session.currentUser?.isReviewer ?? false;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -568,7 +1108,10 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 StatusPill(
                   label: severity,
@@ -577,15 +1120,23 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
                   icon: tone.icon,
                   compact: true,
                 ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    ruleId,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTheme.monoLabel(color: AppTheme.muted),
-                  ),
+                StatusPill(
+                  label: '$ruleId · v$ruleVersion',
+                  tone: Tone.navy,
+                  compact: true,
                 ),
+                StatusPill(
+                  label: sourceOrigin.replaceAll('_', ' '),
+                  tone: Tone.info,
+                  compact: true,
+                ),
+                if (isOverridden)
+                  StatusPill(
+                    label:
+                        'Overridden (${overrideInfo?['reason_code'] ?? 'LOGGED'})',
+                    tone: Tone.warning,
+                    compact: true,
+                  ),
               ],
             ),
             const SizedBox(height: 10),
@@ -593,6 +1144,39 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
               message,
               style: AppTheme.labelLarge.copyWith(fontSize: 13.5, height: 1.35),
             ),
+            if (ruleQuote.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.background,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppTheme.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'VERBATIM RULE QUOTE',
+                      style: AppTheme.monoLabel(color: AppTheme.tealText),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '“$ruleQuote”',
+                      style: AppTheme.bodySmall.copyWith(
+                        color: AppTheme.ink,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (visualEv != null) ...[
+              const SizedBox(height: 10),
+              _visualEvidenceBlock(visualEv),
+            ],
             if (evidence.isNotEmpty) ...[
               const SizedBox(height: 10),
               Container(
@@ -634,7 +1218,7 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
                 style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
               ),
             ],
-            if (replacement.isNotEmpty) ...[
+            if (replacement.isNotEmpty && sourceOrigin == 'caption') ...[
               const SizedBox(height: 10),
               Container(
                 width: double.infinity,
@@ -696,11 +1280,22 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
                 ),
               ),
             ],
+            if (isReviewer && !isOverridden && findingId.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _openOverrideDialog(finding),
+                  icon: const Icon(Icons.rule_folder_outlined, size: 16),
+                  label: const Text('Override finding (coded reason)'),
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             Text(
               ruleId.startsWith('AI-')
                   ? 'Model-assisted comparison against cited evidence; review before relying on it.'
-                  : 'Detected by the deterministic BrandGuard rule engine.',
+                  : 'Grounded server-side against versioned BrandGuard rules.',
               style: AppTheme.monoLabel(),
             ),
           ],
@@ -709,10 +1304,126 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
     );
   }
 
+  Widget _visualEvidenceBlock(Map<String, dynamic> visualEv) {
+    final kind = visualEv['check']?.toString() ?? 'visual';
+    if (kind == 'palette') {
+      final hex = visualEv['detected_hex']?.toString() ?? '';
+      final parsed = _parseHexColor(hex);
+      final allowed = (visualEv['allowed_hex_colors'] as List? ?? [])
+          .map((e) => e.toString())
+          .toList();
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: AppTheme.infoBg,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppTheme.info.withValues(alpha: 0.25)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'PALETTE EVIDENCE · ${visualEv['asset_name'] ?? 'Banner'}',
+              style: AppTheme.monoLabel(color: AppTheme.info),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                if (parsed != null) ...[
+                  Container(
+                    width: 18,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: parsed,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppTheme.borderStrong),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: Text(
+                    'Detected $hex (${visualEv['coverage_pct'] ?? 0}% coverage)',
+                    style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+                  ),
+                ),
+              ],
+            ),
+            if (allowed.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: allowed.take(6).map((h) {
+                  final c = _parseHexColor(h);
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.card,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: AppTheme.border),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (c != null) ...[
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: c,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                        ],
+                        Text(h, style: AppTheme.monoLabel().copyWith(fontSize: 9)),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppTheme.dangerBg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.danger.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'LOGO MATCH EVIDENCE · ${visualEv['asset_name'] ?? 'Banner'}',
+            style: AppTheme.monoLabel(color: AppTheme.danger),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${visualEv['label'] ?? 'Deprecated logo'} detected in ${visualEv['region'] ?? 'banner'} (${visualEv['similarity_pct'] ?? 0}% match)',
+            style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _bottomAction() {
     final availableSuggestions = _backendFindings
         .where(
-          (finding) => (finding['replacement']?.toString() ?? '').isNotEmpty,
+          (finding) =>
+              (finding['source_origin']?.toString() ?? 'caption') == 'caption' &&
+              (finding['replacement']?.toString() ?? '').isNotEmpty,
         )
         .length;
 

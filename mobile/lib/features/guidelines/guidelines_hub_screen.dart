@@ -5,6 +5,8 @@ import '../../app/ui/app_widgets.dart';
 import '../../app/ui/brandguard_shell.dart';
 import '../../core/auth/session.dart';
 import '../../core/network/brandguard_api_service.dart';
+import '../governance/clarity_tickets_screen.dart';
+import '../governance/conflicts_screen.dart';
 import 'brand_guidelines_screen.dart';
 import 'fact_sources_screen.dart';
 import 'upload_rule_screen.dart';
@@ -177,6 +179,24 @@ class _GuidelinesHubScreenState extends State<GuidelinesHubScreen> {
                   'Upload private documents and verify eligible evidence.',
               tone: Tone.info,
               onTap: () => _open(const FactSourcesScreen()),
+            ),
+            const SizedBox(height: 8),
+            NavigationRow(
+              icon: Icons.support_agent_rounded,
+              title: 'Clarity Tickets',
+              subtitle:
+                  'Rule ambiguity hotspots surfaced by coded reviewer overrides.',
+              tone: Tone.warning,
+              onTap: () => _open(const ClarityTicketsScreen()),
+            ),
+            const SizedBox(height: 8),
+            NavigationRow(
+              icon: Icons.balance_rounded,
+              title: 'Policy Conflicts',
+              subtitle:
+                  'Resolve contradictory active rules and verified fact sources.',
+              tone: Tone.danger,
+              onTap: () => _open(const ConflictsScreen()),
             ),
             const SizedBox(height: 16),
             InlineNotice(

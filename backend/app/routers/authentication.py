@@ -46,6 +46,25 @@ class Recover(BaseModel):
     email: str = Field(min_length=3, max_length=254)
 
 
+class ProfileUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=2, max_length=80)
+
+    @field_validator("name")
+    @classmethod
+    def clean_display_name(cls, value):
+        if len(value.strip()) < 2:
+            raise ValueError("Display name must contain at least two characters")
+        return value.strip()
+
+
+class PreferencesUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email_updates: bool | None = None
+    review_activity: bool | None = None
+    product_news: bool | None = None
+
+
 def limit(request, email):
     key = (request.client.host if request.client else "local", email.strip().lower())
     now = time.monotonic()
@@ -95,6 +114,32 @@ def refresh(body: Refresh):
 @router.get("/me")
 def me(user=Depends(get_user)):
     return {"user": service.public_user(user), "auth_provider": config.AUTH_PROVIDER}
+
+
+@router.patch("/profile")
+def update_profile(
+    body: ProfileUpdate,
+    user=Depends(get_user),
+    authorization: str | None = Header(default=None),
+):
+    token = (
+        authorization.split(" ", 1)[1].strip()
+        if authorization and authorization.lower().startswith("bearer ")
+        else None
+    )
+    updated = service.update_display_name(user, body.name, token=token)
+    return {"user": updated, "message": "Display name updated"}
+
+
+@router.get("/preferences")
+def read_preferences(user=Depends(get_user)):
+    return service.get_preferences(user["user_id"])
+
+
+@router.put("/preferences")
+def write_preferences(body: PreferencesUpdate, user=Depends(get_user)):
+    payload = {k: v for k, v in body.model_dump().items() if v is not None}
+    return service.save_preferences(user["user_id"], payload)
 
 
 @router.post("/logout")

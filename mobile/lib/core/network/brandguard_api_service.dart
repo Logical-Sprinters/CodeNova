@@ -218,13 +218,43 @@ class BrandGuardApiService {
 
   static Future<Map<String, dynamic>> getJson(String path) =>
       request('GET', path);
+
+  static Future<Map<String, dynamic>> preflightCheck({
+    required String brandName,
+    required String content,
+    String? channel,
+    String? checkAt,
+    List<String>? assetIds,
+  }) => request(
+    'POST',
+    '/api/v1/brand/preflight',
+    body: {
+      'brand_name': brandName,
+      'content': content,
+      'channel': ?channel,
+      'check_at': ?checkAt,
+      if (assetIds != null && assetIds.isNotEmpty) 'asset_ids': assetIds,
+    },
+  );
+
   static Future<Map<String, dynamic>> checkBrand({
     required String brandName,
     required String content,
+    String contentType = 'text',
+    String? channel,
+    String? checkAt,
+    List<String>? assetIds,
   }) => request(
     'POST',
     '/api/v1/brand/check',
-    body: {'brand_name': brandName, 'content': content, 'content_type': 'text'},
+    body: {
+      'brand_name': brandName,
+      'content': content,
+      'content_type': contentType,
+      'channel': ?channel,
+      'check_at': ?checkAt,
+      if (assetIds != null && assetIds.isNotEmpty) 'asset_ids': assetIds,
+    },
   );
 
   /// Persists the display name on the server and refreshes the session user.
@@ -261,10 +291,19 @@ class BrandGuardApiService {
     required String checkId,
     required String content,
     int? expectedVersion,
+    String? channel,
+    String? checkAt,
+    List<String>? assetIds,
   }) => request(
     'POST',
     '/api/v1/brand/$checkId/versions',
-    body: {'content': content, 'expected_version': ?expectedVersion},
+    body: {
+      'content': content,
+      'expected_version': ?expectedVersion,
+      'channel': ?channel,
+      'check_at': ?checkAt,
+      'asset_ids': ?assetIds,
+    },
   );
   static Future<Map<String, dynamic>> decideReview({
     required String checkId,
@@ -284,11 +323,135 @@ class BrandGuardApiService {
     required String checkId,
     required String brandName,
     required String content,
+    List<String>? assetIds,
+    String? verifyAt,
   }) => request(
     'POST',
     '/api/v1/approvals/verify',
-    body: {'check_id': checkId, 'brand_name': brandName, 'content': content},
+    body: {
+      'check_id': checkId,
+      'brand_name': brandName,
+      'content': content,
+      if (assetIds != null && assetIds.isNotEmpty) 'asset_ids': assetIds,
+      'verify_at': ?verifyAt,
+    },
   );
+
+  static Future<Map<String, dynamic>> verifyApprovalUpload({
+    required String checkId,
+    required String brandName,
+    String? content,
+    required String fileName,
+    required Uint8List bytes,
+    String? verifyAt,
+  }) async {
+    if (session.accessToken == null) {
+      throw const ApiException('Please sign in first.');
+    }
+    final req = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/api/v1/approvals/verify-upload'),
+    );
+    req.headers['Authorization'] = 'Bearer ${session.accessToken}';
+    req.fields['check_id'] = checkId;
+    req.fields['brand_name'] = brandName;
+    if (content != null && content.isNotEmpty) req.fields['content'] = content;
+    if (verifyAt != null && verifyAt.isNotEmpty) {
+      req.fields['verify_at'] = verifyAt;
+    }
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: fileName));
+    return _decode(await _send(req));
+  }
+
+  static Future<Map<String, dynamic>> overrideFinding({
+    required String checkId,
+    required String findingId,
+    required String reasonCode,
+    String note = '',
+  }) => request(
+    'POST',
+    '/api/v1/reviews/${Uri.encodeComponent(checkId)}/findings/${Uri.encodeComponent(findingId)}/override',
+    body: {'reason_code': reasonCode, 'note': note},
+  );
+
+  static Future<Map<String, dynamic>> getClarityTickets({
+    String? status,
+    String? brandName,
+  }) {
+    final params = <String>[
+      if (status != null && status.isNotEmpty)
+        'status=${Uri.encodeQueryComponent(status)}',
+      if (brandName != null && brandName.isNotEmpty)
+        'brand_name=${Uri.encodeQueryComponent(brandName)}',
+    ];
+    final suffix = params.isEmpty ? '' : '?${params.join('&')}';
+    return getJson('/api/v1/clarity-tickets$suffix');
+  }
+
+  static Future<Map<String, dynamic>> updateClarityTicket({
+    required String ticketId,
+    required String status,
+    String resolutionNote = '',
+  }) => request(
+    'PATCH',
+    '/api/v1/clarity-tickets/${Uri.encodeComponent(ticketId)}',
+    body: {'status': status, 'resolution_note': resolutionNote},
+  );
+
+  static Future<Map<String, dynamic>> getConflicts({
+    String? status,
+    String? brandName,
+  }) {
+    final params = <String>[
+      if (status != null && status.isNotEmpty)
+        'status=${Uri.encodeQueryComponent(status)}',
+      if (brandName != null && brandName.isNotEmpty)
+        'brand_name=${Uri.encodeQueryComponent(brandName)}',
+    ];
+    final suffix = params.isEmpty ? '' : '?${params.join('&')}';
+    return getJson('/api/v1/conflicts$suffix');
+  }
+
+  static Future<Map<String, dynamic>> resolveConflict({
+    required String conflictId,
+    required String winningSourceType,
+    required String winningSourceId,
+    String resolutionNote = '',
+    bool autoRecheck = true,
+  }) => request(
+    'POST',
+    '/api/v1/conflicts/${Uri.encodeComponent(conflictId)}/resolve',
+    body: {
+      'winning_source_type': winningSourceType,
+      'winning_source_id': winningSourceId,
+      'resolution_note': resolutionNote,
+      'auto_recheck': autoRecheck,
+    },
+  );
+
+  static Future<Map<String, dynamic>> uploadLogoTemplate({
+    required String ruleId,
+    required String fileName,
+    required Uint8List bytes,
+    String brandName = 'Acme',
+    String label = 'Deprecated Logo',
+  }) async {
+    if (session.accessToken == null) {
+      throw const ApiException('Please sign in first.');
+    }
+    final req = http.MultipartRequest(
+      'POST',
+      Uri.parse(
+        '$baseUrl/api/v1/library/rules/${Uri.encodeComponent(ruleId)}/logo-template'
+        '?brand_name=${Uri.encodeQueryComponent(brandName)}'
+        '&label=${Uri.encodeQueryComponent(label)}',
+      ),
+    );
+    req.headers['Authorization'] = 'Bearer ${session.accessToken}';
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: fileName));
+    return _decode(await _send(req));
+  }
+
   static Future<Map<String, dynamic>> saveDraft(
     Map<String, dynamic> body, {
     String? id,
@@ -297,6 +460,7 @@ class BrandGuardApiService {
     '/api/v1/drafts${id == null ? '' : '/$id'}',
     body: body,
   );
+
   static Future<Map<String, dynamic>> uploadDocument(
     String name,
     Uint8List bytes, {

@@ -49,6 +49,10 @@ EMAIL_FROM = os.environ.get("EMAIL_FROM", "")
 CORS_ORIGINS = [
     s.strip() for s in os.environ.get("CORS_ORIGINS", "").split(",") if s.strip()
 ]
+OVERRIDE_FRICTION_THRESHOLD = max(
+    1, int(os.environ.get("OVERRIDE_FRICTION_THRESHOLD", "3"))
+)
+TESSERACT_CMD = os.environ.get("TESSERACT_CMD", "").strip()
 # Compatibility tests only. There is intentionally no environment flag enabling ID-header login.
 STORAGE_BACKEND = "database"
 ALLOW_LEGACY_DEMO_HEADERS = False

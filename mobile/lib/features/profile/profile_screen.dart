@@ -108,12 +108,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
   }
 
-  Future<void> _editName() async {
+  Future<void> _editName([BuildContext? dialogParentContext]) async {
+    final activeContext = dialogParentContext ?? context;
     final current = session.currentUser?.name ?? '';
     final controller = TextEditingController(text: current);
     final formKey = GlobalKey<FormState>();
     final submitted = await showDialog<String>(
-      context: context,
+      context: activeContext,
       builder: (dialog) => AlertDialog(
         title: const Text('Display name'),
         content: Form(
@@ -321,7 +322,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.person_outline_rounded,
           title: 'My profile',
           subtitle: 'Display name and session identity',
-          onTap: _editName,
+          onTap: () => _open(
+            _MyProfileSheet(
+              status: _status,
+              onEditName: _editName,
+            ),
+          ),
         ),
         const SizedBox(height: 8),
         NavigationRow(
@@ -553,6 +559,126 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: AppTheme.background,
       appBar: AppBar(title: const Text('Profile & settings')),
       body: SafeArea(top: false, child: body),
+    );
+  }
+}
+
+class _MyProfileSheet extends StatelessWidget {
+  const _MyProfileSheet({
+    required this.status,
+    required this.onEditName,
+  });
+
+  final Map<String, dynamic>? status;
+  final Future<void> Function([BuildContext?]) onEditName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(title: const Text('My profile')),
+      body: AnimatedBuilder(
+        animation: session,
+        builder: (context, _) {
+          AppTheme.watch(context);
+          final user = session.currentUser;
+          final isReviewer = user?.isReviewer == true;
+          return ListView(
+            padding: const EdgeInsets.all(18),
+            children: [
+              SurfaceCard(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+                child: Column(
+                  children: [
+                    InitialsAvatar(
+                      name: user?.name ?? 'BrandGuard',
+                      radius: 34,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      user?.name ?? 'Not signed in',
+                      style: AppTheme.headlineSmall.copyWith(fontSize: 19),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      user?.email ?? 'No email on this session',
+                      style: AppTheme.bodySmall,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 10),
+                    StatusPill(
+                      label: isReviewer ? 'Authorised Reviewer' : 'Creator',
+                      tone: isReviewer ? Tone.success : Tone.info,
+                      icon: isReviewer
+                          ? Icons.verified_rounded
+                          : Icons.edit_note_rounded,
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => onEditName(context),
+                      icon: const Icon(Icons.edit_outlined, size: 16),
+                      label: const Text('Edit display name'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              SurfaceCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'IDENTITY & SESSION DETAILS',
+                      style: AppTheme.monoLabel(color: AppTheme.muted),
+                    ),
+                    const SizedBox(height: 8),
+                    DetailRow(
+                      label: 'Display name',
+                      value: user?.name ?? '—',
+                    ),
+                    DetailRow(
+                      label: 'Email',
+                      value: user?.email ?? '—',
+                    ),
+                    DetailRow(
+                      label: 'User id',
+                      value: user?.userId ?? '—',
+                      monospace: true,
+                    ),
+                    DetailRow(
+                      label: 'Role',
+                      value: user?.role ?? '—',
+                    ),
+                    DetailRow(
+                      label: 'Auth provider',
+                      value: '${status?['auth_provider'] ?? 'local'}',
+                    ),
+                    DetailRow(
+                      label: 'Database',
+                      value: '${status?['database'] ?? 'sqlite'}',
+                    ),
+                    DetailRow(
+                      label: 'Session state',
+                      value: session.accessToken == null
+                          ? 'Signed out'
+                          : 'Authenticated',
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              const InlineNotice(
+                tone: Tone.navy,
+                icon: Icons.lock_outline_rounded,
+                title: 'Server-verified identity',
+                message:
+                    'Your role, user ID, and session permissions are issued by the backend and cannot be modified from the browser.',
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
