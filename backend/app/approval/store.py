@@ -33,6 +33,7 @@ def snapshot(record):
         "review_note",
         "decided_at",
         "receipt_id",
+        "visual_analysis",
     )
     return {
         "version": record["content_version"],

@@ -316,4 +316,52 @@ class BrandGuardApiService {
     req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: name));
     return _decode(await _send(req));
   }
+
+  static Future<Map<String, dynamic>> multimodalCheck({
+    required String brandName,
+    required String caption,
+    required String imageName,
+    required Uint8List imageBytes,
+    required List<String> approvedColors,
+    String? approvedLogoName,
+    Uint8List? approvedLogoBytes,
+    String? deprecatedLogoName,
+    Uint8List? deprecatedLogoBytes,
+  }) async {
+    if (session.accessToken == null) {
+      throw const ApiException('Please sign in first.');
+    }
+    final req = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/api/v1/brand/multimodal-check'),
+    );
+    req.headers['Authorization'] = 'Bearer ${session.accessToken}';
+    req.fields.addAll({
+      'brand_name': brandName,
+      'caption': caption,
+      'approved_colors': jsonEncode(approvedColors),
+    });
+    req.files.add(
+      http.MultipartFile.fromBytes('image', imageBytes, filename: imageName),
+    );
+    if (approvedLogoBytes != null && approvedLogoName != null) {
+      req.files.add(
+        http.MultipartFile.fromBytes(
+          'approved_logo',
+          approvedLogoBytes,
+          filename: approvedLogoName,
+        ),
+      );
+    }
+    if (deprecatedLogoBytes != null && deprecatedLogoName != null) {
+      req.files.add(
+        http.MultipartFile.fromBytes(
+          'deprecated_logo',
+          deprecatedLogoBytes,
+          filename: deprecatedLogoName,
+        ),
+      );
+    }
+    return _decode(await _send(req, timeout: const Duration(seconds: 90)));
+  }
 }

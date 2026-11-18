@@ -39,6 +39,7 @@ AI_BASE_URL = os.environ.get(
 AI_MODEL = os.environ.get(
     "AI_MODEL", "openai/gpt-5.4-mini" if AI_PROVIDER == "openrouter" else "gpt-5.4-mini"
 )
+TESSERACT_CMD = os.environ.get("TESSERACT_CMD", "").strip()
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL", os.environ.get("APP_URL", "")).rstrip(
     "/"
 )

@@ -41,20 +41,31 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
         final review = Map<String, dynamic>.from(item);
 
         final findings = (review['findings'] as List?) ?? [];
+        final visualAnalysis = review['visual_analysis'] is Map
+            ? Map<String, dynamic>.from(review['visual_analysis'] as Map)
+            : null;
+        final visualViolations = (visualAnalysis?['violations'] as List? ?? [])
+            .whereType<Map>();
+        final findingCount = findings.length + visualViolations.length;
 
         final createdAt = DateTime.tryParse(
           review['created_at']?.toString() ?? '',
         );
 
-        final severityLevels = findings
-            .map((f) => f['severity']?.toString().toLowerCase())
-            .toList();
+        final severityLevels = [
+          ...findings.map((f) => f['severity']?.toString().toLowerCase()),
+          ...visualViolations.map(
+            (finding) => finding['severity']?.toString().toLowerCase(),
+          ),
+        ];
 
         final risk =
             severityLevels.contains('critical') ||
-                severityLevels.contains('review')
+                severityLevels.contains('review') ||
+                severityLevels.contains('high')
             ? 'High'
-            : severityLevels.isNotEmpty
+            : severityLevels.isNotEmpty ||
+                  visualAnalysis?['status'] == 'partial'
             ? 'Medium'
             : 'Low';
 
@@ -64,7 +75,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
           'id': review['check_id']?.toString() ?? '',
           'title': '${review['brand_name'] ?? 'Unknown'} Brand Check',
           'creator': review['creator_id']?.toString() ?? 'Unknown',
-          'channel': 'Text',
+          'channel': visualAnalysis == null ? 'Text' : 'Image + text',
           'date': createdAt == null
               ? 'Unknown'
               : '${createdAt.day.toString().padLeft(2, '0')} '
@@ -79,7 +90,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
               : rawStatus == 'completed'
               ? 'Completed'
               : 'Pending',
-          'findings': findings.length,
+          'findings': findingCount,
           'version': 'v${review['content_version'] ?? 1}',
           'contentVersion': review['content_version'] as int?,
           'creatorId': review['creator_id'],
@@ -88,12 +99,14 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
           'risk': risk,
           'description':
               'Automated brand compliance check for ${review['brand_name']}. '
-              'This review contains ${findings.length} detected findings.',
+              'This review contains $findingCount detected findings.',
           'decisionBy': review['reviewer'],
           'decisionReason': review['review_note'],
           'decisionAt': review['decided_at'],
           'contentHash': review['content_hash'],
           'backendFindings': findings,
+          'visualAnalysis': visualAnalysis,
+          'visualFindings': visualViolations.toList(),
           'brandName': review['brand_name']?.toString() ?? '',
         };
       }).toList();
@@ -378,6 +391,14 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                               for (final finding in findings)
                                 _findingChecklistRow(finding),
                             ]),
+                          ],
+                          if (review['visualAnalysis'] is Map) ...[
+                            const SizedBox(height: 12),
+                            _visualReviewEvidence(
+                              Map<String, dynamic>.from(
+                                review['visualAnalysis'] as Map,
+                              ),
+                            ),
                           ],
                           const SizedBox(height: 12),
                           _detailSection('INSPECTION SUMMARY', [
@@ -674,6 +695,83 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _visualReviewEvidence(Map<String, dynamic> analysis) {
+    final ocr = analysis['ocr'] is Map
+        ? Map<String, dynamic>.from(analysis['ocr'] as Map)
+        : <String, dynamic>{};
+    final colors = analysis['colors'] is Map
+        ? Map<String, dynamic>.from(analysis['colors'] as Map)
+        : <String, dynamic>{};
+    final logo = analysis['logo'] is Map
+        ? Map<String, dynamic>.from(analysis['logo'] as Map)
+        : <String, dynamic>{};
+    final dominant = colors['dominant_colors'] as List? ?? [];
+    final violations = (analysis['violations'] as List? ?? [])
+        .whereType<Map>()
+        .map((finding) => Map<String, dynamic>.from(finding))
+        .toList();
+    final ocrText = ocr['text']?.toString() ?? '';
+    final dominantColors = dominant
+        .whereType<Map>()
+        .map(
+          (color) =>
+              '${color['hex']} (${((color['share'] as num?)?.toDouble() ?? 0) * 100 ~/ 1}%)',
+        )
+        .join(', ');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _detailSection('MULTIMODAL EVIDENCE', [
+          _detailRow(
+            'Overall analysis',
+            analysis['status']?.toString() ?? 'partial',
+          ),
+          _detailRow(
+            'OCR',
+            '${ocr['status'] ?? 'not configured'} · ${ocrText.length} characters',
+          ),
+          _detailRow(
+            'Brand colors',
+            colors['status']?.toString() ?? 'not configured',
+          ),
+          _detailRow(
+            'Dominant HEX colors',
+            dominantColors.isEmpty ? '—' : dominantColors,
+          ),
+          _detailRow('Logo', logo['status']?.toString() ?? 'not configured'),
+          _detailRow(
+            'Image dimensions',
+            '${analysis['image_width'] ?? '?'} × ${analysis['image_height'] ?? '?'}',
+          ),
+          _detailRow(
+            'Image SHA-256',
+            analysis['image_sha256']?.toString() ?? 'unavailable',
+          ),
+        ]),
+        if (ocrText.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _detailSection('EXTRACTED IMAGE TEXT', [
+            SelectableText(
+              ocrText,
+              style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+            ),
+          ]),
+        ],
+        if (violations.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _detailSection('VISUAL FINDINGS', [
+            for (final finding in violations) _findingChecklistRow(finding),
+          ]),
+        ],
+        const SizedBox(height: 4),
+        Text(
+          'Original image is not retained with this review. Obtain it from the creator before relying on approximate visual results.',
+          style: AppTheme.bodySmall,
+        ),
+      ],
     );
   }
 

@@ -2,8 +2,8 @@
 
 BrandGuard ek **mobile-first brand governance app** hai: content likho, rules se check karao, aur
 authorised reviewer se sign-off lo. Yeh version aapke bheje hue design references aur `DESIGN.md`
-(Token: *Executive Precision*) ke hisaab se **poora UI/UX redesign** karta hai — backend, Supabase
-data, logins aur flows **waise hi** hain jaise pehle the.
+(Token: *Executive Precision*) ke hisaab se **poora UI/UX redesign** karta hai. Existing backend,
+Supabase data, logins aur flows ke saath multimodal asset analysis bhi shamil hai.
 
 > Tagline: **No finding without evidence. No approval without a version.**
 
@@ -20,7 +20,7 @@ data, logins aur flows **waise hi** hain jaise pehle the.
 | Sign up | Dialog | Full page: strength meter, confirm match, consent, role explanation |
 | Forgot password | Dialog | Dedicated page, honest "provider sends the link" message |
 | Home | Metric grid | Greeting hero + 4 metric cards + decision mix + fast actions + recent activity |
-| Brand check | Plain form | Step strip, meta chips (words/chars/read time), attachments, policy engine summary |
+| Brand check | Plain form | Step strip, caption + image analysis, palette/logo references, policy engine summary |
 | Findings | Long cards | Rule cards with severity pill, evidence block, replacement block, sticky submit bar |
 | Review queue | List | Metrics + filter chips + rich review sheet + approval ledger |
 | Guidelines | 3 lists | One Guidelines tab → Guidelines / Rules / Fact Sources overview |
@@ -89,7 +89,7 @@ loading / empty / error states dikhata hai (blank ya red screen nahi):
 | Forgot password | `POST /api/v1/auth/recover` |
 | Home | `/analytics`, `/notifications`, `/system/status` |
 | Workspace hub | saare modules ka entry point |
-| New brand check | `POST /api/v1/drafts`, `POST /api/v1/files` (upload), `POST /api/v1/brand/check` |
+| New brand check | `POST /api/v1/drafts`, `POST /api/v1/files` (documents), `POST /api/v1/brand/check`, `POST /api/v1/brand/multimodal-check` |
 | Findings & evidence | `POST /api/v1/brand/{id}/versions` (submit) |
 | Review queue | `GET /api/v1/reviews`, `PATCH /api/v1/reviews/{id}/decision` |
 | Verify approval | `POST /api/v1/approvals/verify` |
@@ -109,8 +109,8 @@ dikhana galat hoga, isliye humne unhe honest tareeke se handle kiya:
 1. **SAML/Okta/SSO button** — hata diya. Sign in Supabase email+password ya local auth se hota hai.
 2. **AI/magic claims ("100% uptime", "SOC 2 certified", "AES-256 HSM")** — marketing text ki tarah
    nahi lagaya. App sirf wahi dikhata hai jo server bataata hai.
-3. **OCR (image se text)** — "OCR Text Extracted" jaisa fake badge nahi. Upload sirf TXT/MD/text-PDF
-   par kaam karta hai, aur screen par yahi likha hai.
+3. **Image/OCR analysis** — Marketing image par OCR tabhi chalega jab API server par Tesseract
+   installed ho. OCR unavailable ho toh screen yeh batati hai; supplied caption phir bhi check hota hai.
 4. **Biometric/hardware attestation, 2FA** — implement nahi hai, isliye UI mein claim nahi hai.
 5. **Organisation/tenant model** — sign-up page organisation name leta hai lekin saaf likhta hai ki
    server par abhi organisation model nahi hai.
@@ -120,6 +120,31 @@ dikhana galat hoga, isliye humne unhe honest tareeke se handle kiya:
    abstained" saaf dikhta hai. AI funded hone par hi real comparison hoga.
 8. **Dark theme** — token ke hisaab se light theme audited + shipped hai; dark/system par tap karne se
    honest snackbar aata hai (aadhi-adhoori dark theme nahi dikhayi).
+
+## 5a. Multimodal marketing-asset checks
+
+New brand check screen par marketing image (JPEG/PNG/WebP, 8 MB max) select karke caption ke saath
+check chalao. API OCR text ko caption ke saath existing deterministic brand rules mein bhejta hai;
+review findings, image evidence, SHA-256, audit record aur processing receipt ek hi check ke saath
+linked hote hain. Original image permanently store nahi hoti.
+
+- **OCR:** Install Tesseract on the API host. Windows ke liye Tesseract install karke `backend/.env`
+  mein optional `TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe` set kar sakte ho.
+  Install Python dependencies with `python -m pip install -r backend/requirements.txt`. OCR timeout
+  15 seconds hai; OCR unavailable ho aur caption blank ho toh request explicit error deti hai.
+- **Color palette:** Approved HEX values comma-separated enter karo, for example
+  `#0F172A, #14B8A6, #FFFFFF`. System dominant 8 colors compare karta hai; 2% se kam image area
+  cover karne wale colors findings nahi bante, aur RGB distance tolerance 45 hai. Empty palette ka
+  matlab **not configured**, pass nahi.
+- **Logo references:** Current approved aur optionally deprecated logo image attach karo (2 MB max
+  each). Multi-scale template matching confidence threshold 83% use karta hai. Yeh approximate
+  computer-vision result hai; missed/incorrect matches mumkin hain, isliye reviewer ko evidence
+  verify karna chahiye. Missing reference ka matlab **not configured**, pass nahi.
+- **Evidence limits:** Color analysis dominant pixels par hai, pixel-perfect segmentation nahi.
+  Logo matching crop, rotation, transparency aur visual variants mein reliable guarantee nahi deta.
+  UI extracted OCR text, dominant HEX values, module status aur visual violations dikhata hai.
+  Kisi module ke liye zaroori setup missing ho ya logo unverified rahe toh scan `partial` hota hai,
+  `passed` nahi.
 
 ## 6. Testing / quality
 
@@ -251,8 +276,10 @@ mobile/
   lib/app/ui/brandguard_shell.dart# 5-tab bottom navigation shell
   lib/features/...                # screens (auth, dashboard, checks, reviews, guidelines, ...)
   test/                           # widget + layout regression tests
-backend/                          # FastAPI + Supabase (unchanged)
+backend/                          # FastAPI + Supabase, including multimodal analysis
 ```
 
-Backend code, Supabase project, rules aur data **is redesign ke chalu hone se change nahi hue**.
-Koi deployment/seed/migration is ZIP ke saath nahi chalti.
+Multimodal support adds a FastAPI route and image-analysis dependencies; it does not change the
+database schema or require a migration. Deploy the updated API dependencies, and install Tesseract
+on the API host if OCR should run. Palette and logo references are supplied per check; no sample
+brand assets or production rules are assumed.

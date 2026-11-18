@@ -337,6 +337,79 @@ void main() {
     await settleTestUi(tester);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('multimodal findings show OCR and visual-rule evidence', (
+    tester,
+  ) async {
+    await open(
+      tester,
+      FindingsEvidenceScreen(
+        contentText: 'Caption\n\nOutdated logo',
+        onContentUpdated: (_) {},
+        checkId: 'visual-check',
+        brandName: 'Acme',
+        status: 'review_required',
+        findings: const [],
+        visualAnalysis: const {
+          'status': 'complete',
+          'image_sha256': '0123456789abcdef',
+          'ocr': {
+            'status': 'complete',
+            'text': 'Outdated logo',
+            'blocks': [
+              {
+                'text': 'Outdated logo',
+                'x': 12,
+                'y': 18,
+                'width': 60,
+                'height': 14,
+                'confidence': 0.94,
+              },
+            ],
+          },
+          'colors': {
+            'status': 'complete',
+            'dominant_colors': [
+              {'hex': '#FF0000', 'share': 0.8, 'approved': false},
+            ],
+            'violations': [
+              {
+                'rule_id': 'VIS-02',
+                'severity': 'review',
+                'message': 'Unapproved color detected.',
+                'evidence': '#FF0000 covers 80% of the image.',
+                'suggestion': 'Use an approved color.',
+              },
+            ],
+          },
+          'logo': {'status': 'deprecated_detected'},
+          'violations': [
+            {
+              'rule_id': 'VIS-02',
+              'severity': 'review',
+              'message': 'Unapproved color detected.',
+              'evidence': '#FF0000 covers 80% of the image.',
+              'suggestion': 'Use an approved color.',
+            },
+            {
+              'rule_id': 'VIS-05',
+              'severity': 'high',
+              'message': 'A deprecated logo reference was detected.',
+              'evidence': 'Logo match confidence: 90%.',
+              'suggestion': 'Replace it with the current approved logo.',
+              'location': {'x': 12, 'y': 18, 'width': 60, 'height': 14},
+            },
+          ],
+        },
+      ),
+    );
+    await tester.tap(find.text('OCR extracted text'));
+    await tester.pumpAndSettle();
+    expect(find.text('Outdated logo'), findsWidgets);
+    expect(find.textContaining('VIS-05'), findsOneWidget);
+    expect(find.textContaining('x=12'), findsWidgets);
+    expect(find.textContaining('Image SHA-256'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets(
     'source citations show verbatim quotes rather than invented references',
     (tester) async {

@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../app/app_theme.dart';
@@ -17,7 +20,14 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
   final _title = TextEditingController(text: 'Untitled draft');
   final _brand = TextEditingController(text: 'Acme');
   final _content = TextEditingController();
+  final _palette = TextEditingController();
   final List<Map<String, dynamic>> _attachments = [];
+  Uint8List? _visualBytes;
+  String? _visualName;
+  Uint8List? _approvedLogoBytes;
+  String? _approvedLogoName;
+  Uint8List? _deprecatedLogoBytes;
+  String? _deprecatedLogoName;
   String? _draftId;
   int? _revision;
   bool _busy = false;
@@ -45,6 +55,7 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
     _title.dispose();
     _brand.dispose();
     _content.dispose();
+    _palette.dispose();
     super.dispose();
   }
 
@@ -54,8 +65,9 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
   }
 
   int get _step {
-    if (_content.text.trim().isEmpty) return _attachments.isEmpty ? 1 : 2;
-    if (_attachments.isEmpty) return 2;
+    final hasAsset = _attachments.isNotEmpty || _visualBytes != null;
+    if (_content.text.trim().isEmpty) return hasAsset ? 2 : 1;
+    if (!hasAsset) return 2;
     return 3;
   }
 
@@ -136,26 +148,95 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
     }
   }
 
+  Future<void> _pickImage({required bool marketingAsset}) async {
+    try {
+      const group = XTypeGroup(
+        label: 'Image assets',
+        extensions: ['png', 'jpg', 'jpeg', 'webp'],
+      );
+      final file = await openFile(acceptedTypeGroups: [group]);
+      if (file == null || !mounted) return;
+      final sizeLimit = marketingAsset ? 8 : 2;
+      if (await file.length() > sizeLimit * 1024 * 1024) {
+        _message('Images must be no larger than $sizeLimit MB.');
+        return;
+      }
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        if (marketingAsset) {
+          _visualName = file.name;
+          _visualBytes = bytes;
+        } else {
+          _approvedLogoName = file.name;
+          _approvedLogoBytes = bytes;
+        }
+      });
+    } catch (error) {
+      _message('Could not read the selected image: $error');
+    }
+  }
+
+  Future<void> _pickDeprecatedLogo() async {
+    try {
+      const group = XTypeGroup(
+        label: 'Deprecated logo reference',
+        extensions: ['png', 'jpg', 'jpeg', 'webp'],
+      );
+      final file = await openFile(acceptedTypeGroups: [group]);
+      if (file == null || !mounted) return;
+      if (await file.length() > 2 * 1024 * 1024) {
+        _message('Logo reference images must be no larger than 2 MB.');
+        return;
+      }
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _deprecatedLogoName = file.name;
+        _deprecatedLogoBytes = bytes;
+      });
+    } catch (error) {
+      _message('Could not read the selected logo image: $error');
+    }
+  }
+
   Future<void> _check() async {
-    if (_content.text.trim().isEmpty || _brand.text.trim().isEmpty) {
-      _message('Enter a brand and nonempty content.');
+    if ((_content.text.trim().isEmpty && _visualBytes == null) ||
+        _brand.text.trim().isEmpty) {
+      _message('Enter a brand and provide a caption or marketing image.');
       return;
     }
     FocusScope.of(context).unfocus();
     setState(() => _busy = true);
     final exactText = _content.text;
     try {
-      final result = await BrandGuardApiService.checkBrand(
-        brandName: _brand.text.trim(),
-        content: exactText,
-      );
+      final result = _visualBytes == null
+          ? await BrandGuardApiService.checkBrand(
+              brandName: _brand.text.trim(),
+              content: exactText,
+            )
+          : await BrandGuardApiService.multimodalCheck(
+              brandName: _brand.text.trim(),
+              caption: exactText,
+              imageName: _visualName!,
+              imageBytes: _visualBytes!,
+              approvedColors: _palette.text
+                  .split(',')
+                  .map((color) => color.trim())
+                  .where((color) => color.isNotEmpty)
+                  .toList(),
+              approvedLogoName: _approvedLogoName,
+              approvedLogoBytes: _approvedLogoBytes,
+              deprecatedLogoName: _deprecatedLogoName,
+              deprecatedLogoBytes: _deprecatedLogoBytes,
+            );
       if (!mounted) return;
       setState(() => _busy = false);
       await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => FindingsEvidenceScreen(
-            contentText: exactText,
+            contentText: result['checked_content']?.toString() ?? exactText,
             onContentUpdated: (text) {
               if (mounted) setState(() => _content.text = text);
             },
@@ -167,6 +248,9 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
             contentVersion: result['content_version'] as int?,
             aiVerification: result['ai_verification'] is Map
                 ? Map<String, dynamic>.from(result['ai_verification'] as Map)
+                : null,
+            visualAnalysis: result['visual_analysis'] is Map
+                ? Map<String, dynamic>.from(result['visual_analysis'] as Map)
                 : null,
           ),
         ),
@@ -328,7 +412,7 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
                 tone: Tone.neutral,
                 icon: Icons.attach_file_rounded,
                 title: 'No attachment yet',
-                message: 'TXT, Markdown or text-based PDF up to 5 MB / 30 pages. Images and scanned PDFs need OCR, which this server does not run — only extracted text is checked.',
+                message: 'TXT, Markdown or text-based PDF up to 5 MB / 30 pages. Document attachments are not analyzed automatically; use Multimodal asset analysis below for image OCR.',
               )
             else
               ..._attachments.map(
@@ -391,6 +475,108 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
                   ),
                 ),
               ),
+            const SizedBox(height: 18),
+            SectionHeading(
+              title: 'Multimodal asset analysis',
+              caption: 'Image text, palette and logo references are checked server-side',
+              trailing: TextButton.icon(
+                onPressed: _busy
+                    ? null
+                    : () => _pickImage(marketingAsset: true),
+                icon: const Icon(Icons.image_outlined, size: 16),
+                label: const Text('Add image'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (_visualName == null)
+              const InlineNotice(
+                tone: Tone.neutral,
+                icon: Icons.image_search_outlined,
+                title: 'No marketing image selected',
+                message: 'Choose a JPEG, PNG or WebP image up to 8 MB. OCR requires Tesseract to be installed on the API server.',
+              )
+            else
+              SurfaceCard(
+                padding: const EdgeInsets.all(10),
+                radius: 14,
+                child: Row(
+                  children: [
+                    if (_visualBytes != null)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.memory(
+                          _visualBytes!,
+                          width: 52,
+                          height: 52,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _visualName!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.labelLarge.copyWith(fontSize: 12),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Remove image',
+                      onPressed: _busy
+                          ? null
+                          : () => setState(() {
+                              _visualName = null;
+                              _visualBytes = null;
+                            }),
+                      icon: Icon(Icons.close_rounded, color: AppTheme.danger),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 4),
+            Text(
+              'The marketing image and logo references are used for this check only; drafts retain the caption, not image files.',
+              style: AppTheme.bodySmall,
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              key: const ValueKey('approved-colors'),
+              controller: _palette,
+              enabled: !_busy,
+              decoration: const InputDecoration(
+                labelText: 'Approved palette (HEX)',
+                hintText: '#0F172A, #14B8A6, #FFFFFF',
+                helperText: 'Comma-separated. Leave blank to report color checking as not configured.',
+                isDense: true,
+                prefixIcon: Icon(Icons.palette_outlined),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _busy
+                      ? null
+                      : () => _pickImage(marketingAsset: false),
+                  icon: const Icon(Icons.verified_outlined, size: 16),
+                  label: Text(_approvedLogoName ?? 'Approved logo reference'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : _pickDeprecatedLogo,
+                  icon: const Icon(Icons.history_rounded, size: 16),
+                  label: Text(
+                    _deprecatedLogoName ?? 'Deprecated logo reference',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Logo checks use the provided reference images and are approximate. No logo reference means logo verification is skipped, not passed.',
+              style: AppTheme.bodySmall,
+            ),
             const SizedBox(height: 18),
             const SectionHeading(
               title: 'Inspection policy engine',

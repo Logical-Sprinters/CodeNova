@@ -57,6 +57,8 @@ class BrandCheckResponse(BaseModel):
     review_status: str
     rules_version: str | None = None
     ai_verification: dict | None = None
+    visual_analysis: dict | None = None
+    checked_content: str | None = None
 
 
 class ReviewDecisionRequest(BaseModel):

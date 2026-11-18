@@ -14,6 +14,7 @@ class FindingsEvidenceScreen extends StatefulWidget {
   final String? receiptId;
   final int? contentVersion;
   final Map<String, dynamic>? aiVerification;
+  final Map<String, dynamic>? visualAnalysis;
   final List<dynamic> findings;
 
   const FindingsEvidenceScreen({
@@ -27,6 +28,7 @@ class FindingsEvidenceScreen extends StatefulWidget {
     this.receiptId,
     this.contentVersion,
     this.aiVerification,
+    this.visualAnalysis,
   });
 
   @override
@@ -283,6 +285,13 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
         .toList();
   }
 
+  int get _visualFindingCount {
+    final violations = widget.visualAnalysis?['violations'];
+    return violations is List ? violations.length : 0;
+  }
+
+  int get _totalFindingCount => widget.findings.length + _visualFindingCount;
+
   @override
   Widget build(BuildContext context) {
     AppTheme.watch(context);
@@ -298,8 +307,8 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: StatusPill(
-              label: '${widget.findings.length} findings',
-              tone: widget.findings.isEmpty ? Tone.success : Tone.danger,
+              label: '$_totalFindingCount findings',
+              tone: _totalFindingCount == 0 ? Tone.success : Tone.danger,
             ),
           ),
         ],
@@ -330,6 +339,10 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
                   ),
                   const SizedBox(height: 10),
                   _statusCard(),
+                  if (widget.visualAnalysis != null) ...[
+                    const SizedBox(height: 12),
+                    _visualAnalysisCard(),
+                  ],
                   const SizedBox(height: 12),
                   _aiStatus(),
                   const SizedBox(height: 14),
@@ -338,10 +351,14 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
                   if (_visibleFindings.isEmpty)
                     EmptyStateCard(
                       title: widget.findings.isEmpty
-                          ? 'No rule violations detected'
+                          ? _visualFindingCount == 0
+                                ? 'No rule violations detected'
+                                : 'No text rule violations detected'
                           : 'Nothing in this category',
                       message: widget.findings.isEmpty
-                          ? 'The deterministic rules returned no findings for this exact text. This is not human approval — an authorised reviewer still has to decide.'
+                          ? _visualFindingCount == 0
+                                ? 'The deterministic rules returned no findings for this exact text. This is not human approval — an authorised reviewer still has to decide.'
+                                : 'Visual findings are shown in the evidence panel above. This is not human approval — an authorised reviewer still has to decide.'
                           : 'Switch the filter to see the other findings on this check.',
                       icon: Icons.task_alt_rounded,
                     )
@@ -363,8 +380,9 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
   }
 
   Widget _statusCard() {
-    final count = widget.findings.length;
-    final clean = count == 0;
+    final count = _totalFindingCount;
+    final partial = widget.visualAnalysis?['status'] == 'partial';
+    final clean = count == 0 && !partial;
     return SurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -375,13 +393,25 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: clean ? AppTheme.successBg : AppTheme.dangerBg,
+                  color: clean
+                      ? AppTheme.successBg
+                      : partial
+                      ? AppTheme.warningBg
+                      : AppTheme.dangerBg,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
-                  clean ? Icons.task_alt_rounded : Icons.gpp_bad_rounded,
+                  clean
+                      ? Icons.task_alt_rounded
+                      : partial
+                      ? Icons.manage_search_rounded
+                      : Icons.gpp_bad_rounded,
                   size: 17,
-                  color: clean ? AppTheme.success : AppTheme.danger,
+                  color: clean
+                      ? AppTheme.success
+                      : partial
+                      ? AppTheme.warning
+                      : AppTheme.danger,
                 ),
               ),
               const SizedBox(width: 10),
@@ -397,8 +427,16 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
               const SizedBox(width: 6),
               Flexible(
                 child: StatusPill(
-                  label: clean ? 'Clear' : '$count findings',
-                  tone: clean ? Tone.success : Tone.danger,
+                  label: clean
+                      ? 'Clear'
+                      : partial && count == 0
+                      ? 'Partial analysis'
+                      : '$count findings',
+                  tone: clean
+                      ? Tone.success
+                      : partial && count == 0
+                      ? Tone.warning
+                      : Tone.danger,
                 ),
               ),
             ],
@@ -434,6 +472,167 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _visualAnalysisCard() {
+    final analysis = widget.visualAnalysis!;
+    final ocr = analysis['ocr'] is Map
+        ? Map<String, dynamic>.from(analysis['ocr'] as Map)
+        : <String, dynamic>{};
+    final colors = analysis['colors'] is Map
+        ? Map<String, dynamic>.from(analysis['colors'] as Map)
+        : <String, dynamic>{};
+    final logo = analysis['logo'] is Map
+        ? Map<String, dynamic>.from(analysis['logo'] as Map)
+        : <String, dynamic>{};
+    final violations = analysis['violations'] as List? ?? [];
+    final dominant = colors['dominant_colors'] as List? ?? [];
+    final ocrBlocks = ocr['blocks'] as List? ?? [];
+    String label(Object? value) =>
+        (value?.toString() ?? 'not_configured').replaceAll('_', ' ');
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Visual evidence', style: AppTheme.titleMedium),
+          const SizedBox(height: 10),
+          _visualStatusRow(
+            'Overall visual analysis',
+            label(analysis['status']),
+          ),
+          _visualStatusRow('OCR', label(ocr['status'])),
+          if (ocr['status'] == 'unavailable' && ocr['reason'] != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 8),
+              child: Text(ocr['reason'].toString(), style: AppTheme.bodySmall),
+            ),
+          _visualStatusRow(
+            'Brand colors',
+            colors['violations'] is List &&
+                    (colors['violations'] as List).isNotEmpty
+                ? '${label(colors['status'])} · ${(colors['violations'] as List).length} findings'
+                : label(colors['status']),
+          ),
+          _visualStatusRow('Logo', label(logo['status'])),
+          if (dominant.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text('Dominant HEX colors', style: AppTheme.labelLarge),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final item in dominant.whereType<Map>())
+                  StatusPill(
+                    label:
+                        '${item['hex']} · ${((item['share'] as num?)?.toDouble() ?? 0) * 100 ~/ 1}%',
+                    tone: item['approved'] == false
+                        ? Tone.danger
+                        : item['approved'] == true
+                        ? Tone.success
+                        : Tone.neutral,
+                    compact: true,
+                  ),
+              ],
+            ),
+          ],
+          if (violations.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            for (final violation in violations.whereType<Map>())
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: InlineNotice(
+                  tone: Tone.warning,
+                  icon: Icons.warning_amber_rounded,
+                  title: '${violation['rule_id']}: ${violation['message']}',
+                  message: [
+                    violation['evidence'],
+                    if (violation['location'] is Map)
+                      'Image region: x=${violation['location']['x']}, '
+                          'y=${violation['location']['y']}, '
+                          'w=${violation['location']['width']}, '
+                          'h=${violation['location']['height']}',
+                    violation['suggestion'],
+                  ].where((value) => value != null).join('\n'),
+                ),
+              ),
+          ],
+          if (ocrBlocks.isNotEmpty ||
+              ocr['text']?.toString().isNotEmpty == true) ...[
+            const SizedBox(height: 10),
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              title: const Text('OCR extracted text'),
+              children: [
+                if (ocrBlocks.isEmpty)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SelectableText(ocr['text'].toString()),
+                  )
+                else ...[
+                  for (final block in ocrBlocks.take(80).whereType<Map>())
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: SelectableText(block['text'].toString()),
+                          ),
+                          Text(
+                            'Image region: x=${block['x']}, y=${block['y']} · '
+                            'confidence ${(((block['confidence'] as num?)?.toDouble() ?? 0) * 100).round()}%',
+                            style: AppTheme.monoLabel().copyWith(fontSize: 9),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (ocrBlocks.length > 80)
+                    Text(
+                      '${ocrBlocks.length - 80} additional OCR blocks omitted.',
+                      style: AppTheme.bodySmall,
+                    ),
+                ],
+              ],
+            ),
+          ],
+          const SizedBox(height: 6),
+          Text(
+            'Image SHA-256: ${analysis['image_sha256'] ?? 'unavailable'}',
+            style: AppTheme.monoLabel().copyWith(fontSize: 9),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _visualStatusRow(String name, String status) {
+    final skipped = status == 'not configured' || status == 'unavailable';
+    final failed = status.contains('deprecated') || status.contains('finding');
+    final partial = status == 'partial';
+    final checked = status == 'complete' || status == 'approved detected';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Expanded(child: Text(name, style: AppTheme.bodyMedium)),
+          StatusPill(
+            label: status,
+            tone: skipped
+                ? Tone.neutral
+                : failed
+                ? Tone.danger
+                : partial
+                ? Tone.warning
+                : checked
+                ? Tone.success
+                : Tone.neutral,
+            compact: true,
           ),
         ],
       ),
