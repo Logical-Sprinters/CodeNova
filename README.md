@@ -128,8 +128,9 @@ check chalao. API OCR text ko caption ke saath existing deterministic brand rule
 review findings, image evidence, SHA-256, audit record aur processing receipt ek hi check ke saath
 linked hote hain. Original image permanently store nahi hoti.
 
-- **OCR:** Install Tesseract on the API host. Windows ke liye Tesseract install karke `backend/.env`
-  mein optional `TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe` set kar sakte ho.
+- **OCR:** Install Tesseract on the API host. Windows ke standard `C:\Program Files\Tesseract-OCR`
+  install path ko app automatically detect karta hai. Custom path ke liye `backend/.env` mein
+  `TESSERACT_CMD=C:\path\to\tesseract.exe` set karo.
   Install Python dependencies with `python -m pip install -r backend/requirements.txt`. OCR timeout
   15 seconds hai; OCR unavailable ho aur caption blank ho toh request explicit error deti hai.
 - **Color palette:** Approved HEX values comma-separated enter karo, for example

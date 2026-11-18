@@ -3,6 +3,8 @@
 import hashlib
 import io
 import math
+import os
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -18,6 +20,14 @@ COLOR_DISTANCE_TOLERANCE = 45
 LOGO_MATCH_THRESHOLD = 0.83
 if config.TESSERACT_CMD:
     pytesseract.pytesseract.tesseract_cmd = config.TESSERACT_CMD
+elif os.name == "nt":
+    default_tesseract = (
+        Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
+        / "Tesseract-OCR"
+        / "tesseract.exe"
+    )
+    if default_tesseract.is_file():
+        pytesseract.pytesseract.tesseract_cmd = str(default_tesseract)
 
 
 def decode_image(raw: bytes) -> Image.Image:

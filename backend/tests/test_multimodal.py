@@ -1,9 +1,11 @@
 import io
 import json
 
-from PIL import Image, ImageDraw
+import pytest
+import pytesseract
+from PIL import Image, ImageDraw, ImageFont
 
-from app.checks.multimodal import analyze_colors, match_logo
+from app.checks.multimodal import analyze_colors, extract_ocr, match_logo
 from app.receipts import store as receipt_store
 
 
@@ -12,6 +14,23 @@ def image_bytes(color):
     output = io.BytesIO()
     image.save(output, format="PNG")
     return output.getvalue()
+
+
+def marketing_image_bytes_with_text(text):
+    image = Image.new("RGB", (1100, 240), "white")
+    font = ImageFont.load_default(size=64)
+    ImageDraw.Draw(image).text((30, 55), text, fill="black", font=font)
+    output = io.BytesIO()
+    image.save(output, format="PNG")
+    return output.getvalue()
+
+
+def has_tesseract():
+    try:
+        pytesseract.get_tesseract_version()
+    except pytesseract.pytesseract.TesseractNotFoundError:
+        return False
+    return True
 
 
 def test_color_analysis_compares_dominant_color_with_palette():
@@ -45,6 +64,49 @@ def test_logo_matching_returns_confident_reference_location():
     assert match["confidence"] >= 0.83
     assert 115 <= match["box"]["x"] <= 125
     assert 65 <= match["box"]["y"] <= 75
+
+
+def test_ocr_extracts_image_text_with_confidence_and_coordinates():
+    if not has_tesseract():
+        pytest.skip("Tesseract is not installed")
+    image = Image.open(io.BytesIO(marketing_image_bytes_with_text("BRAND SAFE 123")))
+
+    result = extract_ocr(image)
+
+    assert result["status"] == "complete"
+    assert result["text"] == "BRAND SAFE 123"
+    assert result["blocks"]
+    assert all(0 <= block["confidence"] <= 1 for block in result["blocks"])
+    assert all(block["width"] > 0 and block["height"] > 0 for block in result["blocks"])
+
+
+def test_multimodal_check_uses_real_ocr_text(
+    client, creator_headers
+):
+    if not has_tesseract():
+        pytest.skip("Tesseract is not installed")
+    response = client.post(
+        "/api/v1/brand/multimodal-check",
+        data={
+            "brand_name": "Acme",
+            "caption": "",
+            "approved_colors": json.dumps(["#000000", "#FFFFFF"]),
+        },
+        files={
+            "image": (
+                "ad.png",
+                marketing_image_bytes_with_text("BRAND SAFE 123"),
+                "image/png",
+            )
+        },
+        headers=creator_headers,
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["checked_content"] == "BRAND SAFE 123"
+    assert result["visual_analysis"]["ocr"]["status"] == "complete"
+    assert result["visual_analysis"]["ocr"]["blocks"][0]["width"] > 0
 
 
 def test_multimodal_check_combines_ocr_and_caption_and_receipts_visual_evidence(
