@@ -104,6 +104,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
           'decisionReason': review['review_note'],
           'decisionAt': review['decided_at'],
           'contentHash': review['content_hash'],
+          'receiptId': review['receipt_id']?.toString() ?? '',
           'backendFindings': findings,
           'visualAnalysis': visualAnalysis,
           'visualFindings': visualViolations.toList(),
@@ -230,7 +231,170 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
     }
   }
 
+  Future<Map<String, dynamic>> _loadApprovalProof(
+    Map<String, dynamic> review,
+  ) async {
+    final receiptId = review['receiptId']?.toString() ?? '';
+    if (receiptId.isEmpty) {
+      throw const ApiException(
+        'This review has no receipt ID. Refresh the review queue and try again.',
+      );
+    }
+
+    final receipt = await BrandGuardApiService.getReceipt(
+      receiptId: receiptId,
+    );
+    final verification = await BrandGuardApiService.verifyApproval(
+      checkId: review['id'].toString(),
+      brandName: review['brandName'].toString(),
+      content: review['contentText'].toString(),
+    );
+
+    return {'receipt': receipt, 'verification': verification};
+  }
+
+  Widget _approvalProofSection(
+    Future<Map<String, dynamic>> proofFuture,
+    VoidCallback onRetry,
+  ) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: proofFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return _detailSection('CRYPTOGRAPHIC APPROVAL PROOF', const [
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 17,
+                    height: 17,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(child: Text('Loading receipt and verifying approval…')),
+                ],
+              ),
+            ),
+          ]);
+        }
+
+        if (snapshot.hasError) {
+          return _detailSection('CRYPTOGRAPHIC APPROVAL PROOF', [
+            Text(
+              'Unable to load or verify this approval: ${snapshot.error}',
+              style: AppTheme.bodySmall.copyWith(color: AppTheme.danger),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('Try again'),
+              ),
+            ),
+          ]);
+        }
+
+        final data = snapshot.data ?? <String, dynamic>{};
+        final receipt = data['receipt'] is Map
+            ? Map<String, dynamic>.from(data['receipt'] as Map)
+            : <String, dynamic>{};
+        final verification = data['verification'] is Map
+            ? Map<String, dynamic>.from(data['verification'] as Map)
+            : <String, dynamic>{};
+        final fingerprint = receipt['approval_fingerprint']?.toString() ?? '';
+        final algorithm =
+            receipt['approval_fingerprint_algorithm']?.toString() ?? 'Unknown';
+        final valid = verification['valid'] == true;
+
+        return _detailSection('CRYPTOGRAPHIC APPROVAL PROOF', [
+          Row(
+            children: [
+              Icon(
+                valid ? Icons.verified_rounded : Icons.gpp_bad_outlined,
+                color: valid ? AppTheme.teal : AppTheme.danger,
+                size: 19,
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  valid ? 'Fingerprint verification: VALID' : 'Fingerprint verification: INVALID',
+                  style: AppTheme.labelMedium.copyWith(
+                    color: valid ? AppTheme.teal : AppTheme.danger,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              StatusPill(
+                label: valid ? 'Verified' : 'Not verified',
+                tone: valid ? Tone.success : Tone.danger,
+                compact: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          _detailRow('Algorithm', algorithm),
+          _detailRow('Receipt ID', receipt['receipt_id']?.toString() ?? '—'),
+          _detailRow(
+            'Receipt status',
+            receipt['final_status']?.toString() ?? '—',
+          ),
+          _detailRow(
+            'Receipt current',
+            receipt['is_current_version'] == true ? 'Yes' : 'No',
+          ),
+          _detailRow(
+            'Rules current',
+            receipt['rules_current'] == true ? 'Yes' : 'No',
+          ),
+          const SizedBox(height: 4),
+          Text('APPROVAL FINGERPRINT', style: AppTheme.monoLabel()),
+          const SizedBox(height: 5),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppTheme.background,
+              borderRadius: BorderRadius.circular(9),
+              border: Border.all(color: AppTheme.border),
+            ),
+            child: SelectableText(
+              fingerprint.isEmpty ? 'Fingerprint unavailable in receipt.' : fingerprint,
+              style: AppTheme.bodySmall.copyWith(
+                color: AppTheme.ink,
+                fontFamily: 'monospace',
+                height: 1.45,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            (verification['reason'] ?? 'No verification explanation returned.').toString(),
+            style: AppTheme.bodySmall.copyWith(
+              color: valid ? AppTheme.ink : AppTheme.danger,
+            ),
+          ),
+          if (receipt['approval_valid'] == false) ...[
+            const SizedBox(height: 6),
+            Text(
+              'The receipt reports that this approval is no longer current for the latest content or rules.',
+              style: AppTheme.bodySmall.copyWith(color: AppTheme.danger),
+            ),
+          ],
+        ]);
+      },
+    );
+  }
+
   Future<void> openReviewDetails(Map<String, dynamic> review) async {
+    final isApproved = review['status'] == 'Approved';
+    Future<Map<String, dynamic>>? proofFuture;
+    if (isApproved) {
+      proofFuture = _loadApprovalProof(review);
+    }
+
     final decision = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -442,6 +606,15 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                                 (review['decisionReason'] ?? '—').toString(),
                               ),
                             ]),
+                          ],
+                          if (status == 'Approved' && proofFuture != null) ...[
+                            const SizedBox(height: 12),
+                            _approvalProofSection(
+                              proofFuture!,
+                              () => updateSheet(() {
+                                proofFuture = _loadApprovalProof(review);
+                              }),
+                            ),
                           ],
                           const SizedBox(height: 12),
                           Text(
@@ -1290,6 +1463,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
               child: SurfaceCard(
                 padding: const EdgeInsets.all(12),
                 radius: 14,
+                onTap: () => openReviewDetails(review),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

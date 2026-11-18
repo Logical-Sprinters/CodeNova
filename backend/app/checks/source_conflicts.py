@@ -34,22 +34,27 @@ def _claim_key(sentence: str) -> frozenset[str]:
     return frozenset(words)
 
 
+
 def _source_sentences(source: dict):
+    # Titles identify sources; they must never influence claim matching.
     if source["type"] == "rule":
         text = " ".join(
             str(source.get(key) or "")
-            for key in ("title", "description", "suggestion")
+            for key in ("description", "suggestion")
         )
     else:
         text = " ".join(
             str(source.get(key) or "")
-            for key in ("title", "description", "content")
+            for key in ("description", "content")
         )
+
     for sentence in _SENTENCES.findall(text):
         key = _claim_key(sentence)
-        # Very short or generic claims are too ambiguous to compare safely.
+
+        # Ignore short or generic claims.
         if len(key) >= 3:
             yield sentence.strip(), key, _polarity(sentence)
+
 
 
 def _load_sources(brand_name: str) -> list[dict]:

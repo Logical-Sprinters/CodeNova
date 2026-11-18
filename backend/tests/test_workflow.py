@@ -325,3 +325,57 @@ def test_store_paths_do_not_depend_on_current_working_directory(isolated_stores)
     assert rule_store.RULES_FILE.parent == isolated_stores
     assert approval_store.load_records() == []
     assert "acme" in rule_store.load_rule_store()["brands"]
+
+def test_source_conflict_detected_even_when_guideline_titles_differ(
+    client, creator_headers, reviewer_headers
+):
+    common = {
+        "brand_name": "Acme",
+        "category": "Product Claims",
+        "enabled": True,
+    }
+
+    positive = client.post(
+        "/api/v1/library/guidelines",
+        json={
+            **common,
+            "title": "International Product Availability",
+            "content": "Acme is available in Canada.",
+        },
+        headers=reviewer_headers,
+    )
+
+    negative = client.post(
+        "/api/v1/library/guidelines",
+        json={
+            **common,
+            "title": "Regional Sales Restriction",
+            "content": "Acme is not available in Canada.",
+        },
+        headers=reviewer_headers,
+    )
+
+    assert positive.status_code == 201, positive.text
+    assert negative.status_code == 201, negative.text
+
+    result = create_check(
+        client, creator_headers, content="A product announcement."
+    )
+
+    queue = client.get("/api/v1/reviews", headers=reviewer_headers)
+    assert queue.status_code == 200, queue.text
+
+    review = next(
+        item for item in queue.json()["reviews"]
+        if item["check_id"] == result["check_id"]
+    )
+
+    assert review["source_conflicts"]
+    assert len(review["source_conflicts"][0]["evidence"]) == 2
+
+    blocked = decide(
+        client, result["check_id"], reviewer_headers, "approved"
+    )
+
+    assert blocked.status_code == 409
+    assert "source_conflicts" in blocked.json()["detail"]
