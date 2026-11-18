@@ -1,0 +1,9 @@
+PASS creator real cloud demo login
+PASS reviewer real cloud demo login
+PASS expired evaluation user cannot sign into app
+PASS expired evaluation JWT cannot upload directly to Storage
+PASS active evaluation creator uploads actual private cloud file
+PASS active evaluation reviewer reads sample document
+PASS expired reviewer cannot directly read another users sample file
+PASS expired negative-test account removed
+DEMO_ACCOUNTS_READY. Credentials stored privately for intended user handoff.

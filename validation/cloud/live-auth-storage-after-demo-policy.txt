@@ -1,0 +1,23 @@
+PASS public Auth health endpoint
+PASS creator password login
+PASS creator validated identity
+PASS reviewer password login
+PASS reviewer validated identity
+PASS other_creator password login
+PASS other_creator validated identity
+PASS private owner file upload
+PASS owner authenticated file download
+PASS reviewer access follows trusted app_metadata
+PASS other creator cannot read private object
+PASS anonymous private object access blocked
+PASS upload to another users folder blocked
+PASS anonymous cannot query backend-owned SQL rows directly
+PASS authenticated creator cannot query backend-owned SQL rows directly
+PASS real refresh token rotation
+PASS remote local-scope logout
+PASS logged-out refresh token rejected
+PASS temporary object cleanup
+PASS temporary validation-user cleanup
+PASS temporary validation-user cleanup
+PASS temporary validation-user cleanup
+TOTAL 22 live checks passed. FastAPI DB/email/AI remain separate acceptance checks.

@@ -1,0 +1,75 @@
+{
+  "api_base": "https://brandguard-app.antideploy.app",
+  "runtime": "native Dart VM HttpClient with normal certificate verification",
+  "passed": 13,
+  "checks": [
+    {
+      "check": "actual hosted health through native Dart TLS",
+      "http": 200,
+      "result": "passed"
+    },
+    {
+      "check": "cloud auth config",
+      "http": 200,
+      "result": "passed"
+    },
+    {
+      "check": "creator real password login",
+      "http": 200,
+      "result": "passed"
+    },
+    {
+      "check": "creator current identity",
+      "http": 200,
+      "result": "passed"
+    },
+    {
+      "check": "creator real cloud dashboard",
+      "http": 200,
+      "result": "passed"
+    },
+    {
+      "check": "creator new test session logout",
+      "http": 200,
+      "result": "passed"
+    },
+    {
+      "check": "creator logged-out token denied",
+      "http": 401,
+      "result": "passed"
+    },
+    {
+      "check": "reviewer real password login",
+      "http": 200,
+      "result": "passed"
+    },
+    {
+      "check": "reviewer current identity",
+      "http": 200,
+      "result": "passed"
+    },
+    {
+      "check": "reviewer real cloud dashboard",
+      "http": 200,
+      "result": "passed"
+    },
+    {
+      "check": "reviewer new test session logout",
+      "http": 200,
+      "result": "passed"
+    },
+    {
+      "check": "reviewer logged-out token denied",
+      "http": 401,
+      "result": "passed"
+    },
+    {
+      "check": "signup endpoint reachable; illegal role rejected without creating a user or sending mail",
+      "http": 422,
+      "result": "passed"
+    }
+  ],
+  "android_device_or_apk_tested": false,
+  "new_signup_email_sent": false,
+  "production_accounts_preserved": true
+}

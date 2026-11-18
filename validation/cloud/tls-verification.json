@@ -1,0 +1,16 @@
+{
+  "project_ref": "jtidayzktuzpjydshsva",
+  "sslmode": "verify-full",
+  "public_ca_source": "https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt",
+  "public_ca_file_sha256": "700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7",
+  "checks": [
+    {
+      "check": "CA + actual hostname verified on encrypted libpq connection to session pooler",
+      "result": "passed"
+    },
+    {
+      "check": "wrong server hostname rejected (same pooler IP)",
+      "result": "passed"
+    }
+  ]
+}

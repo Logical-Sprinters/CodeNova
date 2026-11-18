@@ -1,0 +1,31 @@
+{
+  "base_url": "https://brandguard-app.antideploy.app",
+  "checks": [
+    "real public signup returned confirmation-required, not a fabricated login",
+    "provider created an unconfirmed account and a real one-use confirmation hash",
+    "unconfirmed account cannot sign in through the public app",
+    "actual Supabase confirmation link reached and executed the live callback",
+    "confirmation callback erased auth tokens from URL and browser storage",
+    "confirmed account now signs in as creator through the deployed app",
+    "real recovery request completed through signed production email hook",
+    "one-use recovery link arrived at the intended live reset form",
+    "recovery callback erased tokens without local or session storage",
+    "actual browser password update succeeded against Supabase",
+    "old password is rejected after emailed recovery",
+    "new password signs in on the public app",
+    "recovered account can sign out normally",
+    "signed-out recovered session is denied",
+    "consumed recovery link cannot be reused",
+    "CSP allowed the intended confirmation/recovery scripts without violations",
+    "only this temporary test account/profile/session-denial rows were removed"
+  ],
+  "passed": 17,
+  "succeeded": true,
+  "failure_type": null,
+  "real_signup_and_recovery_requests": true,
+  "callback_browser": "Chromium 430x932",
+  "mail_recipient": "temporary plus alias of connected owner; address not recorded",
+  "verification_link_source": "actual freshly created auth.users token hashes, privately read for automated callback testing; not mailbox access",
+  "human_mailbox_open_verified": false,
+  "temporary_user_removed": true
+}

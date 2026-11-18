@@ -1,0 +1,99 @@
+{
+  "project_name": "BrandGuard",
+  "project_ref": "jtidayzktuzpjydshsva",
+  "live_checks": [
+    {
+      "check": "public Auth health endpoint",
+      "result": "passed"
+    },
+    {
+      "check": "creator password login",
+      "result": "passed"
+    },
+    {
+      "check": "creator validated identity",
+      "result": "passed"
+    },
+    {
+      "check": "reviewer password login",
+      "result": "passed"
+    },
+    {
+      "check": "reviewer validated identity",
+      "result": "passed"
+    },
+    {
+      "check": "other_creator password login",
+      "result": "passed"
+    },
+    {
+      "check": "other_creator validated identity",
+      "result": "passed"
+    },
+    {
+      "check": "private owner file upload",
+      "result": "passed"
+    },
+    {
+      "check": "owner authenticated file download",
+      "result": "passed"
+    },
+    {
+      "check": "reviewer access follows trusted app_metadata",
+      "result": "passed"
+    },
+    {
+      "check": "other creator cannot read private object",
+      "result": "passed"
+    },
+    {
+      "check": "anonymous private object access blocked",
+      "result": "passed"
+    },
+    {
+      "check": "upload to another users folder blocked",
+      "result": "passed"
+    },
+    {
+      "check": "anonymous cannot query backend-owned SQL rows directly",
+      "result": "passed"
+    },
+    {
+      "check": "authenticated creator cannot query backend-owned SQL rows directly",
+      "result": "passed"
+    },
+    {
+      "check": "real refresh token rotation",
+      "result": "passed"
+    },
+    {
+      "check": "remote local-scope logout",
+      "result": "passed"
+    },
+    {
+      "check": "logged-out refresh token rejected",
+      "result": "passed"
+    },
+    {
+      "check": "temporary object cleanup",
+      "result": "passed"
+    },
+    {
+      "check": "temporary validation-user cleanup",
+      "result": "passed"
+    },
+    {
+      "check": "temporary validation-user cleanup",
+      "result": "passed"
+    },
+    {
+      "check": "temporary validation-user cleanup",
+      "result": "passed"
+    }
+  ],
+  "passed": 22,
+  "fastapi_database_connection_verified": false,
+  "email_delivery_verified": false,
+  "ai_provider_live_verified": false,
+  "temporary_users_and_objects_removed": true
+}

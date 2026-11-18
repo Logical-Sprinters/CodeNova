@@ -1,0 +1,10 @@
+{
+  "actual_browser_checks": [
+    "Creator cloud login succeeds from a 430x932 Chromium browser viewport",
+    "Creator dashboard and server role render"
+  ],
+  "passed": 2,
+  "cloud_backend": true,
+  "browser_ui": "Flutter CanvasKit, assets served locally",
+  "full_browser_workflow_certification": false
+}

@@ -1,0 +1,5 @@
+[1/1] Web SDK                                                    1,422ms
+Compiling lib/main.dart for the Web...                          
+Font asset "MaterialIcons-Regular.otf" was tree-shaken, reducing it from 1645184 to 16632 bytes (99.0% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
+Compiling lib/main.dart for the Web...                             38.2s
+✓ Built build/web

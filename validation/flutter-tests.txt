@@ -1,0 +1,58 @@
+00:00 +0: loading /home/user/BrandGuard-Supabase/mobile/test/widget_test.dart
+00:00 +0: /home/user/BrandGuard-Supabase/mobile/test/widget_test.dart: (setUpAll)
+00:00 +0: /home/user/BrandGuard-Supabase/mobile/test/widget_test.dart: splash opens password login and visible enabled demo autofill
+00:01 +1: /home/user/BrandGuard-Supabase/mobile/test/widget_test.dart: creator signs in through server and keeps passwords/tokens out of preferences
+00:02 +2: /home/user/BrandGuard-Supabase/mobile/test/widget_test.dart: reviewer signs in through server and keeps passwords/tokens out of preferences
+00:02 +3: /home/user/BrandGuard-Supabase/mobile/test/widget_test.dart: wrong password displays server error without creating a session
+00:02 +4: /home/user/BrandGuard-Supabase/mobile/test/widget_test.dart: offline backend cannot be bypassed with demo credentials
+00:03 +5: /home/user/BrandGuard-Supabase/mobile/test/widget_test.dart: remember email does not restore authentication
+00:03 +6: /home/user/BrandGuard-Supabase/mobile/test/widget_test.dart: cloud config hides public demo values
+00:03 +7: /home/user/BrandGuard-Supabase/mobile/test/widget_test.dart: signout clears tokens and returns to sign-in
+00:04 +8: /home/user/BrandGuard-Supabase/mobile/test/widget_test.dart: signup dialog can be opened and dismissed without disposed-controller errors
+00:04 +9: /home/user/BrandGuard-Supabase/mobile/test/widget_test.dart: local recovery exposes unavailable email honestly
+00:04 +10: /home/user/BrandGuard-Supabase/mobile/test/widget_test.dart: (tearDownAll)
+00:04 +10: loading /home/user/BrandGuard-Supabase/mobile/test/demo_auth_test.dart
+00:06 +10: /home/user/BrandGuard-Supabase/mobile/test/demo_auth_test.dart: demo values are autofill only and never create a session
+00:06 +11: /home/user/BrandGuard-Supabase/mobile/test/demo_auth_test.dart: signout clears user identity and both tokens
+00:06 +12: /home/user/BrandGuard-Supabase/mobile/test/demo_auth_test.dart: server user shapes and admin reviewer privileges parse
+00:06 +13: loading /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart
+00:07 +13: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: (setUpAll)
+00:07 +13: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: live dashboard lays out at phone size
+00:08 +14: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: workspace lays out at phone size
+00:09 +15: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: review queue lays out at phone size
+00:09 +16: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: brand check editor lays out at phone size
+00:09 +17: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: findings lays out at phone size
+00:09 +18: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: approval verification lays out at phone size
+00:09 +19: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: protected receipt lays out at phone size
+00:09 +20: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: shared guidelines lays out at phone size
+00:10 +21: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: live rule library lays out at phone size
+00:10 +22: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: fact sources lays out at phone size
+00:10 +23: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: notifications lays out at phone size
+00:10 +24: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: profile lays out at phone size
+00:10 +25: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: live analytics lays out at phone size
+00:10 +26: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: saved drafts lays out at phone size
+00:10 +27: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: stored version history lays out at phone size
+00:10 +28: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: stored audit ledger lays out at phone size
+00:10 +29: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: stored receipts lays out at phone size
+00:10 +30: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: workspace reaches every live feature, without sample screen fallbacks
+00:13 +31: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: dashboard shows backend totals and explicit missing-AI status
+00:13 +32: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: editor sends exact untrimmed content and displays real AI abstention
+00:13 +33: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: saved draft editor updates the same server id with revision protection
+00:14 +34: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: creator library is read-only
+00:14 +35: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: reviewer can open library editor
+00:14 +36: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: notifications display actual backend notification and persist mark-read
+00:14 +37: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: receipt response after dispose is ignored safely
+00:14 +38: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: source citations show verbatim quotes rather than invented references
+00:14 +39: /home/user/BrandGuard-Supabase/mobile/test/feature_navigation_test.dart: (tearDownAll)
+00:14 +39: loading /home/user/BrandGuard-Supabase/mobile/test/api_session_test.dart
+00:15 +39: /home/user/BrandGuard-Supabase/mobile/test/api_session_test.dart: creator: all six workflow calls use bearer and no impersonable ID header
+00:15 +40: /home/user/BrandGuard-Supabase/mobile/test/api_session_test.dart: reviewer: all six workflow calls use bearer and no impersonable ID header
+00:15 +41: /home/user/BrandGuard-Supabase/mobile/test/api_session_test.dart: login posts a password to server and accepts only the server identity
+00:15 +42: /home/user/BrandGuard-Supabase/mobile/test/api_session_test.dart: 401 refreshes once and retries with rotated tokens
+00:15 +43: /home/user/BrandGuard-Supabase/mobile/test/api_session_test.dart: concurrent expired requests share refresh and never resend stale ID headers
+00:15 +44: /home/user/BrandGuard-Supabase/mobile/test/api_session_test.dart: failed refresh clears tokens, and logged-out requests never reach backend
+00:15 +45: /home/user/BrandGuard-Supabase/mobile/test/api_session_test.dart: logout clears local tokens immediately, even before remote response
+00:15 +46: /home/user/BrandGuard-Supabase/mobile/test/api_session_test.dart: an in-flight refresh cannot restore an account after local signout
+00:15 +47: /home/user/BrandGuard-Supabase/mobile/test/api_session_test.dart: signup confirmation is not treated as an authenticated session
+00:15 +48: /home/user/BrandGuard-Supabase/mobile/test/api_session_test.dart: backend validation and non-JSON errors stay visible
+00:15 +49: All tests passed!

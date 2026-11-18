@@ -1,0 +1,21 @@
+00:00 +0: loading /home/user/BrandGuard-Login-Fixed/mobile/test/connection_config_test.dart
+00:00 +0: TargetPlatform.android native default never silently selects emulator localhost
+00:00 +1: TargetPlatform.iOS native default never silently selects emulator localhost
+00:00 +2: TargetPlatform.windows native default never silently selects emulator localhost
+00:00 +3: TargetPlatform.linux native default never silently selects emulator localhost
+00:00 +4: TargetPlatform.macOS native default never silently selects emulator localhost
+00:00 +5: web defaults to its own origin, keeping the local browser demo isolated
+00:00 +6: explicit API_BASE overrides both native and web and removes trailing slashes
+00:00 +7: invalid or credential-bearing API_BASE rejected: localhost
+00:00 +8: invalid or credential-bearing API_BASE rejected: ftp
+00:00 +9: invalid or credential-bearing API_BASE rejected: https
+00:00 +10: invalid or credential-bearing API_BASE rejected: https
+00:00 +11: invalid or credential-bearing API_BASE rejected: https
+00:00 +12: invalid or credential-bearing API_BASE rejected: https
+00:00 +13: login request uses the selected live origin and keeps password in POST body only
+00:00 +14: socket errors are short and do not dump the old emulator address
+00:00 +15: timeouts produce a friendly actionable error
+00:00 +16: upload uses the same network-error handling
+00:00 +17: malformed signup response cannot silently open an authenticated session
+00:00 +18: response body is covered by the timeout, not just response headers
+00:00 +19: All tests passed!
