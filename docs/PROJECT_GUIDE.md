@@ -1,149 +1,98 @@
-# BrandGuard project guide
+# BrandGuard Project Guide (v3.0.0 / Round 3)
 
-## Folder map
+## Folder Map
 
 ```text
-BrandGuard-Fullstack/
-  mobile/                         only Flutter application root
-    lib/app/                      app entry, theme and routes
-    lib/core/auth/                in-memory token/session state; demo autofill only
-    lib/core/network/             bearer API client, refresh and file picker
-    lib/features/auth/            server login/signup/recovery request
-    lib/features/dashboard/       live scoped dashboard
-    lib/features/checks/          exact-text editor, drafts, upload and findings
-    lib/features/reviews/         exact-content human review
-    lib/features/guidelines/      shared CRUD library/rules/fact sources
-    lib/features/drafts/          private durable draft list
-    lib/features/analytics/       live copyable reports
-    lib/features/workspace/       history/audit/receipts hub
-    lib/features/notifications/   durable in-app read state
-    lib/features/profile/         actual server identity + logout
-    test/                         mocked-client unit and phone-size widget tests
-  backend/
-    app/auth_service.py           local password/token or Supabase Auth adapter
-    app/database.py               transactional SQLite/PostgreSQL repository
-    app/storage.py                repository interface + legacy JSON test adapter
-    app/routers/                  authentication, library, drafts/activity, files,
-                                  checks, reviews, receipts, audit, reset page
-    app/checks/deterministic/      versioned regex checks with execution budget
-    app/checks/llm/                passage retrieval + validated provider output
-    data/                         seed configuration; runtime SQL/secret/uploads ignored
-    tests/                        inherited workflow regression tests, JSON adapter
-    tests_secure/                 actual bearer+SQL workflows; mocked provider contracts
-    migrations/001_core.sql        versioned initial PostgreSQL schema
-    supabase/002_private_storage.sql  Supabase-only grants/bucket/Storage policies
-    manage.py                     trusted init/migrate/create-user/backup/restore
-    smoke_test.py                 real HTTP checks against a running isolated API
-    .env.example                  server config placeholders, never real secrets
-  docs/                           cloud/AI setup and this guide
-  validation/                     evidence and limitations for this release
-  start_backend.py / START_BACKEND.bat
+CodeNova/
+  mobile/                               Flutter client root (source of truth for mobile + web)
+    lib/app/                            Entry point, Executive Precision theme, routes, 5-tab shell
+    lib/core/auth/                      In-memory session/token state; local-only demo autofill
+    lib/core/network/                   Bearer API client, token refresh, cross-platform file picker
+    lib/features/auth/                  Sign in, signup, password recovery
+    lib/features/dashboard/             Live brand-scoped dashboard
+    lib/features/checks/                Exact-text editor, live preflight, temporal/channel, multimodal upload, grounded findings
+    lib/features/reviews/               Independent human review queue & decision sheet
+    lib/features/approvals/             Cryptographic approval verification, file re-check & inline diff
+    lib/features/governance/            Conflict resolution queue & clarity tickets screen
+    lib/features/guidelines/            Brand guidelines, temporal/visual rules + logo template upload, verified fact sources
+    lib/features/drafts/                Private versioned drafts
+    lib/features/analytics/             Live copyable analytics & brand drill-down
+    lib/features/workspace/             Workspace hub, version history, audit ledger
+    lib/features/receipts/              Structured processing receipts with hash chain & diff view
+    lib/features/notifications/         In-app notifications with read/delete state
+    lib/features/profile/               Full My profile identity/session sheet, display name, preferences, logout
+    test/                               Mocked-client unit, 5-viewport layout & Round 3 UI tests (121 tests)
+  backend/                              FastAPI backend (Python 3.11+, tested on 3.13)
+    app/auth_service.py                 Local PBKDF2/JWT or Supabase Auth adapter
+    app/database.py                     Transactional SQLite / PostgreSQL repository (`bg_entities`, `bg_documents`)
+    app/storage.py                      Repository interface + JSON test adapter
+    app/rules_store/store.py            Versioned, temporal (`effective_from`/`expires_at`), channel-scoped rules
+    app/approval/store.py               Immutable check versions, SHA-256 content/receipt hashes, rule-diff verification
+    app/audit/store.py                  Append-only governance audit ledger
+    app/overrides/store.py              Coded finding overrides + friction-based clarity ticket aggregator
+    app/receipts/store.py               Tamper-evident receipt builder & hash chain verification
+    app/checks/deterministic/engine.py  Versioned regex engine emitting verbatim rule quotes
+    app/checks/grounding.py             Strict server-side grounding verifier (drops ungrounded findings)
+    app/checks/conflicts.py             Active rule/fact `topic_key` contradiction detector & resolution store
+    app/checks/llm/verifier.py          Passage retrieval over verified facts + strict schema AI verifier
+    app/checks/visual/inspector.py      Image metadata, Tesseract OCR, dominant palette (`VIS-02`), logo pHash (`VIS-05`), Vision AI
+    app/routers/                        authentication, brand, conflicts, email_delivery, files, library, overrides, receipts, recovery, reviews, workspace, audit
+    data/brand_rules.json               Starter versioned rules with `rule_text`, temporal bounds, visual palettes
+    tests/                              Inherited workflow regression tests (29 functions)
+    tests_secure/                       SQL/bearer security, grounding, temporal, overrides, conflicts, OCR/visual, provider contracts (61 functions; 137 total pytest cases across both suites)
+    migrations/001_core.sql             PostgreSQL schema with RLS
+    supabase/002_private_storage.sql    Supabase Storage bucket & owner/reviewer policies
+    manage.py                           CLI init/migrate/create-user/backup/restore
+    smoke_test.py                       HTTP smoke verification against isolated local backend
+    .env.example                        Environment configuration template (no secrets)
+  browser_preview/                      Compiled Flutter `--no-web-resources-cdn` output served same-origin by `app.web`
+  docs/                                 Project, AI, and Supabase guides
+  validation/                           Historical v2.0.1 / Antideploy validation evidence
+  Dockerfile / serve.py                 Production non-root Python 3.13 + tesseract-ocr container & entrypoint
+  start_backend.py                      Local Python 3.11+ venv setup & Uvicorn launcher
 ```
 
-Local sample analytics/governance stores were removed from this upgrade. Shared
-preferences are for remembering an email/UI values, not password/token authority.
-Roles come from the authenticated server user. Session tokens stay in memory and
-normal JSON API requests retry once after token refresh. No saved-login claim.
+## Runtime & Environment Requirements
 
-## Main API groups
+- **Python 3.11+** (tested on Python 3.13; `fastapi==0.163.1` and `SQLAlchemy==2.1.8` do not support Python 3.10).
+- **Optional OCR binary:** `tesseract` (`tesseract-ocr` on Linux/Docker, Tesseract-OCR on Windows, or `TESSERACT_CMD`). When absent, image uploads still run metadata, dominant color (`VIS-02`), and logo hash (`VIS-05`) checks while `ocr_status` honestly reports unavailability.
 
-All private groups require `Authorization: Bearer ACCESS_TOKEN`; public ID/role
-headers are rejected. Public routes include health, auth config/login/signup/refresh,
-recovery request, recovery form and brand-rule version metadata.
+## Main API Groups
 
-| Group | Endpoints / behavior |
+All private endpoints require `Authorization: Bearer ACCESS_TOKEN`; forged user/role headers are rejected.
+
+| Group | Endpoints / Behavior |
 |---|---|
-| Auth | `POST /api/v1/auth/login`, `/signup`, `/refresh`, `/recover`; `GET /me`, `/config`; `POST /logout`; `PUT /password` |
-| Library | `GET/POST /api/v1/library/{guidelines,facts,rules}`; `PUT/DELETE /{kind}/{id}`; reads authenticated, mutations reviewer/admin |
-| Files | `POST /api/v1/files`; `GET /files/{id}` extracted-text preview; `GET /files/{id}/download`; `?as_fact=true` reviewer-only |
-| Drafts | `GET/POST /api/v1/drafts`; `PUT/DELETE /drafts/{id}`; own drafts only; optional `expected_revision` for conflict detection |
-| Checks | `POST /api/v1/brand/check`; `POST /brand/{id}/versions` owner-only recheck; optional `expected_version` |
-| Reviews | `GET /api/v1/reviews[?status=pending]`; `PATCH /reviews/{id}/decision`; independent reviewer/admin only |
-| Verification | `POST /api/v1/approvals/verify`; exact brand/content/current rules/decision required |
-| Evidence | `GET /api/v1/receipts/`, `/receipts/{id}`, `/audit`, `/history`; access-scoped |
-| Activity | `GET /api/v1/analytics`, `/notifications`, `/system/status`; patch/delete notification state |
+| **Auth & Profile** | `POST /api/v1/auth/login`, `/signup`, `/refresh`, `/recover`, `/logout`; `GET /me`, `/config`; `PATCH /profile`; `GET/PUT /preferences`; `PUT /password` |
+| **Library** | `GET/POST/PUT/DELETE /api/v1/library/{guidelines,facts,rules}`; `POST /api/v1/library/rules/{rule_id}/logo-template` (reviewer/admin mutations) |
+| **Files & Visual** | `POST /api/v1/files` (TXT, MD, text PDF, PNG, JPG, JPEG, WEBP; `?as_fact=true` reviewer-only); `GET /files/{id}`, `/files/{id}/download` |
+| **Drafts** | `GET/POST/PUT/DELETE /api/v1/drafts` (owner-only, optional `expected_revision`) |
+| **Checks & Preflight** | `POST /api/v1/brand/preflight` (stateless editor preflight); `POST /api/v1/brand/check`, `POST /brand/{id}/versions` (`check_at`, `channel`, `content_type`, `asset_ids`), `GET /brand/rules/{brand_name}` |
+| **Conflicts** | `GET /api/v1/conflicts/`, `GET /conflicts/{id}`, `POST /conflicts/{id}/resolve` (`auto_recheck` support, reviewer/admin) |
+| **Reviews & Overrides** | `GET /api/v1/reviews[?status=pending\|approved\|rejected\|paused_conflict]`; `PATCH /reviews/{id}/decision`; `POST /reviews/{id}/findings/{fid}/override`; `GET /overrides`; `GET /clarity-tickets`; `PATCH /clarity-tickets/{id}` |
+| **Verification & Evidence** | `POST /api/v1/approvals/verify`, `POST /api/v1/approvals/verify-upload`; `GET /api/v1/receipts/`, `/receipts/{id}`, `/audit`, `/history` |
+| **Activity** | `GET /api/v1/analytics`, `/notifications`, `/system/status`; `PATCH/DELETE /notifications` |
 
-FastAPI `/docs` is the source of truth for request schemas and response details.
-The mobile report is selectable/copyable live text, not a scheduled PDF/email service.
-Notifications are stored in SQL and manually refreshed; no push/realtime delivery.
+## Database & Transaction Model
 
-## Database/transaction model
+- Default SQLite database: `backend/data/brandguard.sqlite3`. Cloud mode uses PostgreSQL via `DATABASE_URL`.
+- Entities are stored in `bg_entities` and singleton docs in `bg_documents` under a single shared transaction (`BEGIN IMMEDIATE` on SQLite; transaction-scoped advisory lock on PostgreSQL) so multi-collection updates (check + receipt + audit + notifications) commit or roll back atomically.
+- Cross-service file objects in Supabase Storage are uploaded outside the SQL transaction; failed operations leave no partial SQL references, though orphan storage cleanup is not automated by a background worker.
 
-Default SQLite database is `backend/data/brandguard.sqlite3`. PostgreSQL/Supabase
-uses `DATABASE_URL`. Lists are individually keyed rows in `bg_entities` with
-collection/entity ID/position/JSON payload; configuration objects are `bg_documents`.
-This is real SQL persistence and atomic multi-collection workflow writes, **not**
-a normalized per-domain/tenant schema. Updates currently rewrite a collection.
+## Workflow & Grounding Invariants
 
-One nested transaction is shared through the repository. SQLite uses BEGIN IMMEDIATE;
-PostgreSQL uses a transaction-scoped advisory lock plus the in-process lock. An
-exception rolls back the entire workflow rather than leaving a half-written check,
-receipt/audit entry. This favors correctness over concurrency/large data volume.
-Use reviewed migrations, domain indexes/pagination and a job queue before scaling.
+1. **No finding without evidence:** Deterministic, visual, and AI findings must cite an active `rule_id`, matching `rule_version`, a verbatim `rule_quote` from `rule_text` (or verified fact), and a valid content/OCR span or visual payload. `filter_grounded_findings()` enforces this both when running a check and before returning records to reviewers.
+2. **Temporal validity:** Rules and Fact Sources respect `effective_from <= check_at < expires_at`, `supersedes`, and `channel` scoping.
+3. **Conflict abstention:** Contradictory active rules/facts on the same `topic_key` pause the check (`abstained_conflict` / `paused_conflict`) until resolved by a reviewer.
+4. **Overrides never auto-mutate rules:** Coded finding overrides record telemetry and aggregate repeated friction into Clarity Tickets; rule changes still require explicit reviewer versioning.
+5. **Version & hash binding:** Content is SHA-256 hashed; any edit creates a new version, voids prior approval seals, and surfaces word-level diffs plus exact rule diffs during verification.
+6. **Separation of duties:** Self-review is blocked (`409`); public signup can only register Creators.
 
-Seed JSON files remain only for starter rules and inherited regression fixtures.
-They are not where the upgraded app stores live records. Old standalone JSON demo
-records are **not automatically imported**; keep originals/backups intact.
+## Backup & Restore
 
-File objects and SQL metadata cannot share an ACID transaction across Supabase
-Storage. Failed uploads can require orphan-object cleanup. This source has no
-object-deletion/retention worker. Removing a draft reference does not delete a file.
-Local file storage requires a persistent disk; cloud mode stores objects in Supabase.
-
-## Workflow integrity
-
-- Scans and human approval are separate: scan passed/findings vs pending/approved/rejected.
-- Exact submitted text is SHA-256 hashed; edits rerun current rules and AI, create
-  a new version/receipt and clear an older decision.
-- `expected_version` rejects stale edits/reviews. Rule snapshots are immutable;
-  rule edits invalidate older-rules approval verification.
-- Read protection covers checks, receipts, drafts, file previews/downloads,
-  history, analytics and notifications. Reviewer/admin can inspect submissions;
-  own private drafts remain private. Self-review is prohibited.
-- AI source quotes/hashes are evidence records, not proof of semantic correctness.
-- Rejection plus note is available; a separate Request Changes state is not.
-
-## Auth/security and production boundaries
-
-Local mode uses salted PBKDF2-SHA256 (600,000 rounds), 30-minute access JWTs,
-7-day hashed/rotating refresh sessions and database-backed logout revocation. Local
-signing secret is auto-generated with restricted filesystem permissions unless
-`JWT_SECRET` is configured. For multi-worker/multi-host local-auth deployment, set
-one strong secret securely rather than relying on a shared secret-file race.
-
-Public signup cannot choose a role. CLI provisioning is a trusted administrative
-action. Supabase mode validates the remote user and trusts application role only
-from server-managed app_metadata. The new backend never enables demo ID headers
-from an environment flag; inherited JSON tests explicitly monkeypatch that adapter.
-
-Basic auth attempt limits are process-local, not distributed. External rate limiting,
-TLS, reverse-proxy limits, stable database secrets/least privilege, periodic backups,
-retention/deletion, monitoring, vulnerability review and real device tests remain
-deployment responsibilities. Do not call this source production-security certified.
-The library/reviewer workspace is global, not multi-tenant per organization.
-
-## Backup and restore
-
-Trusted backend terminal:
-
-```sh
+```bash
+cd backend
 python manage.py backup --output /private/path/backup.json
 python manage.py restore --input /private/path/backup.json --confirm-overwrite
 ```
-
-Database backup uses a consistent transaction, includes all repository rows and
-creates a new restricted-permission file. Restore replaces repository rows in one
-transaction. Stop writes before operational restore. **Backups include password
-hashes and session metadata: encrypt/protect them, never attach to chat/release ZIPs.**
-Back up private local uploads/Supabase objects and the local JWT secret separately.
-For PostgreSQL also use platform backups/pg_dump and test restores/retention; an
-application-level export is not a replacement for full database disaster recovery.
-
-## Validation meaning
-
-`tests/` preserves the legacy JSON workflow contract. `tests_secure/` additionally
-exercises default SQL/bearer mode, permissions, rollback, concurrency, libraries,
-drafts, files, notifications, backup restore and mocked provider contracts.
-Mocks are marked explicitly; they do not verify cloud SMTP, RLS behavior, actual
-provider output quality, hosted API, native APK/IPA or device file-picker behavior.
-Release-specific commands/counts and any environment limitations are in validation/.
+Backups contain password hashes and session metadata—store encrypted and never commit or share. Use PostgreSQL snapshots (`pg_dump`) alongside Storage backups in production.

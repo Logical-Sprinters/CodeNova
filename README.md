@@ -1,258 +1,167 @@
-# BrandGuard — Redesigned Mobile App (v2.1.0)
+# BrandGuard — Grounded, Time-Aware & Multimodal Brand Governance (v3.0.0 / Round 3)
 
-BrandGuard ek **mobile-first brand governance app** hai: content likho, rules se check karao, aur
-authorised reviewer se sign-off lo. Yeh version aapke bheje hue design references aur `DESIGN.md`
-(Token: *Executive Precision*) ke hisaab se **poora UI/UX redesign** karta hai — backend, Supabase
-data, logins aur flows **waise hi** hain jaise pehle the.
+**Tagline:** *No finding without evidence. No approval without a version.*
 
-> Tagline: **No finding without evidence. No approval without a version.**
+BrandGuard is a mobile-first brand governance platform where creators draft or upload marketing copy and campaign banners, a deterministic + grounded-AI policy engine evaluates exact content against time-scoped brand rules, and independent reviewers inspect evidence and issue cryptographically sealed approvals.
+
+| | |
+|---|---|
+| **Hosted Web App** | https://brandguard-app.antideploy.app *(see [Deployment](#5-deployment--hosted-notes))* |
+| **Client** | Flutter (`mobile/`) + prebuilt same-origin web bundle (`browser_preview/`) |
+| **Backend** | FastAPI (`backend/`, Python **3.11+**, tested on **3.13**) |
+| **Database & Auth** | Local SQLite + PBKDF2/JWT (local mode) · Supabase PostgreSQL + Auth + private Storage (cloud mode) |
 
 ---
 
-## 1. Kya naya hai (design)
+## 1. What's New in Round 3 (v3.0.0)
 
-| Area | Pehle | Ab |
-|---|---|---|
-| Navigation | Drawer/links | Fixed 5-tab bottom bar: Home · Workspace · Reviews · Guidelines · Profile |
-| Design tokens | Ad-hoc colors | `AppTheme` mein centralized navy/teal palette, Manrope type ramp, radius + shadow tiers |
-| Splash | Simple | Dark "VAULT SECURE" splash, verification ring, progress |
-| Sign in | Plain form | Brand header, provider chip, secure password field, error/notice cards, demo accounts card (local only) |
-| Sign up | Dialog | Full page: strength meter, confirm match, consent, role explanation |
-| Forgot password | Dialog | Dedicated page, honest "provider sends the link" message |
-| Home | Metric grid | Greeting hero + 4 metric cards + decision mix + fast actions + recent activity |
-| Brand check | Plain form | Step strip, meta chips (words/chars/read time), attachments, policy engine summary |
-| Findings | Long cards | Rule cards with severity pill, evidence block, replacement block, sticky submit bar |
-| Review queue | List | Metrics + filter chips + rich review sheet + approval ledger |
-| Guidelines | 3 lists | One Guidelines tab → Guidelines / Rules / Fact Sources overview |
-| Profile | Basic | Avatar, role chip, grouped settings, appearance, backend status, danger-zone logout |
-| Receipts | Raw key/value list | Structured receipt: hash chips, review state, evidence grounding, raw payload |
+### 3 Core Governance Improvements
+1. **No Finding Without Evidence (Server-Side Grounding Gate)**
+   - Every deterministic, visual, and AI finding requires an active `rule_id`, `rule_version`, a **verbatim `rule_quote`** + offsets from the stored `rule_text`, and an exact content/OCR span (`app/checks/grounding.py`).
+   - Grounding is enforced **both** on check creation/resubmit and again on every reviewer/creator read (`GET /api/v1/reviews`, `GET /api/v1/receipts/{id}`, `GET /api/v1/history`). Ungrounded, paraphrased, or stale findings are **dropped** and logged in `audit_log` (`dropped_ungrounded_count`).
+   - AI factual verification (`app/checks/llm/verifier.py`) operates strictly over **reviewer-verified Fact Sources** using strict JSON schema, verbatim source quote/hash/span checks, and explicit abstention (`abstained`) whenever disabled, unfunded, or lacking verified evidence.
+2. **Correct Over Time (Temporal Rules & Point-in-Time Approval Verification)**
+   - Rules and Fact Sources carry `effective_from`, `expires_at`, `supersedes`, `version`, `channel`, and `topic_key`.
+   - `POST /api/v1/brand/check` and `/preflight` support `check_at` and `channel` to resolve the exact policy set active at that moment (`app/rules_store/store.py`).
+   - `POST /api/v1/approvals/verify` and `/verify-upload` validate exact text/file SHA-256 hashes against stored approvals and report **specific rule changes** (`added_rules`, `removed_rules`, `changed_rules`) when rules evolve after sign-off.
+3. **Multimodal Banner & Creative Inspector + OCR**
+   - `POST /api/v1/files` accepts **`.png`, `.jpg`, `.jpeg`, `.webp`** images alongside `.txt`, `.md`, and text-based `.pdf` (up to 5 MB).
+   - `app/checks/visual/inspector.py` extracts embedded banner text with **Tesseract OCR** (`tesseract-ocr` + `pytesseract`), fuses OCR text with caption copy (`source_origin: "image_ocr"`), checks dominant brand color palettes (`VIS-02`), checks deprecated/approved perceptual logo hashes (`VIS-05` + `POST /api/v1/library/rules/{rule_id}/logo-template`), and optionally runs Multimodal Vision AI when `AI_PROVIDER` is configured.
 
-## 2. Chalane ke steps (baby steps)
+### 4 Product Differentiators
+1. **Real-Time Inline Preflight Checks** — `POST /api/v1/brand/preflight` runs live checks while drafting in **New Brand Check** without writing noisy drafts/receipts/audit entries.
+2. **Source-of-Truth Conflict Detection & Abstention** — `app/checks/conflicts.py` detects contradictions between active rules and verified facts sharing a `topic_key`, pauses the check (`abstained_conflict` / `paused_conflict`) instead of guessing, and lets reviewers resolve conflicts + optionally `auto_recheck` via `/api/v1/conflicts`.
+3. **Coded Reviewer Overrides & Friction-Based Clarity Tickets** — Reviewers can override individual findings with 6 structured reason codes (`FALSE_POSITIVE`, `APPROVED_EXCEPTION`, `AMBIGUOUS_RULE_TEXT`, `OUTDATED_RULE_OR_FACT`, `CONTEXTUAL_QUALIFIER`, `CHANNEL_EXEMPTION`) via `/api/v1/reviews/{check_id}/findings/{finding_id}/override`. Overrides **never silently mutate rules**; repeated overrides roll up into **Clarity Tickets** (`/api/v1/clarity-tickets`) for rule owners.
+4. **Cryptographic Tamper-Proof Receipt Diff & Full Profile Identity** — `ApprovalVerificationScreen` and `ReceiptDetailScreen` verify `receipt_hash` / chained integrity (`VALID` vs `VOIDED_TAMPERED`) and render inline word-level diffs between submitted and approved text. **Profile → My profile** displays full server-verified session & identity details (`Display name`, `Email`, `User id`, `Role`, `Auth provider`, `Database`, `Session state`) plus display-name editing backed by `PATCH /api/v1/auth/profile` and `GET/PUT /api/v1/auth/preferences`.
 
-### A. Android (emulator ya USB debug device)
+---
 
-1. ZIP extract karo.
-2. `mobile` folder ke andar jao: `cd mobile`.
-3. Pehli baar:
-   ```bash
-   flutter clean
-   flutter pub get --enforce-lockfile
-   ```
-4. App run karo (hosted Supabase backend ke saath):
-   ```bash
-   flutter run --dart-define=API_BASE=https://brandguard-app.antideploy.app
-   ```
-   Windows par ready-made launcher: `RUN_MOBILE.bat` (project root).
-5. App khulne par splash → Sign In. Apne demo account se login karo (credentials alag private
-   file mein diye gaye hain; woh is ZIP ke andar **nahi** hain).
+## 2. Quick Start (Local Development & Web Preview)
 
-### B. Browser preview (optional, fastest check)
+### Prerequisites
+- **Python 3.11 or newer** (**Python 3.13 recommended** — `fastapi==0.163.1` and `SQLAlchemy==2.1.8` in `backend/requirements.txt` dropped Python 3.10 support).
+- **Optional for local image OCR:** Install **Tesseract OCR** (`tesseract` on `PATH`, or `C:\Program Files\Tesseract-OCR\tesseract.exe` on Windows, or set `TESSERACT_CMD` in `backend/.env`). Note: `Dockerfile` installs `tesseract-ocr` automatically for container deployments.
+- **Flutter 3.50.0 / Dart `^3.14.0`** (only required if modifying `mobile/` or rebuilding `browser_preview/`).
 
+### A. Run the Full App Locally (FastAPI + Same-Origin Web UI)
+`browser_preview/` contains a prebuilt web UI served at `http://127.0.0.1:8000/` alongside the API.
+
+**macOS / Linux:**
 ```bash
-cd mobile
-flutter run -d chrome --dart-define=API_BASE=https://brandguard-app.antideploy.app
+python3 start_backend.py --web
 ```
 
-### C. Sirf design dekhna hai (backend ke bina)
-
-Local backend chalao (`backend/README` ke mutabik) aur `--dart-define=API_BASE=http://10.0.2.2:8000`
-(Android emulator) ya `http://localhost:8000` (web/desktop) use karo. Local mode mein hi public demo
-accounts dikhte hain ("Local demonstration accounts" card). Cloud mode mein yeh card **kabhi nahi**
-dikhta — wahan apna asli Supabase login use karo.
-
-## 3. Design system (short)
-
-- **Colors** — Navy `#142C3B` (authority), Teal `#22A895` (verification), Mint `#E8F5F1` (safe zones),
-  Canvas `#F7F8F5`, Card `#FFFFFF`, Border `#E5ECE9`, Danger `#D95D5D`, Warning `#E6A23C`.
-- **Type** — Manrope, mobile headline 26/34, body 14/20, micro labels 10/14 uppercase.
-  Versions/hashes tabular figures mein.
-- **Shape** — Inputs/buttons 8 px, cards 16–20 px, status pills 999 px.
-- **Depth** — Cards: hairline border + soft ambient shadow. Bottom bar: frost + top hairline.
-- **Spacing** — 16 px margins, 8 px rhythm, bottom content padding 26–96 px taaki bottom bar
-  content ko na dhake.
-
-Sab kuch `mobile/lib/app/app_theme.dart` (tokens/theme) aur `mobile/lib/app/ui/app_widgets.dart`
-(reusable widgets: `SurfaceCard`, `StatusPill`, `MetricCard`, `InlineNotice`, `EmptyStateCard`,
-`HashChip`, `ProgressLine`, `DetailRow`, `NavigationRow`, `InitialsAvatar`, `ErrorBlock`) mein hai.
-Naya screen banate waqt inhi widgets ko use karo — design consistent rahega.
-
-## 4. Pages jo working condition mein hain
-
-Har page live REST API se data leta hai (mock/sample screens hata diye gaye hain), aur
-loading / empty / error states dikhata hai (blank ya red screen nahi):
-
-| Tab/Page | Backend calls |
-|---|---|
-| Splash | koi network call nahi |
-| Sign in | `GET /api/v1/auth/config`, `POST /api/v1/auth/login` |
-| Create account | `POST /api/v1/auth/signup` |
-| Forgot password | `POST /api/v1/auth/recover` |
-| Home | `/analytics`, `/notifications`, `/system/status` |
-| Workspace hub | saare modules ka entry point |
-| New brand check | `POST /api/v1/drafts`, `POST /api/v1/files` (upload), `POST /api/v1/brand/check` |
-| Findings & evidence | `POST /api/v1/brand/{id}/versions` (submit) |
-| Review queue | `GET /api/v1/reviews`, `PATCH /api/v1/reviews/{id}/decision` |
-| Verify approval | `POST /api/v1/approvals/verify` |
-| Guidelines / Rules / Fact sources | `GET/POST/PUT/DELETE /api/v1/library/{kind}` |
-| Analytics | `GET /api/v1/analytics` |
-| Notifications | `GET/PATCH/DELETE /api/v1/notifications` |
-| Drafts | `GET/POST/PUT/DELETE /api/v1/drafts` |
-| Version history / Audit ledger | `GET /api/v1/history`, `/api/v1/audit` |
-| Processing receipts | `GET /api/v1/receipts/`, `GET /api/v1/receipts/{id}` |
-| Profile | `GET /api/v1/system/status`, `POST /api/v1/auth/logout` |
-
-## 5. Honesty notes (kya jaan-boojh kar nahi dikhaya)
-
-Design references mein kuch cheezein dikhayi gayi thi jo is backend/app mein **nahi** hain. Unhe
-dikhana galat hoga, isliye humne unhe honest tareeke se handle kiya:
-
-1. **SAML/Okta/SSO button** — hata diya. Sign in Supabase email+password ya local auth se hota hai.
-2. **AI/magic claims ("100% uptime", "SOC 2 certified", "AES-256 HSM")** — marketing text ki tarah
-   nahi lagaya. App sirf wahi dikhata hai jo server bataata hai.
-3. **OCR (image se text)** — "OCR Text Extracted" jaisa fake badge nahi. Upload sirf TXT/MD/text-PDF
-   par kaam karta hai, aur screen par yahi likha hai.
-4. **Biometric/hardware attestation, 2FA** — implement nahi hai, isliye UI mein claim nahi hai.
-5. **Organisation/tenant model** — sign-up page organisation name leta hai lekin saaf likhta hai ki
-   server par abhi organisation model nahi hai.
-6. **"Request changes"** — UI mein hai, lekin backend sirf `approved`/`rejected` supports karta hai,
-   isliye "changes requested" note ke saath `rejected` record hota hai (pehle se same behaviour).
-7. **AI comparison** — `AI_PROVIDER=disabled` hai, isliye findings screen par "AI comparison:
-   abstained" saaf dikhta hai. AI funded hone par hi real comparison hoga.
-8. **Dark theme** — token ke hisaab se light theme audited + shipped hai; dark/system par tap karne se
-   honest snackbar aata hai (aadhi-adhoori dark theme nahi dikhayi).
-
-## 6. Testing / quality
-
-Is delivery par jo actually chalaya gaya (reproducible commands):
-
-```bash
-cd mobile
-flutter analyze                 # No issues found!
-flutter test --concurrency=1    # 91 tests, All tests passed!
-cd ../backend
-pytest -q                       # 113 passed
-```
-
-Live browser verification (Playwright, real hosted API, Creator + Reviewer dono):
-
-| Check | Result |
-|---|---|
-| Supabase login (real) | 200, token mila, role gate sahi |
-| `/api/v1/auth/config`, `/analytics`, `/notifications`, `/system/status`, `/reviews`, `/api/v1/library/*` | sab 200 |
-| Runtime JS errors | 0 |
-| Failed resources | 0 |
-| Logout | 200 (per session) |
-| Screens walked | sign-in, home, workspace + 9 modules, review queue + review sheet, guidelines + rules library, fact sources, profile, analytics, receipts |
-| Screens 320×640 / 480×1000 | koi overflow banner nahi, koi red screen nahi |
-
-Suite kya cover karta hai:
-
-- Splash → Sign In flow, local demo autofill, cloud mode mein demo values hidden.
-- Galat password, offline server, remember-email (tokens kabhi preferences mein nahi).
-- Signup page validation + consent gate, forgot-password page error honesty.
-- Har screen **320×640, 360×780, 390×844, 430×932, 768×1024** par bina overflow render hoti hai
-  (yehi "pixel error" ka automated guard hai). Browser par bhi 320 px aur 480 px par koi
-  `overflowed by … pixels` error nahi aaya.
-- Bottom navigation ke paanchon tab, workspace ke saare modules, guidelines ke teen modules.
-- Exact-content check call (untrimmed body), draft revision protection, notification mark-read,
-  receipt loading/dispose safety.
-
-## 6b. ZIP ke andar kya hai
-
-```
-mobile/                 # Flutter source (main app) — lib/, test/, android/, ios/, web/
-backend/                # FastAPI backend (Supabase mode) — app/, tests/
-browser_preview/        # Ready-made web build (19 MB) — server par kuch build karne ki zaroorat nahi
-validation/             # Test/build evidence logs
-README.md               # Yeh file
-```
-
-`browser_preview/` ko kisi bhi static server se kholo (e.g. `python serve.py`) — wahi build hai jo
-live browser verification se pass hua. Iske andar tokens/passwords kuch nahi hai.
-
-**Is ZIP ke andar jaan-boojh kar NAHI hai:** `.env` (server credentials), demo account passwords
-(private file alag), `build/`, `.dart_tool/`, keystore.
-
-## 6c. APK build error (agar aaye): `lintVitalAnalyzeRelease` crash
-
-Poora error message aisa dikhta hai:
-
-```
-Execution failed for task ':file_selector_android:lintVitalAnalyzeRelease'
-> Unexpected failure during lint analysis (this is a bug in lint ...)
-  Message: 'java.lang.Object java.util.List.removeLast()'
-```
-
-**Yeh aapke app code ka bug nahi hai.** Release APK banate waqt Gradle ek extra "vital lint"
-analysis chalata hai. Woh analysis third-party plugin ke Java file
-(`file_selector_android/.../FileUtils.java`) par jaati hai aur lint ke andar hi crash ho jaati hai:
-`List.removeLast()` sirf **Java 21+** mein hai, lekin lint khud usse call karta hai — isliye purane
-JDK par `NoSuchMethodError` aata hai.
-
-**Fix 1 (recommended, permanent): Gradle ko JDK 21+ par chalao**
-
+**Windows (PowerShell):**
 ```powershell
-flutter config --jdk-dir "C:\Program Files\Java\jdk-21"
+cd path\to\CodeNova-smeet_final
+py -3 start_backend.py --web
+```
+*(If `py` is not on PATH or your default `python` is 3.10, install Python 3.13 via `winget install -e --id Python.Python.3.13` and run using `& "$env:LocalAppData\Programs\Python\Python313\python.exe" start_backend.py --web`. Once `backend\.venv` exists, you can launch directly with:)*
+```powershell
+cd path\to\CodeNova-smeet_final\backend
+.\.venv\Scripts\python.exe -m uvicorn app.web:app --host 0.0.0.0 --port 8000 --workers 1
+```
+Open **http://127.0.0.1:8000/** (`Ctrl+Shift+R` hard refresh after rebuilding the web bundle).
+
+### B. Rebuild `browser_preview/` After Flutter Changes
+```bash
+cd mobile
 flutter clean
-flutter build apk --release
+flutter pub get --enforce-lockfile
+flutter build web --no-web-resources-cdn
 ```
-
-(Jab JDK 21 ho, yeh crash root se khatam ho jaata hai.)
-
-**Fix 2 (ZIP mein pehle se laga hua hai): lint crash ko build rokne se roko**
-
-Is ZIP ke `android/build.gradle.kts` mein safety net already hai — `lintVital*` tasks skip ho jaate
-hain, isliye build aage badh jaata hai. Check karne ke liye:
-
+Then replace everything inside `browser_preview/` with the contents of `mobile/build/web/`:
 ```powershell
-cd mobile\android
-Select-String -Path build.gradle.kts -Pattern "lintVital"
+# PowerShell (from repo root)
+Remove-Item browser_preview\* -Recurse -Force
+Copy-Item mobile\build\web\* browser_preview\ -Recurse -Force
 ```
 
-Agar aap purana folder (`BrandGuard-Mobile-Clean`) use kar rahe ho, to in do lines ko
-`mobile/android/build.gradle.kts` ke aakhir mein paste kar do:
+### C. Run the Flutter Mobile/Desktop App
+Native builds default to `https://brandguard-app.antideploy.app`. Pass `API_BASE` explicitly for local development:
+```bash
+cd mobile
+flutter pub get --enforce-lockfile
 
-```kotlin
-subprojects {
-    tasks.configureEach {
-        if (name.startsWith("lintVital")) {
-            enabled = false
-        }
-    }
-}
+# Against local backend (Android emulator):
+flutter run --dart-define=API_BASE=http://10.0.2.2:8000
+
+# Against local backend (Windows/macOS/Chrome):
+flutter run -d chrome --dart-define=API_BASE=http://127.0.0.1:8000
+
+# Against hosted backend:
+flutter run --dart-define=API_BASE=https://brandguard-app.antideploy.app
 ```
 
-**Quick workaround (agar turant APK chahiye):**
+---
 
-```powershell
-flutter build apk --release --no-shrink
-```
-Ya debug APK: `flutter build apk --debug` (yeh lint nahi chalata).
+## 3. Authentication & Demo Credentials
 
-Lint skip karne ka matlab "code unchecked" nahi hai — Dart side `flutter analyze` (No issues) aur
-`flutter test` (91 passed) se poora check hota hai; skip sirf Android lint ke crash ko bypass karta hai.
+### Local Mode (`AUTH_PROVIDER=local`, `SEED_DEMO_USERS=true` — default)
+When running locally with `backend/.env` unset (or `SEED_DEMO_USERS=true`), two local demo accounts are seeded automatically and displayed in the Sign In **Local demonstration accounts** card:
 
-## 7. Troubleshooting
+| Role | Name | Email | Password | Capabilities |
+|---|---|---|---|---|
+| **Creator** | Alice | `creator@brandguard.demo` | `Demo@12345` | Drafts, uploads, preflight & brand checks, view own receipts/history |
+| **Reviewer** | Bob | `reviewer@brandguard.demo` | `Demo@12345` | Review queue, approve/reject, coded overrides, clarity tickets, conflict resolution, library/rules/facts management, audit ledger |
 
-| Problem | Fix |
+> **Governance invariant:** Creators cannot approve their own checks (`409 Conflict` enforced by the API and database policy).
+
+### Hosted Supabase Mode (`https://brandguard-app.antideploy.app`)
+- Public local-demo credentials (`creator@brandguard.demo` / `Demo@12345`) **do not** work in Supabase mode.
+- Earlier hosted evaluation credentials expired on **2026-11-17 01:30:31 IST** (`2026-11-16T20:00:31Z`).
+- For hosted access, use **Create account → confirm email → Sign In** (grants Creator), and promote a trusted Reviewer/Admin via Supabase `app_metadata.brandguard_role` or `python manage.py create-user`. See [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md).
+
+---
+
+## 4. API Overview
+
+All private endpoints require `Authorization: Bearer ACCESS_TOKEN`. Full OpenAPI schemas are available at `/docs` when running locally.
+
+| Domain | Key Endpoints |
 |---|---|
-| Sign in par timeout | `API_BASE` galat ya device se internet nahi. Hosted URL use karo; purani IDE `--dart-define` override hata do. |
-| Blank/red screen | `flutter clean && flutter pub get --enforce-lockfile` phir dobara run karo (design update ke baad rebuild zaroori hai). |
-| "Multiple exceptions/overflow" purane screenshot mein | Naye build mein fix hai; tests 5 screen sizes par overflow check karte hain. |
-| Demo account card nahi dikh raha | Woh sirf **local** server par dikhta hai. Cloud par normal login karo. |
-| Reset link email nahi aaya | Supabase SMTP/limit check karo; app saaf-saaf batata hai jab email reset available nahi hai. |
+| **Auth & Profile** | `GET /api/v1/auth/config`, `POST /login`, `/signup`, `/refresh`, `/logout`, `/recover`; `GET /me`, `PATCH /profile`, `GET/PUT /preferences`, `PUT /password` |
+| **Checks & Preflight** | `POST /api/v1/brand/preflight`, `POST /api/v1/brand/check`, `POST /api/v1/brand/{id}/versions`, `GET /api/v1/brand/rules/{brand_name}` |
+| **Files & Visual/OCR** | `POST /api/v1/files` (TXT, MD, text PDF, PNG, JPG, JPEG, WEBP; `?as_fact=true` reviewer-only), `GET /files/{id}`, `GET /files/{id}/download` |
+| **Reviews & Verify** | `GET /api/v1/reviews`, `PATCH /api/v1/reviews/{id}/decision`, `POST /api/v1/approvals/verify`, `POST /api/v1/approvals/verify-upload` |
+| **Overrides & Tickets** | `POST /api/v1/reviews/{id}/findings/{finding_id}/override`, `GET /api/v1/overrides`, `GET /api/v1/clarity-tickets`, `PATCH /api/v1/clarity-tickets/{id}` |
+| **Conflicts** | `GET /api/v1/conflicts/`, `GET /api/v1/conflicts/{id}`, `POST /api/v1/conflicts/{id}/resolve` |
+| **Library** | `GET/POST/PUT/DELETE /api/v1/library/{guidelines,facts,rules}`, `POST /api/v1/library/rules/{rule_id}/logo-template` |
+| **Workspace & Audit** | `GET/POST/PUT/DELETE /api/v1/drafts`, `GET /api/v1/receipts/`, `GET /receipts/{id}`, `GET /audit`, `GET /history`, `GET /analytics`, `GET/PATCH/DELETE /notifications`, `GET /system/status` |
 
-## 8. Repo structure (important)
+---
 
+## 5. Deployment & Hosted Notes
+
+- Production entrypoint: **`serve.py`** (enforces `AUTH_PROVIDER=supabase` and `SEED_DEMO_USERS=false`, serves `browser_preview/` same-origin via `app.web:app`).
+- Container build: **`Dockerfile`** installs `tesseract-ocr` and `backend/requirements.txt` on `python:3.13-slim`.
+- Detailed operational checklists:
+  - [START_HERE.md](START_HERE.md) — quickest local & hosted launch checklist
+  - [DEPLOYMENT.md](DEPLOYMENT.md) — Antideploy setup, Round 3 redeploy checklist, and Supabase bucket MIME note
+  - [docs/PROJECT_GUIDE.md](docs/PROJECT_GUIDE.md) — architecture, database/locking model, security boundaries
+  - [docs/AI_SETUP.md](docs/AI_SETUP.md) — OpenRouter / OpenAI setup, free `:free` model notes, and grounded-output contract
+  - [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md) & [docs/LIVE_SUPABASE_STATUS.md](docs/LIVE_SUPABASE_STATUS.md) — Supabase Postgres, Storage, and Auth email hook
+
+---
+
+## 6. Testing & Honest Boundaries
+
+### Automated Verification
+```bash
+# Backend (from backend/)
+pytest -q
+# 137 tests total across tests/ + tests_secure/ (Phase 1-3 Round 3 suites included):
+# - Linux/Docker with tesseract-ocr: 137 passed
+# - Windows without Tesseract binary installed: 135 passed, 2 OCR-binary tests skipped
+
+# Flutter (from mobile/)
+flutter analyze
+flutter test
+# Analyzer clean (0 issues); 121 Flutter tests across mobile/test/ (run locally with Flutter SDK)
 ```
-mobile/
-  lib/app/app_theme.dart          # design tokens + Material theme
-  lib/app/ui/app_widgets.dart     # shared visual vocabulary
-  lib/app/ui/brandguard_shell.dart# 5-tab bottom navigation shell
-  lib/features/...                # screens (auth, dashboard, checks, reviews, guidelines, ...)
-  test/                           # widget + layout regression tests
-backend/                          # FastAPI + Supabase (unchanged)
-```
+*(Note: Historical evidence in `validation/` covers the pre-Round-3 `v2.0.1` hosted release and is preserved unchanged until Round 3 is redeployed and re-audited.)*
 
-Backend code, Supabase project, rules aur data **is redesign ke chalu hone se change nahi hue**.
-Koi deployment/seed/migration is ZIP ke saath nahi chalti.
+### Honest System Boundaries
+- **Image OCR vs Scanned PDFs:** `PNG/JPG/JPEG/WEBP` banners run OCR via Tesseract when installed (`ocr_status` honestly reports when Tesseract is unavailable). Scanned image-only `.pdf` files still require PDF rasterization, which is not enabled (text-based PDFs up to 30 pages are supported).
+- **Grounded AI Abstention:** When `AI_PROVIDER=disabled`, credits/key are missing, or no **reviewer-verified Fact Source** exists for the brand, AI explicitly returns `abstained` instead of fabricating factual checks.
+- **Intentionally Unimplemented:** SSO/Okta/SAML buttons, 2FA/biometric attestation, automated web crawling, background push workers, and an unfinished Dark theme are intentionally omitted or marked clearly rather than mocked.

@@ -1,38 +1,30 @@
-# BrandGuard Supabase — maintain the existing hosted setup
+# BrandGuard Supabase — Maintain the Existing Hosted Setup
 
 **Current app:** https://brandguard-app.antideploy.app . Hosting and real auth-email
-callbacks are already deployed/tested; do not redo project creation or choose another
+callbacks are already deployed; do not redo project creation or choose another
 provider. See [LIVE_SUPABASE_STATUS.md](LIVE_SUPABASE_STATUS.md) and
-[DEPLOYMENT.md](../DEPLOYMENT.md). Earlier standalone/local-demo ZIPs stay unchanged.
+[DEPLOYMENT.md](../DEPLOYMENT.md).
 
-## Existing infrastructure
+## Existing Infrastructure
 
-- Project: `jtidayzktuzpjydshsva`, BrandGuard, Mumbai `ap-south-1`.
-- API: `https://jtidayzktuzpjydshsva.supabase.co`.
-- Dashboard: https://supabase.com/dashboard/project/jtidayzktuzpjydshsva .
-- Pooler: `aws-1-ap-south-1.pooler.supabase.com:5432`, database `postgres`,
+- **Project:** `jtidayzktuzpjydshsva`, BrandGuard, Mumbai `ap-south-1`.
+- **API:** `https://jtidayzktuzpjydshsva.supabase.co`.
+- **Dashboard:** https://supabase.com/dashboard/project/jtidayzktuzpjydshsva .
+- **Pooler:** `aws-1-ap-south-1.pooler.supabase.com:5432`, database `postgres`,
   login `postgres.jtidayzktuzpjydshsva`.
-- Core, private Storage and temporary-evaluation-expiry migrations are already applied.
-  SQL files document provisioning for another explicitly authorized environment only.
-- LiFE Mitra Gujarat remains untouched. Do not recreate/replace its or this project's data.
+- Core (`001_core.sql`), private Storage (`002_private_storage.sql`), and evaluation-expiry migrations are already applied.
+- LiFE Mitra Gujarat (`zaljyzpxcnrugmyjlhuc`) remains untouched. Do not recreate or replace its data.
 
-## Backend secret boundary
+## Backend Secret Boundary
 
-Normal production variables include `AUTH_PROVIDER=supabase`, `SEED_DEMO_USERS=false`,
-project URL/publishable key, private `DATABASE_URL`, bucket name and auth callback
-configuration. They are encrypted host variables; a private local `.env` is 0600 and
-not source-uploaded. **No normal runtime Supabase service/admin key is needed.**
+Production variables include `AUTH_PROVIDER=supabase`, `SEED_DEMO_USERS=false`,
+project URL/publishable key, private `DATABASE_URL`, bucket name, and auth callback
+configuration. **No normal runtime Supabase service/admin key is required.**
 
-The database URL uses `sslmode=verify-full` plus the bundled PUBLIC CA
-`certs/supabase-prod-ca-2021.crt`. `serve.py` sets `backend/` as working directory.
-For another environment, use a valid server-local absolute CA path if necessary;
-never disable certificate/hostname validation to fix a relative-path mistake.
-Database credentials and real signing/provider secrets must never be placed in
-Flutter, Git, source archives, screenshots or chat.
+`DATABASE_URL` uses `sslmode=verify-full` with `certs/supabase-prod-ca-2021.crt`.
+`serve.py` sets `backend/` as the working directory so relative cert paths resolve cleanly; never disable TLS verification.
 
-The production entrypoint refuses local/demo Auth and never seeds/replaces users.
-Use the earlier ready-demo ZIP for an intentionally isolated local SQLite demo,
-not public seeded accounts on this live host.
+`serve.py` refuses local/demo Auth in production (`AUTH_PROVIDER=local` or `SEED_DEMO_USERS=true`).
 
 ## Native Flutter
 
@@ -42,52 +34,33 @@ flutter pub get --enforce-lockfile
 flutter run
 ```
 
-Native defaults to the existing hosted HTTPS API; no dart-define is required.
-Web uses its own origin. Only explicit local development should pass a different
-API_BASE; a phone must never rely on the computer/emulator localhost. `mobile/` is the only Flutter root. Native
-release/device/signing certification is separate from this hosted web/API deployment.
+Native builds default to `https://brandguard-app.antideploy.app`. Web stays same-origin (`browser_preview/`). Pass `--dart-define=API_BASE=...` only for local/emulator development.
 
-## Trusted roles and private documents
+## Trusted Roles & Private Documents (Round 3 Storage Update)
 
-Public signup → confirmed Creator. Never trust `user_metadata` or a dropdown to
-assign Reviewer/Admin. A trusted administrator may update only the intended user's
-`app_metadata` to include `{"brandguard_role":"reviewer"}` (or an authorized admin
-role), preserving its other fields. Supabase's `role=authenticated` is different.
-A permanent owner/reviewer identity was not silently created by the deploy.
+- Public signup creates confirmed **Creator** accounts. Never use client-editable `user_metadata` for roles.
+- Assign Reviewer/Admin only via trusted `app_metadata` (`{"brandguard_role": "reviewer"}`) or `python manage.py create-user`.
+- **`brandguard-files` Storage bucket (5 MB limit):**
+  - Initial `v2` setup allowed `text/plain`, `text/markdown`, and `application/pdf`.
+  - **Round 3 adds image banner uploads (`PNG`, `JPG`, `JPEG`, `WEBP`).** Before testing image uploads against Supabase Storage, run this in the Supabase SQL Editor so the bucket accepts images:
+    ```sql
+    UPDATE storage.buckets
+    SET allowed_mime_types = ARRAY[
+      'text/plain', 'text/markdown', 'application/pdf',
+      'image/png', 'image/jpeg', 'image/webp'
+    ]
+    WHERE id = 'brandguard-files';
+    ```
+- **Evaluation expiry note:** Earlier temporary evaluation users had `brandguard_access_until` expiring **2026-11-16T20:00:31Z** (**17 November 2026, 01:30:31 IST**). That window has now passed; create fresh user/reviewer accounts for new evaluations. Ordinary accounts without `brandguard_access_until` never expire.
 
-A trusted, private admin environment can use `manage.py create-user`; its temporary
-admin credential must not enter the running app. The command prompts for a password
-and creates an admin-confirmed identity, so it is not evidence of email delivery.
-A reviewer should log in once so notification recipients are known to the app.
+## Auth Email Configuration
 
-`brandguard-files` is private with 5 MB TXT/Markdown/PDF limits. User bearer tokens,
-not a runtime service key, authorize actual object operations. Owner-folder uploads
-and owner/trusted-reviewer reads are enforced; anonymous/other-creator access is denied.
+- **Site URL:** `https://brandguard-app.antideploy.app`
+- **Allowlisted redirects:** `/auth/confirm` and `/auth/reset`
+- **Send Email Hook:** `/api/v1/auth/hooks/email` (Standard Webhooks HMAC/timestamp validated)
+- **Relay:** Native Antideploy transactional relay (`20` recipient-addresses/rolling day; Supabase throttle `20`/hour). Do not replace with manual SMTP or shadow `RESEND_*`/`EMAIL_FROM`.
 
-Two intended evaluation users and their sample remain until the unchanged app/Storage
-expiry **17 November 2026, 01:30:31 IST**. Ordinary users without the trusted expiry
-flag are unaffected. Do not indiscriminately clean/recreate intended users or files.
+## Operations & AI
 
-## Auth email already configured
-
-- Site URL: `https://brandguard-app.antideploy.app`.
-- Exact allowlisted callbacks: `/auth/confirm` and `/auth/reset`, with the prior root URLs retained.
-- Send Email Hook: `/api/v1/auth/hooks/email`, protected by Standard Webhooks HMAC/timestamp validation.
-- Relay: native Antideploy Resend-compatible variables and sender, 20 recipients/day.
-- Supabase auth-email throttle: 20/hour; relay's stricter day cap still applies.
-- Confirmation is enabled. A confirmation link returns to a token-clearing page;
-  recovery link returns to the same-origin reset form. Used recovery links are denied.
-
-Do not add SMTP credentials or shadow the native `RESEND_*`/`EMAIL_FROM` variables:
-the signed hook replaces SMTP for this application. No Resend account or email-domain
-DNS changes are required by this chosen relay. Email-address-change double
-confirmation is not an implemented app feature; unsupported hook actions fail closed.
-The five test sends were all provider-reported delivered; human inbox opening is not claimed.
-
-## Operations still separate
-
-Retain backups of PostgreSQL and private objects, and test a cloud restore before
-claiming disaster recovery. Current repository serialization favors consistency over
-throughput; load/tenancy/background jobs are not newly implemented. In-app decision
-notifications are not push/transactional product emails. AI is separately disabled
-until the owner's Antideploy wallet is funded; see [AI_SETUP.md](AI_SETUP.md).
+- Retain PostgreSQL (`pg_dump`) + Storage object backups alongside `manage.py backup`.
+- AI setup is documented in [AI_SETUP.md](AI_SETUP.md).

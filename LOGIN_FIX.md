@@ -1,3 +1,5 @@
+> **Superseded by Round 3 (v3.0.0):** This document describes the earlier `2.0.1` native connection fix (`113` backend / `75` Flutter baseline). See [README.md](README.md) and [START_HERE.md](START_HERE.md) for current Round 3 features, tests, and setup.
+
 # BrandGuard 2.0.1 — mobile login / signup connection fix
 
 ## Problem kya tha?
@@ -21,10 +23,10 @@ tha, isliye login aur signup dono network timeout de rahe the.
 ## IMPORTANT: old installed app ko rebuild karna hoga
 
 Sirf ZIP download/extract se phone par installed old application update nahi hoti.
-Purani project directory ki jagah **is ZIP ke `BrandGuard-Login-Fixed/mobile/`** se run karein.
+Purani project directory ki jagah **is project ke `mobile/`** se run karein.
 
 ```sh
-cd BrandGuard-Login-Fixed/mobile
+cd mobile
 flutter clean
 flutter pub get --enforce-lockfile
 flutter run
@@ -48,9 +50,8 @@ apna accessible email → confirmation email open → Sign In. `creator@brandgua
 and `reviewer@brandguard.demo` **local demo only** hain, live cloud credentials nahi.
 Unke public `Demo@12345` password se hosted app login nahi karegi.
 
-Earlier private evaluation users remain time-limited: app/Storage expiry
-**17 November 2026, 01:30:31 IST**. Unke passwords public source/ZIP mein nahi hain;
-normal confirmed accounts without that flag are not time-limited by this demo policy.
+Earlier private evaluation users had app/Storage expiry **17 November 2026, 01:30:31 IST**
+(now expired). Normal confirmed accounts without that flag are not time-limited.
 Reviewer/Admin permissions still require trusted assignment.
 
 ## Explicit local development only
@@ -69,14 +70,4 @@ mobile's default hosted Supabase connection.
 
 ## Verification and boundaries
 
-Current source tests/results are in `validation/login-fix/`. Both real Creator and
-Reviewer HTTPS logins were checked with the native Dart VM using the same endpoint
-resolver and normal TLS verification. The signup endpoint was safely checked with
-an invalid extra role (422), without creating an account or sending test mail.
-
-Updated rendered web UI se actual hosted Creator/Reviewer login/dashboard/logout
-smokes bhi passed (test-only local-asset/API bridge; production UI redeploy nahi).
-
-No APK/IPA or physical-device certification is included in this source ZIP. A new
-prebuilt web preview is included; the existing hosted backend/data are unchanged.
-AI remains disabled pending wallet funding; this network fix does not invent AI access.
+Historical `2.0.1` checks are in `validation/login-fix/`.
