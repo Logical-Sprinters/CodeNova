@@ -43,3 +43,14 @@ backend/data/*.tmp
 Thumbs.db
 *.log
 *.swp
+
+# Temporary BrandGuard workspace and local data
+backend/brandguard-local-test-data/
+brandguard-temp/
+mobile/brandguard/
+frontend/
+
+# Local integration patch scripts
+integrate_feature2.py
+integrate_feature2_flutter.py
+integrate_feature3.py
