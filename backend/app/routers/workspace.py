@@ -129,13 +129,18 @@ def delete_draft(draft_id: str, user=Depends(get_user)):
 
 @router.get("/analytics")
 def analytics(user=Depends(get_user)):
-    records = [r for r in load_records() if can_read(r, user)]
+    records = [
+        r
+        for r in load_records()
+        if can_read(r, user) and r.get("status") != "draft"
+    ]
     counts = Counter(r["status"] for r in records)
     return {
         "total_checks": len(records),
         "pending": counts["pending"],
         "approved": counts["approved"],
         "rejected": counts["rejected"],
+        "changes_requested": counts["changes_requested"],
         "paused_conflict": counts["paused_conflict"],
         "total_findings": sum(len(r["findings"]) for r in records),
         "scan_passed": sum(r.get("scan_status") == "passed" for r in records),
@@ -165,13 +170,24 @@ def history(user=Depends(get_user)):
 
 @router.get("/notifications")
 def notifications(user=Depends(get_user)):
-    items = [
+    raw = [
         r
         for r in read_json(path("notifications"), [])
         if r["user_id"] == user["user_id"]
     ]
+    # Deduplicate historical 'review' notifications sharing the same check_id so
+    # reviewers never see both v1 and v2 notifications for a single Review Queue record.
+    seen_review_checks: set[str] = set()
+    items = []
+    for row in reversed(raw):
+        cid = row.get("check_id")
+        if row.get("type") == "review" and cid:
+            if cid in seen_review_checks:
+                continue
+            seen_review_checks.add(cid)
+        items.append(row)
     return {
-        "items": list(reversed(items)),
+        "items": items,
         "total": len(items),
         "unread": sum(not r["read"] for r in items),
     }
@@ -236,7 +252,7 @@ def status(user=Depends(get_user)):
         "database": (
             "postgresql" if config.database_url().startswith("postgresql") else "sqlite"
         ),
-        "ai_configured": config.AI_PROVIDER in {"openai", "openrouter"}
+        "ai_configured": config.AI_PROVIDER in {"openai", "openrouter", "gemini"}
         and bool(config.AI_API_KEY),
         "ai_provider": config.AI_PROVIDER,
         "ai_model": config.AI_MODEL if config.AI_API_KEY else None,

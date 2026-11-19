@@ -1,17 +1,42 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../app/app_theme.dart';
 import '../../app/ui/app_widgets.dart';
+import '../../core/auth/session.dart';
 import '../../core/network/brandguard_api_service.dart';
 import '../../core/network/document_picker.dart';
 import 'findings_evidence_screen.dart';
 
 class NewBrandCheckScreen extends StatefulWidget {
-  const NewBrandCheckScreen({super.key, this.draft});
+  const NewBrandCheckScreen({
+    super.key,
+    this.draft,
+    this.resubmitCheckId,
+    this.expectedVersion,
+    this.parentApprovedCheckId,
+    this.initialAssetIds,
+    this.initialBrandName,
+    this.initialContent,
+    this.initialChannel,
+    this.reviewerNote,
+    this.reviewStatus,
+  });
+
   final Map<String, dynamic>? draft;
+  final String? resubmitCheckId;
+  final int? expectedVersion;
+  final String? parentApprovedCheckId;
+  final List<String>? initialAssetIds;
+  final String? initialBrandName;
+  final String? initialContent;
+  final String? initialChannel;
+  final String? reviewerNote;
+  final String? reviewStatus;
+
   @override
   State<NewBrandCheckScreen> createState() => _NewBrandCheckScreenState();
 }
@@ -34,6 +59,10 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
   String? _checkAtIso;
   String _checkAtLabel = 'Now';
 
+  bool get _isResubmit => (widget.resubmitCheckId ?? '').isNotEmpty;
+  bool get _isRevisedFromApproved =>
+      (widget.parentApprovedCheckId ?? '').isNotEmpty;
+
   @override
   void initState() {
     super.initState();
@@ -50,6 +79,34 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
         ),
       );
     }
+    if (_isResubmit || _isRevisedFromApproved) {
+      if ((widget.initialBrandName ?? '').trim().isNotEmpty) {
+        _brand.text = widget.initialBrandName!.trim();
+      }
+      if (widget.initialContent != null) {
+        _content.text = widget.initialContent!;
+      }
+      if ((widget.initialChannel ?? '').trim().isNotEmpty) {
+        _channel = widget.initialChannel!.trim().toLowerCase();
+      }
+      for (final assetId in widget.initialAssetIds ?? const <String>[]) {
+        if (assetId.trim().isEmpty) continue;
+        final shortId = assetId.length > 8 ? assetId.substring(0, 8) : assetId;
+        _attachments.add({
+          'id': assetId,
+          'name': 'Attached asset ($shortId)',
+          'is_image': false,
+        });
+      }
+      _title.text = _isRevisedFromApproved
+          ? '${_brand.text} (amended copy)'
+          : '${_brand.text} revision';
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _content.text.trim().length >= 3) {
+          _schedulePreflight(delay: const Duration(milliseconds: 120));
+        }
+      });
+    }
   }
 
   @override
@@ -60,6 +117,11 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
     _content.dispose();
     super.dispose();
   }
+
+  static const int _maxContentChars = 200000;
+
+  int get _charCount => _content.text.length;
+  bool get _isOverCharLimit => _charCount > _maxContentChars;
 
   int get _wordCount {
     final text = _content.text.trim();
@@ -94,7 +156,8 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
 
   void _schedulePreflight({Duration delay = const Duration(milliseconds: 550)}) {
     _preflightTimer?.cancel();
-    if (!_liveRadarEnabled ||
+    if (_isOverCharLimit ||
+        !_liveRadarEnabled ||
         _content.text.trim().length < 3 ||
         _brand.text.trim().isEmpty) {
       if (mounted && _preflightResult != null && _content.text.trim().isEmpty) {
@@ -319,9 +382,16 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
   }
 
   Future<void> _check() async {
+    if (_busy) return;
     _preflightTimer?.cancel();
     if (_content.text.trim().isEmpty || _brand.text.trim().isEmpty) {
       _message('Enter a brand and nonempty content.');
+      return;
+    }
+    if (_isOverCharLimit) {
+      _message(
+        'Character limit crossed ($_charCount / $_maxContentChars max). Trim ${_charCount - _maxContentChars} characters before running check.',
+      );
       return;
     }
     FocusScope.of(context).unfocus();
@@ -329,14 +399,26 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
     final exactText = _content.text;
     final assetIds = _assetIds;
     try {
-      final result = await BrandGuardApiService.checkBrand(
-        brandName: _brand.text.trim(),
-        content: exactText,
-        contentType: _hasImages ? 'multimodal' : 'text',
-        channel: _channel == 'all' ? null : _channel,
-        checkAt: _checkAtIso,
-        assetIds: assetIds.isEmpty ? null : assetIds,
-      );
+      final result = _isResubmit
+          ? await BrandGuardApiService.submitEditedContent(
+              checkId: widget.resubmitCheckId!,
+              content: exactText,
+              expectedVersion: widget.expectedVersion,
+              channel: _channel == 'all' ? null : _channel,
+              checkAt: _checkAtIso,
+              assetIds: assetIds.isEmpty ? null : assetIds,
+              submitForReview: false,
+            )
+          : await BrandGuardApiService.checkBrand(
+              brandName: _brand.text.trim(),
+              content: exactText,
+              contentType: _hasImages ? 'multimodal' : 'text',
+              channel: _channel == 'all' ? null : _channel,
+              checkAt: _checkAtIso,
+              assetIds: assetIds.isEmpty ? null : assetIds,
+              submitForReview: false,
+              parentCheckId: widget.parentApprovedCheckId,
+            );
       if (!mounted) return;
       setState(() => _busy = false);
       await Navigator.push(
@@ -350,6 +432,7 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
             checkId: result['check_id'].toString(),
             brandName: result['brand_name'].toString(),
             status: result['status'].toString(),
+            reviewStatus: result['review_status']?.toString() ?? 'draft',
             findings: result['findings'] as List? ?? [],
             conflicts: result['conflicts'] as List? ?? [],
             ocrText: result['ocr_text']?.toString() ?? '',
@@ -367,6 +450,9 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
           ),
         ),
       );
+      if (_isResubmit && mounted) {
+        Navigator.pop(context, true);
+      }
     } catch (e) {
       _message('Brand check failed: $e');
     } finally {
@@ -392,7 +478,15 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
           onPressed: () => Navigator.maybePop(context),
           icon: const Icon(Icons.arrow_back_rounded),
         ),
-        title: Text(_draftId == null ? 'New brand check' : 'Edit saved draft'),
+        title: Text(
+          _isResubmit
+              ? 'Edit & resubmit check'
+              : _isRevisedFromApproved
+              ? 'New check from approved'
+              : _draftId == null
+              ? 'New brand check'
+              : 'Edit saved draft',
+        ),
         actions: [
           TextButton.icon(
             key: const ValueKey('save-draft'),
@@ -450,7 +544,35 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
   }
 
   List<Widget> _editorColumnChildren() {
+    final drafter = session.currentUser;
+    final drafterLabel = drafter == null
+        ? 'Active signed-in session'
+        : '${drafter.name} · ${drafter.email}';
     return [
+      if (_isResubmit) ...[
+        InlineNotice(
+          tone: Tone.warning,
+          icon: Icons.edit_note_rounded,
+          title: widget.reviewStatus == 'Changes Requested'
+              ? 'Reviewer requested changes'
+              : 'Editing submitted check',
+          message: (widget.reviewerNote ?? '').trim().isNotEmpty
+              ? widget.reviewerNote!.trim()
+              : 'Update your content below and resubmit to re-run compliance checks and request a fresh review.',
+        ),
+        const SizedBox(height: 12),
+      ] else if (_isRevisedFromApproved) ...[
+        InlineNotice(
+          tone: Tone.info,
+          icon: Icons.content_copy_rounded,
+          title: 'New revision from approved check',
+          message:
+              'Editing creates a separate check linked to approved submission '
+              '(${widget.parentApprovedCheckId!.length > 8 ? widget.parentApprovedCheckId!.substring(0, 8) : widget.parentApprovedCheckId}). '
+              'The original approved record and its compliance seal stay locked.',
+        ),
+        const SizedBox(height: 12),
+      ],
       _stepStrip(),
       const SizedBox(height: 14),
       SurfaceCard(
@@ -491,6 +613,14 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: AppTheme.bodySmall,
                   ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Drafted by $drafterLabel',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.monoLabel(color: AppTheme.tealText)
+                        .copyWith(fontSize: 9.5),
+                  ),
                 ],
               ),
             ),
@@ -519,13 +649,15 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
       TextField(
         key: const ValueKey('check-brand'),
         controller: _brand,
-        enabled: !_busy,
+        enabled: !_busy && !_isResubmit,
         onChanged: (_) => _onDraftChanged(),
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           labelText: 'Brand',
-          helperText: 'Acme ships starter rules. Reviewers can add another brand.',
+          helperText: _isResubmit
+              ? 'Locked to the existing brand check.'
+              : 'Acme ships starter rules. Reviewers can add another brand.',
           isDense: true,
-          prefixIcon: Icon(Icons.storefront_outlined),
+          prefixIcon: const Icon(Icons.storefront_outlined),
         ),
       ),
       const SizedBox(height: 10),
@@ -537,21 +669,41 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
         enabled: !_busy,
         minLines: 8,
         maxLines: 24,
-        maxLength: 200000,
+        maxLength: _maxContentChars,
+        maxLengthEnforcement: MaxLengthEnforcement.none,
         onChanged: (_) => _onDraftChanged(),
         textCapitalization: TextCapitalization.sentences,
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           alignLabelWithHint: true,
-          hintText: 'Paste the exact copy that will be published. The check hashes this text exactly as written.',
-          border: OutlineInputBorder(),
+          hintText:
+              'Paste the exact copy that will be published. The check hashes this text exactly as written.',
+          border: const OutlineInputBorder(),
+          errorText: _isOverCharLimit
+              ? 'Limit crossed ($_charCount / $_maxContentChars max). Trim ${_charCount - _maxContentChars} chars.'
+              : null,
+          helperText: !_isOverCharLimit && _charCount >= 190000
+              ? '${_maxContentChars - _charCount} characters left before $_maxContentChars limit'
+              : null,
         ),
       ),
+      if (_isOverCharLimit) ...[
+        const SizedBox(height: 6),
+        Text(
+          'Text limit crossed: maximum $_maxContentChars characters allowed (${_charCount - _maxContentChars} over limit).',
+          key: const ValueKey('char-limit-error'),
+          style: AppTheme.bodySmall.copyWith(
+            color: AppTheme.danger,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+      const SizedBox(height: 4),
       Wrap(
         spacing: 8,
         runSpacing: 6,
         children: [
           _metaChip(Icons.notes_rounded, '$_wordCount words'),
-          _metaChip(Icons.text_fields_rounded, '${_content.text.length} chars'),
+          _metaChip(Icons.text_fields_rounded, '$_charCount / 200,000 chars'),
           _metaChip(
             Icons.schedule_rounded,
             '~${((_wordCount / 200) * 60).ceil()}s read',
@@ -617,7 +769,15 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          Text('POINT-IN-TIME EVALUATION DATE', style: AppTheme.monoLabel()),
+          Text(
+            'RULE WINDOW (WHICH POLICY DATE TO CHECK AGAINST)',
+            style: AppTheme.monoLabel(),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Use "Current rules" for normal posts, or pick a past/launch date to check rules active then.',
+            style: AppTheme.bodySmall,
+          ),
           const SizedBox(height: 6),
           Wrap(
             spacing: 6,
@@ -939,12 +1099,13 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
       ),
       const SizedBox(height: 8),
       if (_attachments.isEmpty)
-        const InlineNotice(
+        InlineNotice(
           tone: Tone.neutral,
           icon: Icons.attach_file_rounded,
           title: 'No attachment yet',
-          message:
-              'Upload TXT, Markdown, text PDF, or PNG/JPG/WEBP marketing banners up to 5 MB for multimodal OCR, color palette, and logo verification.',
+          message: _isResubmit
+              ? 'Leave blank to keep existing attached assets on this check, or upload updated TXT, Markdown, PDF, or PNG/JPG/WEBP banners below.'
+              : 'Upload TXT, Markdown, text PDF, or PNG/JPG/WEBP marketing banners up to 5 MB for multimodal OCR, color palette, and logo verification.',
         )
       else
         ..._attachments.map(_attachmentCard),
@@ -1004,12 +1165,19 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
                     color: Theme.of(context).colorScheme.onPrimary,
                   ),
                 )
-              : const Row(
+              : Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.shield_rounded, size: 19),
-                    SizedBox(width: 8),
-                    Text('Run Brand Check'),
+                    Icon(
+                      _isResubmit ? Icons.send_rounded : Icons.shield_rounded,
+                      size: 19,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _isResubmit
+                          ? 'Inspect & preview changes'
+                          : 'Run Brand Check',
+                    ),
                   ],
                 ),
         ),

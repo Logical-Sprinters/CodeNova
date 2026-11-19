@@ -19,7 +19,7 @@ class SignInScreen extends StatefulWidget {
 class _SignInScreenState extends State<SignInScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
-  bool _busy = false, _remember = false, _demo = false, _obscure = true;
+  bool _busy = false, _remember = true, _demo = false, _obscure = true;
   bool _checkingConnection = true;
   String? _error, _notice, _connectionError, _authProvider;
 
@@ -34,7 +34,10 @@ class _SignInScreenState extends State<SignInScreen> {
       final prefs = await SharedPreferences.getInstance();
       if (!mounted) return;
       setState(() {
-        _remember = prefs.getBool(DemoAuth.rememberEmailKey) ?? false;
+        _remember =
+            prefs.getBool(BrandGuardApiService.rememberMePrefKey) ??
+            prefs.getBool(DemoAuth.rememberEmailKey) ??
+            true;
         if (_remember && _email.text.isEmpty) {
           _email.text = prefs.getString(DemoAuth.rememberedEmailKey) ?? '';
         }
@@ -118,6 +121,7 @@ class _SignInScreenState extends State<SignInScreen> {
   Future<void> _openDashboard() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(BrandGuardApiService.rememberMePrefKey, _remember);
       await prefs.setBool(DemoAuth.rememberEmailKey, _remember);
       if (_remember) {
         await prefs.setString(DemoAuth.rememberedEmailKey, _email.text.trim());
@@ -157,7 +161,11 @@ class _SignInScreenState extends State<SignInScreen> {
       _notice = null;
     });
     try {
-      await BrandGuardApiService.login(_email.text, _password.text);
+      await BrandGuardApiService.login(
+        _email.text,
+        _password.text,
+        rememberMe: _remember,
+      );
       if (!mounted) return;
       await _openDashboard();
     } catch (error) {
@@ -309,7 +317,7 @@ class _SignInScreenState extends State<SignInScreen> {
                                 onTap: () =>
                                     setState(() => _remember = !_remember),
                                 child: Text(
-                                  'Remember email only',
+                                  'Remember me (stay signed in)',
                                   style: AppTheme.bodySmall.copyWith(
                                     color: AppTheme.ink,
                                   ),
@@ -403,7 +411,7 @@ class _SignInScreenState extends State<SignInScreen> {
                           children: [
                             Flexible(
                               child: Text(
-                                'Tokens stay in memory. Passwords are never saved on this device.',
+                                'Passwords are never saved on this device. Uncheck "Remember me" on shared devices.',
                                 textAlign: TextAlign.center,
                                 style: AppTheme.monoLabel().copyWith(
                                   fontSize: 9.5,

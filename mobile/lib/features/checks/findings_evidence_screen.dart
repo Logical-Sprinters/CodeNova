@@ -2,8 +2,10 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../app/app_theme.dart';
 import '../../app/ui/app_widgets.dart';
+import '../../app/ui/brandguard_shell.dart';
 import '../../core/auth/session.dart';
 import '../../core/network/brandguard_api_service.dart';
+import '../reviews/review_queue_screen.dart';
 
 class FindingsEvidenceScreen extends StatefulWidget {
   final String contentText;
@@ -12,6 +14,7 @@ class FindingsEvidenceScreen extends StatefulWidget {
   final String checkId;
   final String brandName;
   final String status;
+  final String reviewStatus;
   final String? receiptId;
   final int? contentVersion;
   final Map<String, dynamic>? aiVerification;
@@ -31,6 +34,7 @@ class FindingsEvidenceScreen extends StatefulWidget {
     required this.brandName,
     required this.status,
     required this.findings,
+    this.reviewStatus = 'draft',
     this.receiptId,
     this.contentVersion,
     this.aiVerification,
@@ -80,6 +84,8 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
   }
 
   String get updatedContent => _currentContent;
+
+  bool get _hasContentEdits => _currentContent != widget.contentText;
 
   void showMessage(String message) {
     if (!mounted) return;
@@ -485,17 +491,21 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
     });
 
     try {
-      final response = await BrandGuardApiService.submitEditedContent(
-        checkId: widget.checkId,
-        expectedVersion: widget.contentVersion,
-        content: updatedContent,
-        assetIds: widget.assetIds.isEmpty ? null : widget.assetIds,
-        channel: widget.channel == 'all' ? null : widget.channel,
-        checkAt: widget.checkAt,
-      );
+      final response = _hasContentEdits
+          ? await BrandGuardApiService.submitEditedContent(
+              checkId: widget.checkId,
+              expectedVersion: widget.contentVersion,
+              content: updatedContent,
+              assetIds: widget.assetIds.isEmpty ? null : widget.assetIds,
+              channel: widget.channel == 'all' ? null : widget.channel,
+              checkAt: widget.checkAt,
+              submitForReview: true,
+            )
+          : await BrandGuardApiService.submitCheckForReview(widget.checkId);
 
-      final checkId = response['check_id']?.toString() ?? 'N/A';
-      final receiptId = response['receipt_id']?.toString() ?? 'N/A';
+      final checkId = response['check_id']?.toString() ?? widget.checkId;
+      final receiptId =
+          response['receipt_id']?.toString() ?? widget.receiptId ?? 'N/A';
       final status = response['status']?.toString() ?? 'unknown';
 
       widget.onContentUpdated(updatedContent);
@@ -522,7 +532,7 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'The updated content was stored as a new version and is now waiting for an authorised reviewer.',
+                  'Your check is now queued in the Review Queue and waiting for an authorised reviewer.',
                   style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
                   textAlign: TextAlign.center,
                 ),
@@ -541,17 +551,33 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
               ],
             ),
             actions: [
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () {
-                    final navigator = Navigator.of(context);
-                    navigator.pop();
+              TextButton(
+                key: const ValueKey('submission-done-to-reviews'),
+                onPressed: () {
+                  final navigator = Navigator.of(context);
+                  navigator.pop();
+                  if (BrandGuardShell.hasMountedShell) {
+                    BrandGuardShell.openTab(2);
                     navigator.popUntil((route) => route.isFirst);
-                    navigator.pushNamed('/receiptDetail', arguments: receiptId);
-                  },
-                  child: const Text('View receipt'),
-                ),
+                  } else {
+                    navigator.pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (_) => const ReviewQueueScreen(),
+                      ),
+                      (route) => route.isFirst,
+                    );
+                  }
+                },
+                child: const Text('Done'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final navigator = Navigator.of(context);
+                  navigator.pop();
+                  navigator.popUntil((route) => route.isFirst);
+                  navigator.pushNamed('/receiptDetail', arguments: receiptId);
+                },
+                child: const Text('View receipt'),
               ),
             ],
           );
@@ -681,9 +707,19 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
                       ),
                       const SizedBox(width: 6),
                       Expanded(
-                        child: Text(
-                          '${widget.brandName} · check ${_shortId(widget.checkId)} · ${widget.channel}',
-                          style: AppTheme.monoLabel(color: AppTheme.ink),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${widget.brandName} · check ${_shortId(widget.checkId)} · ${widget.channel}',
+                              style: AppTheme.monoLabel(color: AppTheme.ink),
+                            ),
+                            if (session.currentUser != null)
+                              Text(
+                                'Drafted by ${session.currentUser!.name} (${session.currentUser!.email})',
+                                style: AppTheme.bodySmall,
+                              ),
+                          ],
                         ),
                       ),
                     ],
@@ -978,6 +1014,15 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
       _ => Tone.info,
     };
     final title = 'AI comparison: ${status ?? 'not supplied'}';
+    final rawMsg = ai?['message']?.toString().trim();
+    final friendlyFallback =
+        'Open the protected processing receipt for this check’s comparison status.';
+    final displayMessage = (status == 'abstained' &&
+            rawMsg != null &&
+            rawMsg.isNotEmpty &&
+            !rawMsg.toLowerCase().contains('rule checks'))
+        ? '$rawMsg What this means: AI fact-checking did not run right now, so BrandGuard made no AI guess — your standard brand rule checks still ran.'
+        : (rawMsg?.isNotEmpty == true ? rawMsg! : friendlyFallback);
     final citations = ai?['citations'];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -985,7 +1030,7 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
         InlineNotice(
           tone: tone,
           title: title,
-          message: ai?['message']?.toString() ?? 'Open the protected processing receipt for this check’s comparison status.',
+          message: displayMessage,
         ),
         if (citations is List && citations.isNotEmpty) ...[
           const SizedBox(height: 8),
@@ -1428,6 +1473,10 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
         .length;
 
     final appliedCount = _appliedReplacements.length;
+    final hasEdits = _hasContentEdits;
+    final ver = widget.contentVersion ?? 1;
+    final isDraft = widget.reviewStatus == 'draft';
+    final canSubmitNow = !submitted && (isDraft || hasEdits);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
@@ -1457,8 +1506,18 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
                   style: AppTheme.monoLabel(),
                 ),
                 Text(
-                  'Reviewer decision required',
-                  style: AppTheme.monoLabel(color: AppTheme.danger),
+                  submitted
+                      ? 'Submitted for authorised review'
+                      : hasEdits
+                      ? 'Text updated — ready to submit for review'
+                      : isDraft
+                      ? 'Inspection complete — ready to submit'
+                      : ver <= 1
+                      ? 'Submitted for review'
+                      : 'Revision $ver queued for review',
+                  style: AppTheme.monoLabel(
+                    color: canSubmitNow ? AppTheme.tealText : AppTheme.muted,
+                  ),
                 ),
               ],
             ),
@@ -1467,8 +1526,15 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
               width: double.infinity,
               height: 50,
               child: FilledButton(
-                onPressed: (submitted || isSubmitting) ? null : submitForReview,
-                style: FilledButton.styleFrom(backgroundColor: AppTheme.teal),
+                key: const ValueKey('submit-authorised-review'),
+                onPressed: isSubmitting
+                    ? null
+                    : canSubmitNow
+                    ? submitForReview
+                    : () => Navigator.maybePop(context),
+                style: FilledButton.styleFrom(
+                  backgroundColor: canSubmitNow ? AppTheme.teal : AppTheme.navy,
+                ),
                 child: isSubmitting
                     ? SizedBox(
                         width: 20,
@@ -1482,13 +1548,24 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.verified_user_outlined, size: 18),
+                          Icon(
+                            canSubmitNow
+                                ? Icons.verified_user_outlined
+                                : Icons.check_circle_outline_rounded,
+                            size: 18,
+                          ),
                           const SizedBox(width: 8),
                           Flexible(
                             child: Text(
                               submitted
-                                  ? 'Submission processed'
-                                  : 'Submit for authorised review',
+                                  ? 'Done · Submitted for review'
+                                  : hasEdits
+                                  ? 'Submit edited changes for review'
+                                  : isDraft
+                                  ? 'Submit for authorised review'
+                                  : ver <= 1
+                                  ? 'Done · Submitted for review'
+                                  : 'Done · Revision $ver queued',
                               maxLines: 2,
                               textAlign: TextAlign.center,
                               overflow: TextOverflow.ellipsis,

@@ -245,11 +245,14 @@ def preflight_fact_claim_checks(
 
 def retrieve_facts(content, brand_name="Acme", facts=None, check_at=None, channel="all"):
     """Rank overlapping 3,000-character passages, filtered to active point-in-time facts."""
+    active = active_facts_for_brand(
+        brand_name=brand_name, facts=facts, check_at=check_at, channel=channel
+    )
+    if not active:
+        return []
     query = {w for w in re.findall(r"\w+", content.casefold()) if len(w) >= 3}
     ranked = []
-    for fact in active_facts_for_brand(
-        brand_name=brand_name, facts=facts, check_at=check_at, channel=channel
-    ):
+    for fact in active:
         text = fact.get("content", "")
         for start in range(0, len(text), 2700):
             excerpt = text[start : start + 3000]
@@ -270,13 +273,133 @@ def retrieve_facts(content, brand_name="Acme", facts=None, check_at=None, channe
                         },
                     )
                 )
+    if ranked:
+        return [
+            fact for _, fact in sorted(ranked, key=lambda row: row[0], reverse=True)[:5]
+        ]
+    # If active verified facts exist for this brand/date/channel but used different wording
+    # than the draft (0 lexical keyword overlap), pass their opening passages so AI can
+    # evaluate paraphrases or contradictions instead of falsely abstaining.
     return [
-        fact for _, fact in sorted(ranked, key=lambda row: row[0], reverse=True)[:5]
+        fact
+        | {
+            "_excerpt": fact.get("content", "")[:3000],
+            "_start": 0,
+            "_passage_id": f'{fact["id"]}:0',
+        }
+        for fact in active[:3]
+        if fact.get("content", "").strip()
     ]
 
 
 def abstain(message):
     return {"status": "abstained", "message": message, "findings": [], "citations": []}
+
+
+_SUPPORTED_AI_PROVIDERS = {"openai", "openrouter", "gemini"}
+_GEMINI_FALLBACK_MODELS = (
+    "gemini-3.5-flash-lite",
+    "gemini-3.8-flash",
+    "gemini-3.6-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-2.5-flash-lite",
+)
+
+
+def _is_gemini_endpoint() -> bool:
+    return (
+        config.AI_PROVIDER == "gemini"
+        or "generativelanguage.googleapis.com" in (config.AI_BASE_URL or "").lower()
+    )
+
+
+def _chat_completions_url() -> str:
+    base = (config.AI_BASE_URL or "").strip().rstrip("/")
+    if base.endswith("/chat/completions"):
+        return base
+    if (
+        config.AI_PROVIDER == "gemini"
+        and "generativelanguage.googleapis.com" in base.lower()
+        and base.lower().endswith("/v1beta")
+    ):
+        return base + "/openai/chat/completions"
+    return base + "/chat/completions"
+
+
+def _is_openrouter_free_model() -> bool:
+    model = (config.AI_MODEL or "").strip().lower()
+    return config.AI_PROVIDER == "openrouter" and (
+        model.endswith(":free") or model in {"openrouter/free", "openrouter/auto"}
+    )
+
+
+def _strip_code_fences(raw_text: str) -> str:
+    text = (raw_text or "").strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*\n?", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\n?```\s*$", "", text)
+    return text.strip()
+
+
+def _build_chat_payload(
+    *,
+    system: str,
+    user_payload: str,
+    is_gemini: bool,
+    is_openrouter_free: bool,
+    use_json_object_fallback: bool = False,
+    model_override: str | None = None,
+) -> dict:
+    schema = VerificationOutput.model_json_schema()
+    sys_prompt = system
+    if use_json_object_fallback:
+        sys_prompt += (
+            " Respond with a single valid JSON object matching this exact schema: "
+            + json.dumps(schema)
+        )
+    response_format = (
+        {"type": "json_object"}
+        if use_json_object_fallback
+        else {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "brand_verification",
+                "strict": True,
+                "schema": schema,
+            },
+        }
+    )
+    model_name = model_override or config.AI_MODEL
+    payload = {
+        "model": model_name,
+        "response_format": response_format,
+        "messages": [
+            {"role": "system", "content": sys_prompt},
+            {"role": "user", "content": user_payload},
+        ],
+    }
+    if is_gemini:
+        payload["max_tokens"] = 3000
+    else:
+        payload["store"] = False
+        payload["max_completion_tokens"] = 3000
+        if config.AI_PROVIDER == "openrouter":
+            policy = getattr(config, "AI_DATA_COLLECTION", "")
+            provider_cfg: dict = {}
+            if not use_json_object_fallback:
+                provider_cfg["require_parameters"] = True
+            if policy in {"deny", "allow"}:
+                if policy == "deny":
+                    provider_cfg["data_collection"] = "deny"
+            elif not is_openrouter_free:
+                provider_cfg["data_collection"] = "deny"
+            if provider_cfg:
+                payload["provider"] = provider_cfg
+            if "/gpt-5" in model_name:
+                payload["reasoning"] = {"effort": "low", "exclude": True}
+        elif model_name.startswith("gpt-5"):
+            payload["reasoning_effort"] = "low"
+    return payload
 
 
 def run_ai_verification(
@@ -289,16 +412,40 @@ def run_ai_verification(
 ):
     if len(content) > 12000:
         return abstain(
-            "Content exceeds the 12,000-character AI limit; deterministic checks still ran."
+            "Your draft is over the 12,000-character AI check limit, so AI fact comparison was skipped. Standard brand rule checks still ran."
         )
+    ai_ready = (
+        config.AI_PROVIDER in _SUPPORTED_AI_PROVIDERS
+        and bool(config.AI_API_KEY)
+    )
     facts = retrieve_facts(
         content, brand_name, facts=brand_facts, check_at=check_at, channel=channel
     )
     if not facts:
-        return abstain("No relevant reviewer-verified source text is available.")
-    if config.AI_PROVIDER not in {"openai", "openrouter"} or not config.AI_API_KEY:
+        if not ai_ready:
+            return abstain(
+                f"AI fact check is off because no AI key is set in backend/.env and no verified Fact Source exists for '{brand_name}' yet. Standard brand rule checks still ran."
+            )
+        raw_facts = (
+            brand_facts
+            if brand_facts is not None
+            else read_json(config.DATA_DIR / "library_facts.json", [])
+        )
+        brand_rows = [
+            f
+            for f in raw_facts
+            if f.get("brand_name", "Acme").strip().casefold() == brand_name.strip().casefold()
+        ]
+        if brand_rows and not any(f.get("verified") and f.get("enabled", True) for f in brand_rows):
+            return abstain(
+                f"Found {len(brand_rows)} Fact Source(s) for '{brand_name}', but none are verified yet. Open Guidelines → Fact Sources and tap 'Verify source for AI' to turn on AI fact comparison. Standard brand rule checks still ran."
+            )
         return abstain(
-            "AI provider/key is not configured. Deterministic checks still ran."
+            f"No verified Fact Source is set up for '{brand_name}' yet, so AI fact comparison was skipped (standard brand rule checks still ran). Add and verify one under Guidelines → Fact Sources."
+        )
+    if not ai_ready:
+        return abstain(
+            "AI fact check is off because no AI provider key is configured in backend/.env yet. Standard brand rule checks still ran."
         )
     trusted = {fact["_passage_id"]: fact for fact in facts}
     source_data = [
@@ -319,51 +466,74 @@ def run_ai_verification(
         "Use needs_review only for grounded contradictions with findings. Otherwise use abstained. "
         "Never invent sources, source quotations, numbers or verdicts. Model assessment is not human publication approval."
     )
+    user_payload = json.dumps({"submitted_content": content, "sources": source_data})
+    is_gemini = _is_gemini_endpoint()
+    is_openrouter_free = _is_openrouter_free_model()
+    endpoint_url = _chat_completions_url()
+    active_model = config.AI_MODEL
     try:
-        payload = {
-            "model": config.AI_MODEL,
-            "store": False,
-            "max_completion_tokens": 3000,
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "brand_verification",
-                    "strict": True,
-                    "schema": VerificationOutput.model_json_schema(),
-                },
-            },
-            "messages": [
-                {"role": "system", "content": system},
-                {
-                    "role": "user",
-                    "content": json.dumps(
-                        {"submitted_content": content, "sources": source_data}
-                    ),
-                },
-            ],
-        }
-        if config.AI_PROVIDER == "openrouter":
-            payload["provider"] = {
-                "require_parameters": True,
-                "data_collection": "deny",
-            }
-            if "/gpt-5" in config.AI_MODEL:
-                payload["reasoning"] = {"effort": "low", "exclude": True}
-        elif config.AI_MODEL.startswith("gpt-5"):
-            payload["reasoning_effort"] = "low"
-        response = httpx.post(
-            config.AI_BASE_URL + "/chat/completions",
-            headers={"Authorization": f"Bearer {config.AI_API_KEY}"},
-            json=payload,
-            timeout=25,
-        )
-        response.raise_for_status()
+        headers = {"Authorization": f"Bearer {config.AI_API_KEY}"}
+
+        def _send(model_name: str, json_fallback: bool):
+            body = _build_chat_payload(
+                system=system,
+                user_payload=user_payload,
+                is_gemini=is_gemini,
+                is_openrouter_free=is_openrouter_free,
+                use_json_object_fallback=json_fallback,
+                model_override=model_name,
+            )
+            return httpx.post(
+                endpoint_url,
+                headers=headers,
+                json=body,
+                timeout=25,
+            )
+
+        response = _send(active_model, False)
+        if response.status_code == 400 and (is_openrouter_free or is_gemini):
+            response = _send(active_model, True)
+        elif response.status_code == 404 and is_openrouter_free:
+            response = _send(active_model, True)
+
+        if response.status_code == 404 and is_gemini:
+            for candidate in _GEMINI_FALLBACK_MODELS:
+                if candidate == active_model:
+                    continue
+                retry = _send(candidate, False)
+                if retry.status_code == 400:
+                    retry = _send(candidate, True)
+                response = retry
+                active_model = candidate
+                if response.status_code != 404:
+                    break
+
+        if response.is_error:
+            code = response.status_code
+            if code in (401, 403):
+                return abstain(
+                    "AI fact check skipped: your AI API key wasn't accepted by the provider. Check AI_API_KEY in backend/.env — standard brand rule checks still ran."
+                )
+            if code == 402:
+                return abstain(
+                    "AI fact check skipped: your AI account has no remaining credits. Switch AI_MODEL to a free model (such as Gemini 'gemini-3.5-flash-lite' or an OpenRouter ':free' model) or add credits — standard brand rule checks still ran."
+                )
+            if code == 404:
+                return abstain(
+                    f"AI fact check skipped: the configured AI model ('{config.AI_MODEL}') isn't active on this AI account. Update AI_MODEL in backend/.env (try 'gemini-3.5-flash-lite' for Gemini or an active ':free' model for OpenRouter) — standard brand rule checks still ran."
+                )
+            if code == 429:
+                return abstain(
+                    "AI fact check paused: your free AI rate limit was reached for a moment. Wait a few seconds and retry — standard brand rule checks still ran."
+                )
+            response.raise_for_status()
         choice = response.json()["choices"][0]
         if choice.get("finish_reason") != "stop" or choice["message"].get("refusal"):
             return abstain(
-                "The provider refused or did not complete its response. No AI pass was claimed."
+                "AI fact check skipped because the AI model didn't finish its answer. Standard brand rule checks still ran."
             )
-        result = VerificationOutput.model_validate_json(choice["message"]["content"])
+        raw_content = _strip_code_fences(choice["message"]["content"] or "")
+        result = VerificationOutput.model_validate_json(raw_content)
         if result.status == "abstained":
             return abstain(result.message[:2000])
 
@@ -433,7 +603,7 @@ def run_ai_verification(
         return {
             "status": result.status,
             "message": result.message[:2000],
-            "model": config.AI_MODEL,
+            "model": active_model,
             "findings": findings,
             "citations": list(unique.values()),
             "retrieval": "lexical_passages",
@@ -447,5 +617,5 @@ def run_ai_verification(
         AttributeError,
     ):
         return abstain(
-            "AI service failed or returned invalid/ungrounded output. No AI pass was claimed."
+            "AI fact check skipped because the AI service timed out or couldn't match its answer to your verified sources. Standard brand rule checks still ran."
         )

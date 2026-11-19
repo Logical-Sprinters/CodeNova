@@ -16,6 +16,17 @@ class BrandGuardShell extends StatefulWidget {
 
   final int initialIndex;
 
+  static int _tabSeq = 0;
+  static final ValueNotifier<(int, int)> _tabRequests =
+      ValueNotifier<(int, int)>((0, 0));
+  static final List<_BrandGuardShellState> _activeShells = [];
+
+  static bool get hasMountedShell => _activeShells.any((s) => s.mounted);
+
+  static void openTab(int index) {
+    _tabRequests.value = (index, ++_tabSeq);
+  }
+
   @override
   State<BrandGuardShell> createState() => _BrandGuardShellState();
 }
@@ -24,11 +35,32 @@ class _BrandGuardShellState extends State<BrandGuardShell> {
   late int _index = widget.initialIndex;
   int _pending = 0;
   int _unread = 0;
+  int _homeRefreshTick = 0;
+  int _reviewsRefreshTick = 0;
 
   @override
   void initState() {
     super.initState();
+    BrandGuardShell._activeShells.add(this);
+    BrandGuardShell._tabRequests.addListener(_onTabRequested);
+    BrandGuardApiService.syncTick.addListener(_onDataSynced);
     _refreshBadges();
+  }
+
+  @override
+  void dispose() {
+    BrandGuardShell._activeShells.remove(this);
+    BrandGuardShell._tabRequests.removeListener(_onTabRequested);
+    BrandGuardApiService.syncTick.removeListener(_onDataSynced);
+    super.dispose();
+  }
+
+  void _onTabRequested() {
+    if (mounted) _select(BrandGuardShell._tabRequests.value.$1);
+  }
+
+  void _onDataSynced() {
+    if (mounted) _refreshBadges();
   }
 
   /// Best-effort badge counts with one retry. A failure here never blocks
@@ -56,20 +88,23 @@ class _BrandGuardShellState extends State<BrandGuardShell> {
   }
 
   void _select(int value) {
-    if (value == _index) return;
-    setState(() => _index = value);
+    setState(() {
+      _index = value;
+      if (value == 0) _homeRefreshTick++;
+      if (value == 2) _reviewsRefreshTick++;
+    });
     _refreshBadges();
   }
 
   @override
   Widget build(BuildContext context) {
     AppTheme.watch(context);
-    const pages = [
-      HomeDashboardScreen(embedded: true),
-      WorkspaceHubScreen(embedded: true),
-      ReviewQueueScreen(embedded: true),
-      GuidelinesHubScreen(embedded: true),
-      ProfileScreen(embedded: true),
+    final pages = [
+      HomeDashboardScreen(embedded: true, refreshTick: _homeRefreshTick),
+      const WorkspaceHubScreen(embedded: true),
+      ReviewQueueScreen(embedded: true, refreshTick: _reviewsRefreshTick),
+      const GuidelinesHubScreen(embedded: true),
+      const ProfileScreen(embedded: true),
     ];
 
     return Scaffold(

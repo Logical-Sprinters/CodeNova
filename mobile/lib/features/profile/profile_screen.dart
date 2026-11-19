@@ -323,19 +323,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
           title: 'My profile',
           subtitle: 'Display name and session identity',
           onTap: () => _open(
-            _MyProfileSheet(
-              status: _status,
-              onEditName: _editName,
-            ),
+            _MyProfileSheet(onEditName: _editName),
           ),
         ),
         const SizedBox(height: 8),
         NavigationRow(
           icon: Icons.password_rounded,
           title: 'Password & sessions',
-          subtitle: 'Tokens live in memory; sign in again to rotate them.',
+          subtitle: 'Change your password and view active session details',
           tone: Tone.info,
-          onTap: () => _open(const _SessionInfoSheet()),
+          onTap: () => _open(
+            _SessionInfoSheet(
+              authProvider: _status?['auth_provider']?.toString() ?? 'local',
+            ),
+          ),
         ),
         const SizedBox(height: 8),
         NavigationRow(
@@ -489,38 +490,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 16),
-        SurfaceCard(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'CONNECTED BACKEND',
-                style: AppTheme.monoLabel(color: AppTheme.muted),
-              ),
-              const SizedBox(height: 8),
-              DetailRow(
-                label: 'Auth provider',
-                value: '${_status?['auth_provider'] ?? '—'}',
-              ),
-              DetailRow(
-                label: 'Database',
-                value: '${_status?['database'] ?? '—'}',
-              ),
-              DetailRow(
-                label: 'AI comparison',
-                value: _status?['ai_configured'] == true
-                    ? 'Configured'
-                    : 'Disabled · abstains',
-                valueColor: _status?['ai_configured'] == true
-                    ? AppTheme.success
-                    : AppTheme.warning,
-              ),
-              DetailRow(label: 'App version', value: '2.1.0 (build 4)'),
-            ],
-          ),
-        ),
         const SizedBox(height: 18),
         SizedBox(
           height: 48,
@@ -564,12 +533,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 }
 
 class _MyProfileSheet extends StatelessWidget {
-  const _MyProfileSheet({
-    required this.status,
-    required this.onEditName,
-  });
+  const _MyProfileSheet({required this.onEditName});
 
-  final Map<String, dynamic>? status;
   final Future<void> Function([BuildContext?]) onEditName;
 
   @override
@@ -651,14 +616,6 @@ class _MyProfileSheet extends StatelessWidget {
                       value: user?.role ?? '—',
                     ),
                     DetailRow(
-                      label: 'Auth provider',
-                      value: '${status?['auth_provider'] ?? 'local'}',
-                    ),
-                    DetailRow(
-                      label: 'Database',
-                      value: '${status?['database'] ?? 'sqlite'}',
-                    ),
-                    DetailRow(
                       label: 'Session state',
                       value: session.accessToken == null
                           ? 'Signed out'
@@ -683,8 +640,67 @@ class _MyProfileSheet extends StatelessWidget {
   }
 }
 
-class _SessionInfoSheet extends StatelessWidget {
-  const _SessionInfoSheet();
+class _SessionInfoSheet extends StatefulWidget {
+  const _SessionInfoSheet({this.authProvider = 'local'});
+
+  final String authProvider;
+
+  @override
+  State<_SessionInfoSheet> createState() => _SessionInfoSheetState();
+}
+
+class _SessionInfoSheetState extends State<_SessionInfoSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _currentCtrl = TextEditingController();
+  final _newCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+  bool _saving = false;
+  bool _hideCurrent = true;
+  bool _hideNew = true;
+  bool _hideConfirm = true;
+  String? _error;
+
+  @override
+  void dispose() {
+    _currentCtrl.dispose();
+    _newCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
+
+  bool get _isSupabase => widget.authProvider == 'supabase';
+
+  Future<void> _submit() async {
+    if (!(_formKey.currentState?.validate() ?? false) || _saving) return;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await BrandGuardApiService.changePassword(
+        newPassword: _newCtrl.text,
+        currentPassword: _currentCtrl.text,
+      );
+      await BrandGuardApiService.signOut();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password updated. Sign in again with your new password.'),
+        ),
+      );
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const SignInScreen()),
+        (_) => false,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = error.toString().replaceFirst('ApiException: ', '');
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -696,6 +712,112 @@ class _SessionInfoSheet extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(18),
         children: [
+          SurfaceCard(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Change password', style: AppTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Updating your password signs out active sessions for security.',
+                    style: AppTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 12),
+                  if (!_isSupabase) ...[
+                    TextFormField(
+                      key: const ValueKey('current-password'),
+                      controller: _currentCtrl,
+                      obscureText: _hideCurrent,
+                      enabled: !_saving,
+                      decoration: InputDecoration(
+                        labelText: 'Current password',
+                        suffixIcon: IconButton(
+                          tooltip: _hideCurrent ? 'Show' : 'Hide',
+                          onPressed: () =>
+                              setState(() => _hideCurrent = !_hideCurrent),
+                          icon: Icon(
+                            _hideCurrent
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                        ),
+                      ),
+                      validator: (v) =>
+                          (v == null || v.isEmpty) ? 'Enter your current password.' : null,
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  TextFormField(
+                    key: const ValueKey('new-password'),
+                    controller: _newCtrl,
+                    obscureText: _hideNew,
+                    enabled: !_saving,
+                    decoration: InputDecoration(
+                      labelText: 'New password (min 8 chars)',
+                      suffixIcon: IconButton(
+                        tooltip: _hideNew ? 'Show' : 'Hide',
+                        onPressed: () => setState(() => _hideNew = !_hideNew),
+                        icon: Icon(
+                          _hideNew
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                      ),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.length < 8) {
+                        return 'Use at least 8 characters.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    key: const ValueKey('confirm-password'),
+                    controller: _confirmCtrl,
+                    obscureText: _hideConfirm,
+                    enabled: !_saving,
+                    decoration: InputDecoration(
+                      labelText: 'Confirm new password',
+                      suffixIcon: IconButton(
+                        tooltip: _hideConfirm ? 'Show' : 'Hide',
+                        onPressed: () =>
+                            setState(() => _hideConfirm = !_hideConfirm),
+                        icon: Icon(
+                          _hideConfirm
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                      ),
+                    ),
+                    validator: (v) =>
+                        v != _newCtrl.text ? 'Passwords do not match.' : null,
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 10),
+                    InlineNotice(
+                      tone: Tone.danger,
+                      title: 'Could not update password',
+                      message: _error!,
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      key: const ValueKey('update-password-btn'),
+                      onPressed: _saving ? null : _submit,
+                      icon: const Icon(Icons.lock_reset_rounded, size: 17),
+                      label: Text(_saving ? 'Updating…' : 'Update password'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           SurfaceCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -713,12 +835,14 @@ class _SessionInfoSheet extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          const InlineNotice(
-            tone: Tone.info,
-            title: 'How to change your password',
-            message: 'Supabase-hosted accounts: use “Reset access?” on the sign-in screen. Local server accounts: the API requires your current password, so ask an administrator.',
-          ),
+          if (_isSupabase) ...[
+            const SizedBox(height: 12),
+            const InlineNotice(
+              tone: Tone.info,
+              title: 'Forgot your password?',
+              message: 'Use “Reset access?” on the sign-in screen to request a password reset email.',
+            ),
+          ],
         ],
       ),
     );

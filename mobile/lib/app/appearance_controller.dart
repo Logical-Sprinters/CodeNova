@@ -12,7 +12,7 @@ class AppearanceController extends ChangeNotifier {
 
   static final AppearanceController instance = AppearanceController._();
 
-  AppearanceMode _mode = AppearanceMode.system;
+  AppearanceMode _mode = AppearanceMode.light;
   AppearanceMode get mode => _mode;
 
   /// Platform brightness, kept in sync by [BrandGuardApp].
@@ -46,12 +46,13 @@ class AppearanceController extends ChangeNotifier {
     if (_mode == AppearanceMode.system) notifyListeners();
   }
 
-  /// Parses a stored preference value; unknown input falls back to `system`.
+  /// Parses a stored preference value; unknown input falls back to `light`.
   static AppearanceMode parse(String? raw) {
     return switch (raw) {
       'light' => AppearanceMode.light,
       'dark' => AppearanceMode.dark,
-      _ => AppearanceMode.system,
+      'system' => AppearanceMode.system,
+      _ => AppearanceMode.light,
     };
   }
 

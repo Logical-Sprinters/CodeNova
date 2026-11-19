@@ -1,7 +1,7 @@
 """Review records, append-only approval seals, SHA-256 tamper verification, and diffs."""
 
 import copy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import difflib
 import hashlib
 import json
@@ -157,21 +157,39 @@ def get_record(check_id: str):
 
 def list_records(status: str | None = None):
     records = load_records()
-    return [r for r in records if r["status"] == status] if status else records
+    filtered = [r for r in records if r["status"] == status] if status else list(records)
+    return sorted(
+        filtered,
+        key=lambda r: (r.get("updated_at") or r.get("created_at") or ""),
+        reverse=True,
+    )
 
 
-def decide_record(check_id: str, decision: str, reviewer: str, note: str):
+def decide_record(
+    check_id: str,
+    decision: str,
+    reviewer: str,
+    note: str,
+    reviewer_name: str | None = None,
+    reviewer_email: str | None = None,
+):
     with STORE_LOCK:
         records = load_records()
         record = next((r for r in records if r["check_id"] == check_id), None)
         if not record or record["status"] != "pending":
             return None
         now_iso = datetime.now(timezone.utc).isoformat()
+        resolved_name = reviewer_name or reviewer
+        resolved_email = reviewer_email or ""
         record.update(
             status=decision,
             reviewer=reviewer,
+            reviewer_name=resolved_name,
+            reviewer_email=resolved_email,
             review_note=note,
             decided_at=now_iso,
+            initial_decided_at=record.get("initial_decided_at") or now_iso,
+            updated_at=now_iso,
         )
         if decision == "approved":
             asset_hashes = list(record.get("asset_hashes") or [])
@@ -194,16 +212,173 @@ def decide_record(check_id: str, decision: str, reviewer: str, note: str):
                 ),
                 "reviewer_id": reviewer,
                 "sealed_at": now_iso,
+                "revoked": False,
             }
             seals = load_seals()
             seals.append(seal)
             save_seals(seals)
             record["seal_id"] = seal["seal_id"]
             record["composite_hash"] = composite_hash
+        record.setdefault("decision_history", []).append(
+            {
+                "version": record["content_version"],
+                "decision": decision,
+                "kind": "initial",
+                "reviewer": reviewer,
+                "reviewer_name": resolved_name,
+                "reviewer_email": resolved_email,
+                "note": note,
+                "decided_at": now_iso,
+                "seal_id": record.get("seal_id"),
+            }
+        )
         if record.get("versions"):
             record["versions"][-1] = snapshot(record)
         save_records(records)
         return record
+
+
+def amend_record_decision(
+    check_id: str,
+    new_decision: str,
+    reviewer: str,
+    reason: str,
+    *,
+    window_minutes: int,
+    reviewer_name: str | None = None,
+    reviewer_email: str | None = None,
+):
+    with STORE_LOCK:
+        records = load_records()
+        record = next((r for r in records if r["check_id"] == check_id), None)
+        if not record:
+            return None, "not_found"
+        old_status = record.get("status")
+        if old_status not in {"approved", "rejected", "changes_requested"}:
+            return None, "invalid_status"
+        if old_status == new_decision:
+            return None, "same_decision"
+
+        now_dt = datetime.now(timezone.utc)
+        now_iso = now_dt.isoformat()
+        anchor_raw = record.get("initial_decided_at") or record.get("decided_at")
+        if not anchor_raw:
+            return None, "window_expired"
+        try:
+            normalized = (
+                anchor_raw[:-1] + "+00:00"
+                if str(anchor_raw).endswith(("Z", "z"))
+                else str(anchor_raw)
+            )
+            anchor_dt = datetime.fromisoformat(normalized)
+            if anchor_dt.tzinfo is None:
+                anchor_dt = anchor_dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None, "window_expired"
+
+        if now_dt > anchor_dt + timedelta(minutes=window_minutes):
+            return None, "window_expired"
+
+        resolved_name = reviewer_name or reviewer
+        resolved_email = reviewer_email or ""
+        revoked_seal_id = None
+        seals = load_seals()
+        seals_changed = False
+
+        if old_status == "approved":
+            for seal in seals:
+                if (
+                    seal.get("check_id") == check_id
+                    and seal.get("content_version") == record.get("content_version")
+                    and not seal.get("revoked")
+                ):
+                    seal["revoked"] = True
+                    seal["revoked_at"] = now_iso
+                    seal["revoked_by"] = reviewer
+                    seal["revocation_reason"] = reason
+                    revoked_seal_id = seal.get("seal_id")
+                    seals_changed = True
+            record["seal_id"] = None
+
+        if new_decision == "approved":
+            asset_hashes = list(record.get("asset_hashes") or [])
+            composite_hash = record.get("composite_hash") or generate_composite_hash(
+                record["brand_name"], record["content"], asset_hashes
+            )
+            seal = {
+                "seal_id": str(uuid4()),
+                "check_id": check_id,
+                "content_version": record["content_version"],
+                "brand_name": record["brand_name"],
+                "snapshot_text": record["content"],
+                "snapshot_asset_ids": list(record.get("asset_ids") or []),
+                "snapshot_asset_hashes": sorted(asset_hashes),
+                "content_hash": record["content_hash"],
+                "composite_hash": composite_hash,
+                "rules_version": record.get("rules_version"),
+                "active_rule_versions": copy.deepcopy(
+                    record.get("active_rule_versions") or {}
+                ),
+                "reviewer_id": reviewer,
+                "sealed_at": now_iso,
+                "revoked": False,
+            }
+            seals.append(seal)
+            seals_changed = True
+            record["seal_id"] = seal["seal_id"]
+            record["composite_hash"] = composite_hash
+
+        if seals_changed:
+            save_seals(seals)
+
+        record.update(
+            status=new_decision,
+            reviewer=reviewer,
+            reviewer_name=resolved_name,
+            reviewer_email=resolved_email,
+            review_note=reason,
+            decided_at=now_iso,
+            initial_decided_at=anchor_dt.astimezone(timezone.utc).isoformat(),
+            updated_at=now_iso,
+        )
+        history = record.setdefault("decision_history", [])
+        if not history:
+            history.append(
+                {
+                    "version": record["content_version"],
+                    "decision": old_status,
+                    "kind": "initial",
+                    "reviewer": record.get("reviewer"),
+                    "reviewer_name": record.get("reviewer_name") or record.get("reviewer"),
+                    "reviewer_email": record.get("reviewer_email") or "",
+                    "note": "",
+                    "decided_at": anchor_raw,
+                    "seal_id": revoked_seal_id,
+                }
+            )
+        history.append(
+            {
+                "version": record["content_version"],
+                "decision": new_decision,
+                "previous_decision": old_status,
+                "kind": "amended",
+                "reviewer": reviewer,
+                "reviewer_name": resolved_name,
+                "reviewer_email": resolved_email,
+                "note": reason,
+                "decided_at": now_iso,
+                "seal_id": record.get("seal_id"),
+                "revoked_seal_id": revoked_seal_id,
+            }
+        )
+        if record.get("versions"):
+            record["versions"][-1] = snapshot(record)
+        save_records(records)
+        return {
+            "record": record,
+            "previous_decision": old_status,
+            "revoked_seal_id": revoked_seal_id,
+        }, None
 
 
 def get_latest_seal(check_id: str, content_version: int | None = None) -> dict | None:
@@ -234,6 +409,21 @@ def verify_approval(
             "tampered_tokens": [],
         }
     if record["status"] != "approved":
+        prior_seal = get_latest_seal(check_id, record.get("content_version"))
+        if prior_seal and prior_seal.get("revoked"):
+            return {
+                "valid": False,
+                "seal_status": "REVOKED",
+                "reason": (
+                    f"APPROVAL REVOKED — {prior_seal.get('revocation_reason') or 'Superseded by amended reviewer decision.'}"
+                ),
+                "seal_id": prior_seal.get("seal_id"),
+                "revoked_at": prior_seal.get("revoked_at"),
+                "revoked_by": prior_seal.get("revoked_by"),
+                "rule_changes": [],
+                "diff_segments": [],
+                "tampered_tokens": [],
+            }
         return {
             "valid": False,
             "seal_status": "NOT_APPROVED",

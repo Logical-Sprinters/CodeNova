@@ -5,12 +5,22 @@ import '../../app/ui/app_widgets.dart';
 import '../../app/ui/brandguard_shell.dart';
 import '../../core/auth/session.dart';
 import '../../core/network/brandguard_api_service.dart';
+import '../checks/new_brand_check_screen.dart';
 import '../governance/conflicts_screen.dart';
 
 class ReviewQueueScreen extends StatefulWidget {
-  const ReviewQueueScreen({super.key, this.embedded = false});
+  const ReviewQueueScreen({
+    super.key,
+    this.embedded = false,
+    this.refreshTick = 0,
+    this.initialTab = 'Pending',
+    this.initialCheckId,
+  });
 
   final bool embedded;
+  final int refreshTick;
+  final String initialTab;
+  final String? initialCheckId;
 
   @override
   State<ReviewQueueScreen> createState() => _ReviewQueueScreenState();
@@ -26,7 +36,10 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
     ('CHANNEL_EXEMPTION', 'Channel exemption'),
   ];
 
-  String selectedTab = 'Pending';
+  late String selectedTab = widget.initialTab;
+  bool _openedInitialCheck = false;
+  bool _fetching = false;
+  bool _queuedReload = false;
 
   List<Map<String, dynamic>> _backendReviews = [];
   bool isLoading = true;
@@ -37,11 +50,36 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
   @override
   void initState() {
     super.initState();
+    BrandGuardApiService.syncTick.addListener(_onDataSynced);
     _loadReviews();
   }
 
-  Future<void> _loadReviews() async {
-    if (!isLoading) setState(() => isLoading = true);
+  @override
+  void didUpdateWidget(covariant ReviewQueueScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.refreshTick != oldWidget.refreshTick) {
+      _loadReviews(silent: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    BrandGuardApiService.syncTick.removeListener(_onDataSynced);
+    super.dispose();
+  }
+
+  void _onDataSynced() {
+    if (mounted) _loadReviews(silent: true);
+  }
+
+  Future<void> _loadReviews({bool silent = false}) async {
+    if (_fetching) {
+      _queuedReload = true;
+      return;
+    }
+    _fetching = true;
+    _queuedReload = false;
+    if (!silent && !isLoading) setState(() => isLoading = true);
     try {
       final result = await _reviewsWithRetry();
 
@@ -54,9 +92,14 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
         final assetIds = (review['asset_ids'] as List?) ?? [];
         final conflicts = (review['conflicts'] as List?) ?? [];
 
-        final createdAt = DateTime.tryParse(
-          review['created_at']?.toString() ?? '',
-        );
+        final createdAtRaw = review['created_at']?.toString();
+        final updatedAtRaw = review['updated_at']?.toString();
+        final createdAt = DateTime.tryParse(createdAtRaw ?? '')?.toLocal();
+        final updatedAt = DateTime.tryParse(updatedAtRaw ?? '')?.toLocal();
+        final sortInstant =
+            updatedAt ??
+            createdAt ??
+            DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
 
         final severityLevels = findings
             .map((f) => f['severity']?.toString().toLowerCase())
@@ -71,47 +114,91 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
             : 'Low';
 
         final rawStatus = review['status']?.toString() ?? 'pending';
+        final rawNote = review['review_note']?.toString() ?? '';
         final mappedStatus = switch (rawStatus) {
           'approved' => 'Approved',
+          'changes_requested' => 'Changes Requested',
+          'rejected' when rawNote.startsWith('Changes requested:') =>
+            'Changes Requested',
           'rejected' => 'Rejected',
-          'review_paused_conflict' => 'Conflict',
+          'paused_conflict' || 'review_paused_conflict' => 'Conflict',
           'completed' => 'Completed',
           _ => 'Pending',
         };
+        final contentVer = (review['content_version'] as num?)?.toInt() ?? 1;
+        final versionLabel =
+            contentVer <= 1 ? 'Submission' : 'Rev $contentVer';
+        final creatorId = review['creator_id']?.toString() ?? 'Unknown';
+        final creatorName =
+            (review['creator_name']?.toString().trim().isNotEmpty ?? false)
+            ? review['creator_name'].toString().trim()
+            : creatorId;
+        final creatorEmail =
+            review['creator_email']?.toString().trim() ?? '';
+        final reviewerId = review['reviewer']?.toString();
+        final reviewerName =
+            (review['reviewer_name']?.toString().trim().isNotEmpty ?? false)
+            ? review['reviewer_name'].toString().trim()
+            : reviewerId;
+        final reviewerEmail =
+            review['reviewer_email']?.toString().trim() ?? '';
+        final aiVerification = review['ai_verification'] is Map
+            ? Map<String, dynamic>.from(review['ai_verification'] as Map)
+            : null;
+        final aiStatus = aiVerification?['status']?.toString();
+        final decisionHistory = (review['decision_history'] as List? ?? [])
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
 
         return <String, dynamic>{
           'id': review['check_id']?.toString() ?? '',
+          'parentCheckId': review['parent_check_id']?.toString(),
           'title': '${review['brand_name'] ?? 'Unknown'} Brand Check',
-          'creator': review['creator_id']?.toString() ?? 'Unknown',
+          'creator': creatorName,
+          'creatorName': creatorName,
+          'creatorEmail': creatorEmail,
           'channel': review['channel']?.toString() ?? 'all',
           'checkAt': review['check_at']?.toString(),
           'assetIds': assetIds.map((e) => e.toString()).toList(),
           'conflicts': conflicts,
-          'date': createdAt == null
-              ? 'Unknown'
-              : '${createdAt.day.toString().padLeft(2, '0')} '
-                    '${createdAt.month.toString().padLeft(2, '0')} '
-                    '${createdAt.year}',
+          'date': _formatExactLocalDateTime(createdAtRaw),
+          'createdAtRaw': createdAtRaw,
+          'updatedAtRaw': updatedAtRaw,
+          'sortEpochMs': sortInstant.millisecondsSinceEpoch,
           'status': mappedStatus,
           'findings': findings.length,
-          'version': 'v${review['content_version'] ?? 1}',
-          'contentVersion': review['content_version'] as int?,
-          'creatorId': review['creator_id'],
+          'version': versionLabel,
+          'contentVersion': contentVer,
+          'creatorId': creatorId,
           'contentText': review['content']?.toString() ?? '',
           'ocrText': review['ocr_text']?.toString() ?? '',
           'rulesVersion': review['rules_version']?.toString() ?? 'Base rules',
+          'aiStatus': aiStatus,
           'risk': risk,
           'description':
               'Automated brand compliance check for ${review['brand_name']}. '
               'This review contains ${findings.length} detected findings.',
-          'decisionBy': review['reviewer'],
+          'decisionBy': reviewerName,
+          'decisionByEmail': reviewerEmail,
           'decisionReason': review['review_note'],
           'decisionAt': review['decided_at'],
+          'canAmend': review['can_amend'] == true,
+          'amendWindowMinutes':
+              (review['amend_window_minutes'] as num?)?.toInt() ?? 60,
+          'amendDeadline': review['amend_deadline']?.toString(),
+          'amendRemainingSeconds':
+              (review['amend_remaining_seconds'] as num?)?.toInt() ?? 0,
+          'decisionHistory': decisionHistory,
           'contentHash': review['content_hash'],
+          'compositeHash': review['composite_hash'],
           'backendFindings': findings,
           'brandName': review['brand_name']?.toString() ?? '',
         };
-      }).toList();
+      }).toList()
+        ..sort(
+          (a, b) => (b['sortEpochMs'] as int).compareTo(a['sortEpochMs'] as int),
+        );
 
       if (!mounted) return;
 
@@ -120,13 +207,33 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
         isLoading = false;
         loadError = null;
       });
+
+      final targetId = widget.initialCheckId;
+      if (targetId != null && !_openedInitialCheck) {
+        _openedInitialCheck = true;
+        final match = mappedReviews
+            .where((r) => r['id'] == targetId)
+            .toList();
+        if (match.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) openReviewDetails(match.first);
+          });
+        }
+      }
     } catch (e) {
       if (!mounted) return;
-
-      setState(() {
-        isLoading = false;
-        loadError = e.toString();
-      });
+      if (!silent || _backendReviews.isEmpty) {
+        setState(() {
+          isLoading = false;
+          loadError = e.toString();
+        });
+      }
+    } finally {
+      _fetching = false;
+      if (_queuedReload && mounted) {
+        _queuedReload = false;
+        _loadReviews(silent: true);
+      }
     }
   }
 
@@ -154,6 +261,9 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
   int get pendingCount =>
       reviews.where((item) => item['status'] == 'Pending').length;
 
+  int get changesRequestedCount =>
+      reviews.where((item) => item['status'] == 'Changes Requested').length;
+
   int get conflictCount =>
       reviews.where((item) => item['status'] == 'Conflict').length;
 
@@ -163,12 +273,13 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
   int get rejectedCount =>
       reviews.where((item) => item['status'] == 'Rejected').length;
 
-  void showMessage(String message) {
+  void showMessage(String message, {SnackBarAction? action}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
         backgroundColor: AppTheme.navy,
         behavior: SnackBarBehavior.floating,
+        action: action,
       ),
     );
   }
@@ -354,8 +465,9 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
     final backendDecision = decision == 'Approved' ? 'approved' : 'rejected';
 
     try {
+      final checkId = review['id'].toString();
       await BrandGuardApiService.decideReview(
-        checkId: review['id'].toString(),
+        checkId: checkId,
         expectedVersion: review['contentVersion'] as int?,
         decision: backendDecision,
         note: decision == 'Approved'
@@ -369,7 +481,20 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
 
       await _loadReviews();
 
-      showMessage('Review status updated: $decision');
+      if (!mounted) return;
+      final refreshed = reviews.where((r) => r['id'] == checkId).toList();
+      showMessage(
+        'Review status updated: $decision',
+        action: refreshed.isNotEmpty && _withinAmendWindow(refreshed.first)
+            ? SnackBarAction(
+                label: 'Undo / Amend',
+                textColor: AppTheme.mintBright,
+                onPressed: () {
+                  if (mounted) _showAmendDecisionDialog(refreshed.first);
+                },
+              )
+            : null,
+      );
     } catch (e) {
       showMessage('Unable to update review: $e');
     }
@@ -393,10 +518,29 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                 .map((e) => e.toString())
                 .toList();
             final isReviewer = session.currentUser?.isReviewer ?? false;
+            final isOwner = review['creatorId'] == session.userId;
             final canDecide =
-                (status == 'Pending' || status == 'Changes Requested') &&
+                status == 'Pending' && isReviewer && !isOwner;
+            final canEditResubmit =
+                isOwner &&
+                (status == 'Changes Requested' ||
+                    status == 'Rejected' ||
+                    status == 'Pending');
+            final canAmendStatus =
                 isReviewer &&
-                review['creatorId'] != session.userId;
+                !isOwner &&
+                (status == 'Approved' ||
+                    status == 'Rejected' ||
+                    status == 'Changes Requested');
+            final withinAmendWindow =
+                canAmendStatus && _withinAmendWindow(review);
+            final windowMinutes =
+                (review['amendWindowMinutes'] as int?) ?? 60;
+            final decisionHistory =
+                (review['decisionHistory'] as List? ?? [])
+                    .whereType<Map>()
+                    .map((e) => Map<String, dynamic>.from(e))
+                    .toList();
 
             return Container(
               height: MediaQuery.of(context).size.height * 0.9,
@@ -438,6 +582,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                             ),
                           ),
                           IconButton(
+                            key: const ValueKey('close-review-sheet'),
                             onPressed: () => Navigator.pop(sheetContext),
                             icon: const Icon(Icons.close_rounded),
                           ),
@@ -526,6 +671,20 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                               ],
                             ),
                           ),
+                          if (status == 'Changes Requested') ...[
+                            const SizedBox(height: 12),
+                            InlineNotice(
+                              tone: Tone.warning,
+                              icon: Icons.edit_note_rounded,
+                              title: 'Changes requested by reviewer',
+                              message:
+                                  (review['decisionReason']?.toString() ?? '')
+                                      .trim()
+                                      .isNotEmpty
+                                  ? review['decisionReason'].toString()
+                                  : 'Update your submission copy or assets and resubmit for review.',
+                            ),
+                          ],
                           if (status == 'Conflict') ...[
                             const SizedBox(height: 12),
                             InlineNotice(
@@ -544,23 +703,91 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                             ),
                           ],
                           const SizedBox(height: 12),
-                          _detailSection('CONTENT INFORMATION', [
-                            _detailRow('Content ID', review['id']),
-                            _detailRow('Content version', review['version']),
-                            _detailRow('Rules version', review['rulesVersion']),
-                            _detailRow('Channel', review['channel'].toString()),
+                          _detailSection('AUTHORED BY & TIMELINE', [
+                            _detailRow(
+                              'Created by',
+                              review['creatorName'].toString(),
+                            ),
+                            if ((review['creatorEmail']?.toString() ?? '')
+                                .isNotEmpty)
+                              _detailRow(
+                                'Author email',
+                                review['creatorEmail'].toString(),
+                              ),
+                            _detailRow(
+                              'Submitted at',
+                              review['date'].toString(),
+                            ),
+                            if (review['updatedAtRaw'] != null &&
+                                review['updatedAtRaw'] !=
+                                    review['createdAtRaw'])
+                              _detailRow(
+                                'Last updated',
+                                _formatExactLocalDateTime(
+                                  review['updatedAtRaw']?.toString(),
+                                ),
+                              ),
+                            _detailRow(
+                              'Target channel',
+                              review['channel'].toString() == 'all'
+                                  ? 'All channels'
+                                  : review['channel'].toString(),
+                            ),
                             if (review['checkAt'] != null)
                               _detailRow(
-                                'Check date',
-                                review['checkAt'].toString(),
+                                'Rules evaluated as of',
+                                _formatRuleWindowDate(
+                                  review['checkAt']?.toString(),
+                                  review['createdAtRaw']?.toString(),
+                                ),
                               ),
-                            _detailRow('Attached assets', '${assetIds.length}'),
-                            _detailRow('Creator', review['creator']),
-                            _detailRow('Submitted', review['date']),
+                          ]),
+                          const SizedBox(height: 12),
+                          _detailSection('SUBMISSION & EVIDENCE DETAILS', [
+                            _detailRow('Check ID', review['id'].toString()),
+                            if ((review['parentCheckId']?.toString() ?? '')
+                                .isNotEmpty)
+                              _detailRow(
+                                'Derived from check',
+                                _shortHash(review['parentCheckId'].toString()),
+                              ),
+                            _detailRow(
+                              'Submission stage',
+                              (review['contentVersion'] as int? ?? 1) <= 1
+                                  ? 'Initial submission'
+                                  : 'Revision ${review['contentVersion']}',
+                            ),
+                            _detailRow(
+                              'Active ruleset',
+                              review['rulesVersion'].toString(),
+                            ),
+                            _detailRow(
+                              'Attached assets',
+                              assetIds.isEmpty
+                                  ? 'None (text only)'
+                                  : '${assetIds.length} attachment${assetIds.length == 1 ? '' : 's'}',
+                            ),
+                            _detailRow(
+                              'Findings & risk',
+                              '${review['findings']} · ${review['risk']} risk',
+                            ),
+                            if ((review['aiStatus']?.toString() ?? '')
+                                .isNotEmpty)
+                              _detailRow(
+                                'AI comparison',
+                                review['aiStatus']
+                                    .toString()
+                                    .replaceAll('_', ' '),
+                              ),
                             if (review['contentHash'] != null)
                               _detailRow(
-                                'Content hash',
+                                'Content SHA-256',
                                 _shortHash(review['contentHash'].toString()),
+                              ),
+                            if (review['compositeHash'] != null)
+                              _detailRow(
+                                'Composite SHA-256',
+                                _shortHash(review['compositeHash'].toString()),
                               ),
                           ]),
                           if (findings.isNotEmpty) ...[
@@ -599,6 +826,14 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                                 (review['decisionBy'] ?? 'Authorised Reviewer')
                                     .toString(),
                               ),
+                              if ((review['decisionByEmail']
+                                          ?.toString() ??
+                                      '')
+                                  .isNotEmpty)
+                                _detailRow(
+                                  'Reviewer email',
+                                  review['decisionByEmail'].toString(),
+                                ),
                               _detailRow(
                                 'Recorded at',
                                 _formatDecisionTime(
@@ -606,9 +841,59 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                                 ),
                               ),
                               _detailRow(
-                                'Reason',
+                                'Feedback / reason',
                                 (review['decisionReason'] ?? '—').toString(),
                               ),
+                              if (canAmendStatus)
+                                _detailRow(
+                                  'Grace window',
+                                  withinAmendWindow
+                                      ? '${_formatAmendRemaining(review)} ($windowMinutes min limit)'
+                                      : 'Closed ($windowMinutes min limit expired)',
+                                ),
+                              if (withinAmendWindow) ...[
+                                const SizedBox(height: 6),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => Navigator.pop(
+                                      sheetContext,
+                                      'AMEND_DECISION',
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: status == 'Approved'
+                                          ? AppTheme.danger
+                                          : AppTheme.tealText,
+                                      side: BorderSide(
+                                        color: status == 'Approved'
+                                            ? AppTheme.danger.withValues(
+                                                alpha: 0.4,
+                                              )
+                                            : AppTheme.teal,
+                                      ),
+                                    ),
+                                    icon: const Icon(
+                                      Icons.undo_rounded,
+                                      size: 16,
+                                    ),
+                                    label: Text(
+                                      status == 'Approved'
+                                          ? 'Revoke / switch decision'
+                                          : 'Amend / switch decision',
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ]),
+                          ],
+                          if (decisionHistory.length > 1) ...[
+                            const SizedBox(height: 12),
+                            _detailSection('DECISION HISTORY', [
+                              for (final entry in decisionHistory.reversed)
+                                _detailRow(
+                                  '${_formatDecisionLabel(entry['decision']?.toString() ?? '')} (${entry['kind'] == 'amended' ? 'Amended' : 'Initial'})',
+                                  '${entry['reviewer_name'] ?? entry['reviewer'] ?? 'Reviewer'} · ${_formatDecisionTime((entry['decided_at'] ?? '').toString())}\n${(entry['note'] ?? '').toString()}',
+                                ),
                             ]),
                           ],
                           const SizedBox(height: 12),
@@ -725,22 +1010,152 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                                 ),
                               ],
                             )
+                          : canEditResubmit
+                          ? Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 48,
+                                  child: FilledButton.icon(
+                                    key: const ValueKey(
+                                      'edit-resubmit-review',
+                                    ),
+                                    onPressed: () => Navigator.pop(
+                                      sheetContext,
+                                      'EDIT_RESUBMIT',
+                                    ),
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: AppTheme.teal,
+                                    ),
+                                    icon: const Icon(
+                                      Icons.edit_note_rounded,
+                                      size: 18,
+                                    ),
+                                    label: Text(
+                                      status == 'Changes Requested'
+                                          ? 'Edit & resubmit changes'
+                                          : 'Edit & resubmit',
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : status == 'Approved' && isOwner
+                          ? Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                InlineNotice(
+                                  tone: Tone.success,
+                                  title: 'Final decision already recorded',
+                                  message:
+                                      'This submission is cryptographically sealed. Create a new revised check to edit copy without modifying the approved record.',
+                                ),
+                                const SizedBox(height: 8),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 46,
+                                  child: OutlinedButton.icon(
+                                    key: const ValueKey(
+                                      'revise-approved-review',
+                                    ),
+                                    onPressed: () => Navigator.pop(
+                                      sheetContext,
+                                      'REVISE_APPROVED',
+                                    ),
+                                    icon: const Icon(
+                                      Icons.content_copy_rounded,
+                                      size: 17,
+                                    ),
+                                    label: const Text('Edit as new check'),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : canAmendStatus
+                          ? Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (withinAmendWindow) ...[
+                                  InlineNotice(
+                                    tone: status == 'Approved'
+                                        ? Tone.warning
+                                        : Tone.info,
+                                    title: status == 'Approved'
+                                        ? 'Approval recorded (${_formatAmendRemaining(review)})'
+                                        : 'Decision recorded (${_formatAmendRemaining(review)})',
+                                    message: status == 'Approved'
+                                        ? 'Accidental decision? You have ${_formatAmendRemaining(review)} ($windowMinutes min window) to revoke or amend. Revoking invalidates the cryptographic seal.'
+                                        : 'Accidental decision? You have ${_formatAmendRemaining(review)} ($windowMinutes min window) to amend this decision.',
+                                  ),
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 46,
+                                    child: OutlinedButton.icon(
+                                      key: const ValueKey(
+                                        'amend-decision-button',
+                                      ),
+                                      onPressed: () => Navigator.pop(
+                                        sheetContext,
+                                        'AMEND_DECISION',
+                                      ),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: status == 'Approved'
+                                            ? AppTheme.danger
+                                            : AppTheme.tealText,
+                                        side: BorderSide(
+                                          color: status == 'Approved'
+                                              ? AppTheme.danger.withValues(
+                                                  alpha: 0.4,
+                                                )
+                                              : AppTheme.teal,
+                                        ),
+                                      ),
+                                      icon: const Icon(
+                                        Icons.undo_rounded,
+                                        size: 17,
+                                      ),
+                                      label: Text(
+                                        status == 'Approved'
+                                            ? 'Revoke / amend decision'
+                                            : 'Amend decision',
+                                      ),
+                                    ),
+                                  ),
+                                ] else
+                                  InlineNotice(
+                                    tone: status == 'Approved'
+                                        ? Tone.success
+                                        : Tone.info,
+                                    title: 'Amendment window closed',
+                                    message:
+                                        'The $windowMinutes-minute reversal window has expired. Ask the owner to submit a new revision if changes are still needed.',
+                                  ),
+                              ],
+                            )
                           : InlineNotice(
                               tone: status == 'Conflict'
+                                  ? Tone.warning
+                                  : status == 'Changes Requested'
                                   ? Tone.warning
                                   : status == 'Pending'
                                   ? Tone.info
                                   : Tone.success,
                               title: status == 'Conflict'
                                   ? 'Blocked on open policy conflict'
+                                  : status == 'Changes Requested'
+                                  ? 'Waiting on creator revision'
                                   : status == 'Pending'
                                   ? 'Only a separate reviewer can decide'
                                   : 'Final decision already recorded',
                               message: status == 'Conflict'
                                   ? 'Resolve the conflicting rule or fact first.'
+                                  : status == 'Changes Requested'
+                                  ? 'Changes were requested. The creator can edit and resubmit this check for a new review.'
                                   : status == 'Pending'
                                   ? 'You cannot approve your own submission. Ask another authorised reviewer.'
-                                  : 'This submission is closed. Produce a new version to request another review.',
+                                  : 'This submission is closed.',
                             ),
                     ),
                   ],
@@ -753,6 +1168,44 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
     );
 
     if (!mounted || decision == null) return;
+
+    if (decision == 'EDIT_RESUBMIT') {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => NewBrandCheckScreen(
+            resubmitCheckId: review['id'].toString(),
+            expectedVersion: review['contentVersion'] as int?,
+            initialBrandName: review['brandName']?.toString(),
+            initialContent: review['contentText']?.toString(),
+            initialChannel: review['channel']?.toString(),
+            reviewerNote: review['decisionReason']?.toString(),
+            reviewStatus: review['status']?.toString(),
+          ),
+        ),
+      );
+      if (mounted) await _loadReviews(silent: true);
+      return;
+    }
+
+    if (decision == 'REVISE_APPROVED') {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => NewBrandCheckScreen(
+            parentApprovedCheckId: review['id'].toString(),
+            initialAssetIds: (review['assetIds'] as List? ?? [])
+                .map((e) => e.toString())
+                .toList(),
+            initialBrandName: review['brandName']?.toString(),
+            initialContent: review['contentText']?.toString(),
+            initialChannel: review['channel']?.toString(),
+          ),
+        ),
+      );
+      if (mounted) await _loadReviews(silent: true);
+      return;
+    }
 
     if (decision == 'OPEN_CONFLICTS') {
       await Navigator.push(
@@ -768,6 +1221,11 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
         review['id'].toString(),
         overrideTarget!,
       );
+      return;
+    }
+
+    if (decision == 'AMEND_DECISION') {
+      await _showAmendDecisionDialog(review);
       return;
     }
 
@@ -890,6 +1348,241 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
     );
   }
 
+  bool _withinAmendWindow(Map<String, dynamic> review) {
+    final deadlineRaw = review['amendDeadline']?.toString();
+    if (deadlineRaw != null && deadlineRaw.isNotEmpty) {
+      final parsed = DateTime.tryParse(deadlineRaw);
+      if (parsed != null) {
+        return !DateTime.now().toUtc().isAfter(parsed.toUtc());
+      }
+    }
+    return review['canAmend'] == true;
+  }
+
+  String _formatAmendRemaining(Map<String, dynamic> review) {
+    int seconds = (review['amendRemainingSeconds'] as int?) ?? 0;
+    final deadlineRaw = review['amendDeadline']?.toString();
+    if (deadlineRaw != null && deadlineRaw.isNotEmpty) {
+      final parsed = DateTime.tryParse(deadlineRaw);
+      if (parsed != null) {
+        final diff = parsed.toUtc().difference(DateTime.now().toUtc());
+        seconds = diff.inSeconds < 0 ? 0 : diff.inSeconds;
+      }
+    }
+    if (seconds <= 0) return 'Window expired';
+    if (seconds < 60) return '<1m left';
+    final mins = (seconds / 60).ceil();
+    if (mins >= 60) {
+      final hrs = mins ~/ 60;
+      final rem = mins % 60;
+      return rem == 0 ? '${hrs}h left' : '${hrs}h ${rem}m left';
+    }
+    return '${mins}m left';
+  }
+
+  String _formatDecisionLabel(String raw) {
+    return switch (raw) {
+      'approved' => 'Approved',
+      'rejected' => 'Rejected',
+      'changes_requested' => 'Changes Requested',
+      _ => raw,
+    };
+  }
+
+  Future<void> _showAmendDecisionDialog(Map<String, dynamic> review) async {
+    final currentStatus = review['status']?.toString() ?? '';
+    final choices = <(String, String)>[
+      if (currentStatus != 'Approved') ('approved', 'Approve & lock seal'),
+      if (currentStatus != 'Changes Requested')
+        ('changes_requested', 'Request changes'),
+      if (currentStatus != 'Rejected') ('rejected', 'Reject'),
+    ];
+    if (choices.isEmpty) return;
+    var selectedDecision = currentStatus == 'Approved'
+        ? 'rejected'
+        : 'approved';
+    if (!choices.any((c) => c.$1 == selectedDecision)) {
+      selectedDecision = choices.first.$1;
+    }
+    final controller = TextEditingController();
+    String? dlgError;
+    var busy = false;
+    final remainingText = _formatAmendRemaining(review);
+
+    final route = DialogRoute<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          title: Text(
+            currentStatus == 'Approved'
+                ? 'Revoke / amend approval'
+                : 'Amend review decision',
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (currentStatus == 'Approved') ...[
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppTheme.warningBg,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: AppTheme.warning.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          size: 17,
+                          color: AppTheme.warning,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Cryptographic seal will be revoked ($remainingText). Changing an approved decision immediately marks the seal REVOKED in Verification and notifies the owner.',
+                            style: AppTheme.bodySmall.copyWith(
+                              color: AppTheme.ink,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ] else ...[
+                  Text(
+                    'Current status: $currentStatus · $remainingText to amend.',
+                    style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                Text('NEW DECISION', style: AppTheme.monoLabel()),
+                const SizedBox(height: 6),
+                for (final choice in choices)
+                  InkWell(
+                    onTap: busy
+                        ? null
+                        : () => setDlg(() {
+                            selectedDecision = choice.$1;
+                            dlgError = null;
+                          }),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 5,
+                        horizontal: 4,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            selectedDecision == choice.$1
+                                ? Icons.radio_button_checked_rounded
+                                : Icons.radio_button_unchecked_rounded,
+                            size: 16,
+                            color: selectedDecision == choice.$1
+                                ? AppTheme.teal
+                                : AppTheme.muted,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              choice.$2,
+                              style: AppTheme.labelMedium.copyWith(
+                                color: AppTheme.ink,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: controller,
+                  maxLines: 3,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Amendment reason (required)',
+                    hintText: 'Explain why this decision is being reversed…',
+                  ),
+                ),
+                if (dlgError != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    dlgError!,
+                    style: AppTheme.bodySmall.copyWith(color: AppTheme.danger),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: busy ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              key: const ValueKey('confirm-amend-decision'),
+              onPressed: busy
+                  ? null
+                  : () async {
+                      final reason = controller.text.trim();
+                      if (reason.length < 3) {
+                        setDlg(
+                          () => dlgError =
+                              'Enter an explanation of at least 3 characters.',
+                        );
+                        return;
+                      }
+                      setDlg(() {
+                        busy = true;
+                        dlgError = null;
+                      });
+                      try {
+                        await BrandGuardApiService.amendReviewDecision(
+                          checkId: review['id'].toString(),
+                          decision: selectedDecision,
+                          reason: reason,
+                          expectedVersion: review['contentVersion'] as int?,
+                        );
+                        if (ctx.mounted) {
+                          Navigator.pop(ctx, selectedDecision);
+                        }
+                      } catch (e) {
+                        if (ctx.mounted) {
+                          setDlg(() {
+                            busy = false;
+                            dlgError = e.toString();
+                          });
+                        }
+                      }
+                    },
+              child: Text(busy ? 'Amending...' : 'Confirm amendment'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final amended = await Navigator.of(context).push(route);
+      if (!mounted || amended == null) return;
+      await _loadReviews();
+      showMessage(
+        'Decision amended to ${_formatDecisionLabel(amended)}.',
+      );
+    } finally {
+      await route.completed;
+      controller.dispose();
+    }
+  }
+
   Future<void> _showDecisionDialog(
     Map<String, dynamic> review,
     String decision,
@@ -947,17 +1640,16 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
 
       if (!mounted || reason == null || reason.isEmpty) return;
 
-      const backendDecision = 'rejected';
+      final backendDecision = decision == 'Changes Requested'
+          ? 'changes_requested'
+          : 'rejected';
 
-      final backendReason = decision == 'Changes Requested'
-          ? 'Changes requested: $reason'
-          : reason;
-
+      final checkId = review['id'].toString();
       await BrandGuardApiService.decideReview(
-        checkId: review['id'].toString(),
+        checkId: checkId,
         expectedVersion: review['contentVersion'] as int?,
         decision: backendDecision,
-        note: backendReason,
+        note: reason,
       );
 
       if (!mounted) return;
@@ -966,7 +1658,19 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
 
       if (!mounted) return;
 
-      showMessage('$decision recorded successfully.');
+      final refreshed = reviews.where((r) => r['id'] == checkId).toList();
+      showMessage(
+        '$decision recorded successfully.',
+        action: refreshed.isNotEmpty && _withinAmendWindow(refreshed.first)
+            ? SnackBarAction(
+                label: 'Undo / Amend',
+                textColor: AppTheme.mintBright,
+                onPressed: () {
+                  if (mounted) _showAmendDecisionDialog(refreshed.first);
+                },
+              )
+            : null,
+      );
     } catch (e) {
       if (!mounted) return;
       showMessage('Unable to record decision: $e');
@@ -1085,7 +1789,14 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
   }
 
   Widget _tabs() {
-    final tabs = ['Pending', 'Conflict', 'Approved', 'Rejected', 'All'];
+    final tabs = [
+      'Pending',
+      'Changes Requested',
+      'Conflict',
+      'Approved',
+      'Rejected',
+      'All',
+    ];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -1093,6 +1804,7 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
           final active = selectedTab == tab;
           final count = switch (tab) {
             'Pending' => pendingCount,
+            'Changes Requested' => changesRequestedCount,
             'Conflict' => conflictCount,
             'Approved' => approvedCount,
             'Rejected' => rejectedCount,
@@ -1152,6 +1864,16 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
 
   Widget _reviewCard(Map<String, dynamic> review) {
     final assetCount = (review['assetIds'] as List? ?? []).length;
+    final status = review['status']?.toString() ?? 'Pending';
+    final isReviewer = session.currentUser?.isReviewer ?? false;
+    final isOwner = review['creatorId'] == session.userId;
+    final canAmendStatus =
+        isReviewer &&
+        !isOwner &&
+        (status == 'Approved' ||
+            status == 'Rejected' ||
+            status == 'Changes Requested');
+    final withinAmendWindow = canAmendStatus && _withinAmendWindow(review);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: SurfaceCard(
@@ -1173,8 +1895,8 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                 const SizedBox(width: 6),
                 Flexible(
                   child: StatusPill(
-                    label: review['status'],
-                    tone: statusTone(review['status']),
+                    label: status,
+                    tone: statusTone(status),
                     compact: true,
                   ),
                 ),
@@ -1205,7 +1927,9 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    'Created by ${review['creator']}',
+                    (review['creatorEmail']?.toString().isNotEmpty ?? false)
+                        ? 'Drafted by ${review['creatorName']} · ${review['creatorEmail']}'
+                        : 'Drafted by ${review['creatorName']}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTheme.monoLabel(color: AppTheme.ink),
@@ -1247,21 +1971,98 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                   tone: Tone.info,
                   compact: true,
                 ),
+                if (canAmendStatus)
+                  StatusPill(
+                    label: withinAmendWindow
+                        ? 'Amendable · ${_formatAmendRemaining(review)}'
+                        : 'Amend window closed',
+                    tone: withinAmendWindow ? Tone.warning : Tone.neutral,
+                    compact: true,
+                  ),
               ],
             ),
+            if (withinAmendWindow) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  key: ValueKey('card-amend-${review['id']}'),
+                  onPressed: () => _showAmendDecisionDialog(review),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: status == 'Approved'
+                        ? AppTheme.danger
+                        : AppTheme.tealText,
+                    side: BorderSide(
+                      color: status == 'Approved'
+                          ? AppTheme.danger.withValues(alpha: 0.4)
+                          : AppTheme.teal,
+                    ),
+                  ),
+                  icon: const Icon(Icons.undo_rounded, size: 15),
+                  label: Text(
+                    status == 'Approved'
+                        ? 'Revoke / switch decision'
+                        : 'Amend / switch decision',
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  String _formatDecisionTime(String value) {
-    final parsed = DateTime.tryParse(value);
+  static String _formatRuleWindowDate(String? checkAt, String? createdAt) {
+    if (checkAt == null || checkAt.trim().isEmpty) {
+      return 'Current rules (at submission)';
+    }
+    final checkDt = DateTime.tryParse(checkAt.trim());
+    final createdDt = createdAt == null
+        ? null
+        : DateTime.tryParse(createdAt.trim());
+    if (checkDt != null &&
+        createdDt != null &&
+        checkDt.difference(createdDt).inSeconds.abs() <= 60) {
+      return 'Current rules (at submission)';
+    }
+    return '${_formatExactLocalDateTime(checkAt)} (custom rule date)';
+  }
+
+  static String _formatExactLocalDateTime(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Unknown';
+    final parsed = DateTime.tryParse(value.trim());
     if (parsed == null) return value;
     final local = parsed.toLocal();
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final hour12 = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final amPm = local.hour >= 12 ? 'PM' : 'AM';
     String two(int v) => v.toString().padLeft(2, '0');
-    return '${two(local.day)}/${two(local.month)}/${local.year} • ${two(local.hour)}:${two(local.minute)}';
+    final offset = local.timeZoneOffset;
+    final sign = offset.isNegative ? '-' : '+';
+    final absMins = offset.inMinutes.abs();
+    final rawTz = local.timeZoneName.trim();
+    final tzLabel = rawTz.isNotEmpty && rawTz.length <= 5
+        ? rawTz
+        : 'UTC$sign${two(absMins ~/ 60)}:${two(absMins % 60)}';
+    return '${two(local.day)} ${months[local.month - 1]} ${local.year} · $hour12:${two(local.minute)} $amPm $tzLabel';
   }
+
+  String _formatDecisionTime(String value) =>
+      _formatExactLocalDateTime(value);
 
   Widget _ledgerSection() {
     final completedReviews = reviews.where(
@@ -1270,13 +2071,14 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
           item['status'] == 'Rejected' ||
           item['status'] == 'Changes Requested',
     );
+    final isReviewer = session.currentUser?.isReviewer ?? false;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SectionHeading(
           title: 'Approval ledger',
-          caption: 'Immutable decisions returned by the API',
+          caption: 'Tap any entry to inspect or amend within the grace window',
         ),
         const SizedBox(height: 10),
         if (completedReviews.isEmpty)
@@ -1287,21 +2089,25 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
             icon: Icons.receipt_long_outlined,
           )
         else
-          ...completedReviews.map(
-            (review) => Padding(
+          ...completedReviews.map((review) {
+            final status = review['status']?.toString() ?? '';
+            final isOwner = review['creatorId'] == session.userId;
+            final canAmend = isReviewer && !isOwner && _withinAmendWindow(review);
+            return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: SurfaceCard(
                 padding: const EdgeInsets.all(12),
                 radius: 14,
+                onTap: () => openReviewDetails(review),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
                         Icon(
-                          statusTone(review['status']).icon,
+                          statusTone(status).icon,
                           size: 16,
-                          color: statusTone(review['status']).fg,
+                          color: statusTone(status).fg,
                         ),
                         const SizedBox(width: 7),
                         Expanded(
@@ -1316,8 +2122,8 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                           ),
                         ),
                         StatusPill(
-                          label: review['status'],
-                          tone: statusTone(review['status']),
+                          label: status,
+                          tone: statusTone(status),
                           compact: true,
                         ),
                       ],
@@ -1344,11 +2150,31 @@ class _ReviewQueueScreenState extends State<ReviewQueueScreen> {
                         overflow: TextOverflow.ellipsis,
                         style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
                       ),
+                    if (canAmend) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: () => _showAmendDecisionDialog(review),
+                          style: TextButton.styleFrom(
+                            foregroundColor: status == 'Approved'
+                                ? AppTheme.danger
+                                : AppTheme.tealText,
+                          ),
+                          icon: const Icon(Icons.undo_rounded, size: 15),
+                          label: Text(
+                            status == 'Approved'
+                                ? 'Revoke / switch (${_formatAmendRemaining(review)})'
+                                : 'Amend / switch (${_formatAmendRemaining(review)})',
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
-            ),
-          ),
+            );
+          }),
       ],
     );
   }

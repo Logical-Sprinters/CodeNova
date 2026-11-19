@@ -487,7 +487,7 @@ def run_ai_vision_inspection(
     ]
     if (
         not visual_rules
-        or config.AI_PROVIDER not in {"openai", "openrouter"}
+        or config.AI_PROVIDER not in {"openai", "openrouter", "gemini"}
         or not config.AI_API_KEY
     ):
         return []
@@ -500,40 +500,95 @@ def run_ai_vision_inspection(
         }
         for r in visual_rules
     ]
+    is_gemini = (
+        config.AI_PROVIDER == "gemini"
+        or "generativelanguage.googleapis.com" in (config.AI_BASE_URL or "").lower()
+    )
+    is_openrouter_free = config.AI_PROVIDER == "openrouter" and (
+        (config.AI_MODEL or "").strip().lower().endswith(":free")
+        or (config.AI_MODEL or "").strip().lower() in {"openrouter/free", "openrouter/auto"}
+    )
+    base_url = (config.AI_BASE_URL or "").strip().rstrip("/")
+    if base_url.endswith("/chat/completions"):
+        endpoint_url = base_url
+    elif (
+        config.AI_PROVIDER == "gemini"
+        and "generativelanguage.googleapis.com" in base_url.lower()
+        and base_url.lower().endswith("/v1beta")
+    ):
+        endpoint_url = base_url + "/openai/chat/completions"
+    else:
+        endpoint_url = base_url + "/chat/completions"
+
+    def _vision_payload(model_name: str) -> dict:
+        body: dict = {
+            "model": model_name,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "Inspect the supplied image strictly against the provided visual rules JSON. "
+                        "Return JSON {\"findings\": [{\"rule_id\": ..., \"rule_version\": ..., "
+                        "\"rule_quote\": <verbatim quote from rule_text>, \"region\": ..., \"message\": ...}]}. "
+                        "Never invent rule IDs or paraphrase rule_quote."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": json.dumps({"rules": rules_payload})},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{mime};base64,{b64}"},
+                        },
+                    ],
+                },
+            ],
+        }
+        if is_gemini:
+            body["max_tokens"] = 800
+        else:
+            body["store"] = False
+            body["max_completion_tokens"] = 800
+            if config.AI_PROVIDER == "openrouter":
+                policy = getattr(config, "AI_DATA_COLLECTION", "")
+                if policy == "deny" or (not policy and not is_openrouter_free):
+                    body["provider"] = {"data_collection": "deny"}
+        return body
+
     try:
+        headers = {"Authorization": f"Bearer {config.AI_API_KEY}"}
         response = httpx.post(
-            config.AI_BASE_URL + "/chat/completions",
-            headers={"Authorization": f"Bearer {config.AI_API_KEY}"},
-            json={
-                "model": config.AI_MODEL,
-                "store": False,
-                "max_completion_tokens": 800,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": (
-                            "Inspect the supplied image strictly against the provided visual rules JSON. "
-                            "Return JSON {\"findings\": [{\"rule_id\": ..., \"rule_version\": ..., "
-                            "\"rule_quote\": <verbatim quote from rule_text>, \"region\": ..., \"message\": ...}]}. "
-                            "Never invent rule IDs or paraphrase rule_quote."
-                        ),
-                    },
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": json.dumps({"rules": rules_payload})},
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": f"data:{mime};base64,{b64}"},
-                            },
-                        ],
-                    },
-                ],
-            },
+            endpoint_url,
+            headers=headers,
+            json=_vision_payload(config.AI_MODEL),
             timeout=20,
         )
+        if response.status_code == 404 and is_gemini:
+            for candidate in (
+                "gemini-3.5-flash-lite",
+                "gemini-3.8-flash",
+                "gemini-3.6-flash",
+                "gemini-3.1-flash-lite",
+                "gemini-2.5-flash-lite",
+            ):
+                if candidate == config.AI_MODEL:
+                    continue
+                response = httpx.post(
+                    endpoint_url,
+                    headers=headers,
+                    json=_vision_payload(candidate),
+                    timeout=20,
+                )
+                if response.status_code != 404:
+                    break
         response.raise_for_status()
-        raw_content = response.json()["choices"][0]["message"]["content"]
+        raw_content = (response.json()["choices"][0]["message"]["content"] or "").strip()
+        if raw_content.startswith("```"):
+            raw_content = raw_content.strip("`")
+            if raw_content.lower().startswith("json"):
+                raw_content = raw_content[4:]
+            raw_content = raw_content.strip()
         parsed = json.loads(raw_content)
         out = []
         for idx, item in enumerate(parsed.get("findings") or []):

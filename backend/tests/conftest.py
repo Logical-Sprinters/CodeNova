@@ -24,6 +24,9 @@ def isolated_stores(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATABASE_URL", "")
     monkeypatch.setattr(config, "AI_PROVIDER", "disabled")
     monkeypatch.setattr(config, "AI_API_KEY", "")
+    monkeypatch.setattr(config, "AI_BASE_URL", "https://api.openai.com/v1")
+    monkeypatch.setattr(config, "AI_MODEL", "gpt-5.4-mini")
+    monkeypatch.setattr(config, "AI_DATA_COLLECTION", "")
     monkeypatch.setattr(config, "ALLOW_LEGACY_DEMO_HEADERS", True)
     monkeypatch.setattr(config, "DATA_DIR", data_dir)
     for name in ("users.json", "brand_rules.json"):

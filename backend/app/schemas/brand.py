@@ -59,6 +59,8 @@ class BrandCheckRequest(BrandContent):
     check_at: str | None = Field(default=None, max_length=64)
     channel: str = Field(default="all", min_length=1, max_length=64)
     asset_ids: list[str] = Field(default_factory=list, max_length=10)
+    submit_for_review: bool = True
+    parent_check_id: str | None = Field(default=None, max_length=128)
 
     @field_validator("check_at")
     @classmethod
@@ -72,6 +74,14 @@ class BrandCheckRequest(BrandContent):
         if not cleaned:
             raise ValueError("Channel must not be blank.")
         return cleaned
+
+    @field_validator("parent_check_id")
+    @classmethod
+    def clean_parent_check_id(cls, value):
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return cleaned or None
 
 
 class PreflightRequest(BrandContent):
@@ -98,6 +108,7 @@ class ContentVersionRequest(TextContent):
     check_at: str | None = Field(default=None, max_length=64)
     channel: str | None = Field(default=None, min_length=1, max_length=64)
     asset_ids: list[str] | None = Field(default=None, max_length=10)
+    submit_for_review: bool = True
 
     @field_validator("check_at")
     @classmethod
@@ -147,6 +158,7 @@ class BrandCheckResponse(BaseModel):
     content_version: int
     scan_status: str
     review_status: str
+    parent_check_id: str | None = None
     rules_version: str | None = None
     check_at: str | None = None
     channel: str = "all"
@@ -178,6 +190,20 @@ class ReviewDecisionRequest(BaseModel):
     decision: str
     note: str = Field(default="", max_length=4000)
     expected_version: int | None = Field(default=None, ge=1)
+
+
+class ReviewAmendRequest(BaseModel):
+    decision: Literal["approved", "rejected", "changes_requested"]
+    reason: str = Field(min_length=3, max_length=2000)
+    expected_version: int | None = Field(default=None, ge=1)
+
+    @field_validator("reason")
+    @classmethod
+    def clean_reason(cls, value):
+        cleaned = value.strip()
+        if len(cleaned) < 3:
+            raise ValueError("Provide a reason of at least 3 characters.")
+        return cleaned
 
 
 class ApprovalVerifyRequest(BrandContent):

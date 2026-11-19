@@ -1,8 +1,11 @@
 import copy
+from datetime import datetime, timedelta, timezone
 import hashlib
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
 
+from app import config
 from app.approval.store import (
+    amend_record_decision,
     decide_record,
     generate_content_hash,
     get_record,
@@ -13,7 +16,7 @@ from app.audit.store import log_audit
 from app.auth import can_read, get_user, require_read_access
 from app.checks.grounding import filter_grounded_findings
 from app.checks.llm.verifier import active_facts_for_brand
-from app.notifications import notify
+from app.notifications import mark_review_notifications_read, notify
 from app.receipts.store import record_decision
 from app.routers.brand import resolve_assets
 from app.rules_store.store import (
@@ -21,8 +24,12 @@ from app.rules_store.store import (
     load_rule_store,
     resolve_active_rules,
 )
-from app.schemas.brand import ApprovalVerifyRequest, ReviewDecisionRequest
-from app.storage import STORE_LOCK
+from app.schemas.brand import (
+    ApprovalVerifyRequest,
+    ReviewAmendRequest,
+    ReviewDecisionRequest,
+)
+from app.storage import STORE_LOCK, read_json
 
 router = APIRouter(tags=["Reviews and Approvals"])
 
@@ -66,22 +73,82 @@ def reverify_record_findings(record: dict) -> dict:
     return out
 
 
+def _attach_amend_metadata(record: dict) -> dict:
+    window_minutes = config.DECISION_AMEND_WINDOW_MINUTES
+    record["amend_window_minutes"] = window_minutes
+    record["can_amend"] = False
+    record["amend_deadline"] = None
+    record["amend_remaining_seconds"] = 0
+    if record.get("status") not in {"approved", "rejected", "changes_requested"}:
+        return record
+    anchor_raw = record.get("initial_decided_at") or record.get("decided_at")
+    if not anchor_raw:
+        return record
+    try:
+        normalized = (
+            anchor_raw[:-1] + "+00:00"
+            if str(anchor_raw).endswith(("Z", "z"))
+            else str(anchor_raw)
+        )
+        anchor_dt = datetime.fromisoformat(normalized)
+        if anchor_dt.tzinfo is None:
+            anchor_dt = anchor_dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return record
+    deadline = anchor_dt.astimezone(timezone.utc) + timedelta(minutes=window_minutes)
+    now_dt = datetime.now(timezone.utc)
+    remaining = max(0, int((deadline - now_dt).total_seconds()))
+    record["amend_deadline"] = deadline.isoformat()
+    record["can_amend"] = now_dt <= deadline
+    record["amend_remaining_seconds"] = remaining
+    return record
+
+
 @router.get("/api/v1/reviews")
 async def get_reviews(status: str | None = None, user: dict = Depends(get_user)):
     if status is not None and status not in {
         "pending",
         "approved",
         "rejected",
+        "changes_requested",
         "paused_conflict",
     }:
         raise HTTPException(
-            422, "Status must be pending, approved, rejected or paused_conflict"
+            422,
+            "Status must be pending, approved, rejected, changes_requested or paused_conflict",
         )
-    records = [
-        reverify_record_findings(record)
-        for record in list_records(status)
-        if can_read(record, user)
-    ]
+    users_by_id = {
+        u.get("user_id"): u
+        for u in read_json(config.DATA_DIR / "users.json", [])
+        if u.get("user_id")
+    }
+    records = []
+    for record in list_records(status):
+        if record.get("status") == "draft":
+            continue
+        if not can_read(record, user):
+            continue
+        enriched = _attach_amend_metadata(reverify_record_findings(record))
+        creator = users_by_id.get(enriched.get("creator_id"), {})
+        if not enriched.get("creator_name"):
+            enriched["creator_name"] = (
+                creator.get("name")
+                or creator.get("email")
+                or enriched.get("creator_id")
+                or "Unknown"
+            )
+        if not enriched.get("creator_email"):
+            enriched["creator_email"] = creator.get("email") or ""
+        rev_id = enriched.get("reviewer")
+        if rev_id:
+            rev_user = users_by_id.get(rev_id, {})
+            if not enriched.get("reviewer_name"):
+                enriched["reviewer_name"] = (
+                    rev_user.get("name") or rev_user.get("email") or rev_id
+                )
+            if not enriched.get("reviewer_email"):
+                enriched["reviewer_email"] = rev_user.get("email") or ""
+        records.append(enriched)
     return {"reviews": records, "total": len(records)}
 
 
@@ -97,8 +164,12 @@ async def review_decision(
             raise HTTPException(404, "Check not found")
         if record.get("creator_id") == user["user_id"]:
             raise HTTPException(409, "Creators cannot approve their own submission")
-        if request.decision not in {"approved", "rejected"}:
-            raise HTTPException(400, "Decision must be approved or rejected.")
+        if request.decision not in {"approved", "rejected", "changes_requested"}:
+            raise HTTPException(
+                400, "Decision must be approved, rejected, or changes_requested."
+            )
+        if request.decision == "changes_requested" and not request.note.strip():
+            raise HTTPException(400, "Explain what needs to change before submitting.")
         if record.get("status") == "paused_conflict":
             raise HTTPException(
                 409,
@@ -124,7 +195,12 @@ async def review_decision(
                 409, "Stored content does not match its hash. Resubmit this check."
             )
         result = decide_record(
-            check_id, request.decision, user["user_id"], request.note.strip()
+            check_id,
+            request.decision,
+            user["user_id"],
+            request.note.strip(),
+            reviewer_name=user.get("name"),
+            reviewer_email=user.get("email"),
         )
         record_decision(
             check_id,
@@ -132,6 +208,7 @@ async def review_decision(
             request.decision,
             user["user_id"],
             request.note.strip(),
+            seal_id=result.get("seal_id"),
         )
         log_audit(
             "review_decision",
@@ -147,16 +224,157 @@ async def review_decision(
                 "receipt_id": result["receipt_id"],
             },
         )
+        if request.decision == "changes_requested":
+            notif_title = "Changes requested"
+            notif_body = f"{result['brand_name']} needs changes: {request.note.strip()[:140]}"
+        else:
+            notif_title = "Review decision"
+            ver_note = (
+                f" (rev {result['content_version']})"
+                if (result.get("content_version") or 1) > 1
+                else ""
+            )
+            notif_body = (
+                f"{result['brand_name']} submission{ver_note} was {request.decision}."
+            )
         notify(
             [result["creator_id"]],
-            "Review decision",
-            f"{result['brand_name']} content v{result['content_version']} was {request.decision}.",
+            notif_title,
+            notif_body,
             "decision",
             check_id,
         )
+        mark_review_notifications_read(check_id)
         return {
             "message": f"Content {request.decision}.",
-            "review": reverify_record_findings(result),
+            "review": _attach_amend_metadata(reverify_record_findings(result)),
+        }
+
+
+@router.post("/api/v1/reviews/{check_id}/amend")
+async def amend_review_decision(
+    check_id: str, request: ReviewAmendRequest, user: dict = Depends(get_user)
+):
+    with STORE_LOCK:
+        if user.get("role") not in {"reviewer", "admin"}:
+            raise HTTPException(403, "Only reviewers can amend decisions")
+        record = get_record(check_id)
+        if record is None:
+            raise HTTPException(404, "Check not found")
+        if record.get("creator_id") == user["user_id"]:
+            raise HTTPException(
+                409, "Creators cannot amend decisions on their own submission"
+            )
+        if (
+            request.expected_version is not None
+            and request.expected_version != record["content_version"]
+        ):
+            raise HTTPException(
+                409, "Content changed while reviewing. Refresh the queue."
+            )
+        old_status = record.get("status")
+        if old_status not in {"approved", "rejected", "changes_requested"}:
+            raise HTTPException(
+                409, "Only decided submissions can have their decision amended."
+            )
+        if request.decision == old_status:
+            raise HTTPException(
+                400, "Select a different decision than the current status."
+            )
+        if request.decision == "approved":
+            rules = get_brand_rule_versions(record["brand_name"])
+            current_rules = rules["current_version"] if rules else None
+            if current_rules != record.get("rules_version"):
+                raise HTTPException(
+                    409,
+                    "Brand rules changed. The owner must resubmit for fresh checks.",
+                )
+            if generate_content_hash(record["content"]) != record["content_hash"]:
+                raise HTTPException(
+                    409,
+                    "Stored content does not match its hash. Resubmit this check.",
+                )
+
+        outcome, err = amend_record_decision(
+            check_id,
+            request.decision,
+            user["user_id"],
+            request.reason,
+            window_minutes=config.DECISION_AMEND_WINDOW_MINUTES,
+            reviewer_name=user.get("name"),
+            reviewer_email=user.get("email"),
+        )
+        if err == "window_expired":
+            raise HTTPException(
+                409,
+                f"Decision amendment window expired ({config.DECISION_AMEND_WINDOW_MINUTES} min limit). Ask the owner to submit a new revision.",
+            )
+        if err == "invalid_status":
+            raise HTTPException(
+                409, "Only decided submissions can have their decision amended."
+            )
+        if err == "same_decision":
+            raise HTTPException(
+                400, "Select a different decision than the current status."
+            )
+        if err or not outcome:
+            raise HTTPException(404, "Check not found")
+
+        updated = outcome["record"]
+        prev_decision = outcome["previous_decision"]
+        revoked_seal_id = outcome.get("revoked_seal_id")
+
+        record_decision(
+            check_id,
+            updated["content_version"],
+            request.decision,
+            user["user_id"],
+            request.reason,
+            seal_id=updated.get("seal_id"),
+            is_amendment=True,
+        )
+        log_audit(
+            "amend_decision",
+            user["user_id"],
+            check_id,
+            {
+                "previous_decision": prev_decision,
+                "new_decision": request.decision,
+                "reason": request.reason,
+                "content_version": updated["content_version"],
+                "content_hash": updated["content_hash"],
+                "seal_id": updated.get("seal_id"),
+                "revoked_seal_id": revoked_seal_id,
+                "amend_window_minutes": config.DECISION_AMEND_WINDOW_MINUTES,
+                "receipt_id": updated.get("receipt_id"),
+            },
+        )
+        if prev_decision == "approved":
+            notif_title = "Approval revoked — decision amended"
+            notif_body = (
+                f"{updated['brand_name']} approval was revoked and changed to "
+                f"{request.decision.replace('_', ' ')}: {request.reason[:140]}"
+            )
+        else:
+            notif_title = "Review decision amended"
+            notif_body = (
+                f"{updated['brand_name']} decision changed from "
+                f"{prev_decision.replace('_', ' ')} to "
+                f"{request.decision.replace('_', ' ')}: {request.reason[:140]}"
+            )
+        notify(
+            [updated["creator_id"]],
+            notif_title,
+            notif_body,
+            "decision",
+            check_id,
+        )
+        mark_review_notifications_read(check_id)
+        return {
+            "message": f"Decision amended from {prev_decision} to {request.decision}.",
+            "previous_decision": prev_decision,
+            "revoked_seal_id": revoked_seal_id,
+            "review": _attach_amend_metadata(reverify_record_findings(updated)),
         }
 
 

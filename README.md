@@ -150,14 +150,14 @@ All private endpoints require `Authorization: Bearer ACCESS_TOKEN`. Full OpenAPI
 ```bash
 # Backend (from backend/)
 pytest -q
-# 137 tests total across tests/ + tests_secure/ (Phase 1-3 Round 3 suites included):
-# - Linux/Docker with tesseract-ocr: 137 passed
-# - Windows without Tesseract binary installed: 135 passed, 2 OCR-binary tests skipped
+# 145 tests total across tests/ + tests_secure/ (Phase 1-3 Round 3 + AI/workflow contracts):
+# - Linux/Docker with tesseract-ocr: 145 passed
+# - Without Tesseract binary installed locally: 143 passed, 2 OCR-binary tests skipped
 
 # Flutter (from mobile/)
 flutter analyze
 flutter test
-# Analyzer clean (0 issues); 121 Flutter tests across mobile/test/ (run locally with Flutter SDK)
+# Analyzer clean (0 issues); 134 Flutter tests across mobile/test/ (run locally with Flutter SDK)
 ```
 *(Note: Historical evidence in `validation/` covers the pre-Round-3 `v2.0.1` hosted release and is preserved unchanged until Round 3 is redeployed and re-audited.)*
 

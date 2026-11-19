@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 
 import '../../app/app_theme.dart';
+import '../../app/ui/brandguard_shell.dart';
+import '../../core/network/brandguard_api_service.dart';
 import '../auth/sign_in_screen.dart';
 
 /// Branded splash. It performs no network calls and no security claims beyond
@@ -22,6 +25,8 @@ class _SplashScreenState extends State<SplashScreen>
   late final AnimationController _intro;
   late final Animation<double> _fade;
   late final Animation<Offset> _slide;
+  Timer? _stepTimer;
+  Timer? _navTimer;
   String _step = 'CONNECTING TO GOVERNANCE ENGINE';
 
   @override
@@ -49,10 +54,31 @@ class _SplashScreenState extends State<SplashScreen>
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _intro, curve: Curves.easeOutCubic));
 
-    Future.delayed(const Duration(milliseconds: 1100), () {
+    _stepTimer = Timer(const Duration(milliseconds: 1100), () {
       if (mounted) setState(() => _step = 'VERIFYING GOVERNANCE ENGINE');
     });
-    Future.delayed(const Duration(milliseconds: 2600), () {
+    _boot();
+  }
+
+  Future<void> _boot() async {
+    final startedAt = DateTime.now();
+    final restored = await BrandGuardApiService.tryRestoreSession();
+    if (!mounted) return;
+    if (restored) {
+      _stepTimer?.cancel();
+      setState(() => _step = 'RESTORING SIGNED-IN SESSION');
+      _navTimer = Timer(const Duration(milliseconds: 250), () {
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const BrandGuardShell()),
+        );
+      });
+      return;
+    }
+    final elapsed = DateTime.now().difference(startedAt);
+    final remaining = const Duration(milliseconds: 2600) - elapsed;
+    final wait = remaining.isNegative ? Duration.zero : remaining;
+    _navTimer = Timer(wait, () {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const SignInScreen()),
@@ -62,6 +88,8 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
+    _stepTimer?.cancel();
+    _navTimer?.cancel();
     _pulse.dispose();
     _progress.dispose();
     _orbit.dispose();

@@ -63,6 +63,35 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
+  Future<void> _quickVerifyFact(Map<String, dynamic> item) async {
+    try {
+      final body = <String, dynamic>{
+        'title': item['title']?.toString() ?? 'Verified fact',
+        'brand_name': item['brand_name']?.toString() ?? _brand.text.trim(),
+        'content': item['content']?.toString() ?? '',
+        'source_url': item['source_url']?.toString() ?? '',
+        'description': item['description']?.toString() ?? '',
+        'enabled': true,
+        'verified': true,
+        if ((item['canonical_value']?.toString() ?? '').isNotEmpty)
+          'canonical_value': item['canonical_value'].toString(),
+        if ((item['effective_from']?.toString() ?? '').isNotEmpty)
+          'effective_from': item['effective_from'].toString(),
+        if ((item['expires_at']?.toString() ?? '').isNotEmpty)
+          'expires_at': item['expires_at'].toString(),
+      };
+      await BrandGuardApiService.request(
+        'PUT',
+        '$_base/${Uri.encodeComponent(item['id'].toString())}',
+        body: body,
+      );
+      _message('Source verified and enabled for AI retrieval.');
+      await _load();
+    } catch (e) {
+      _message(e);
+    }
+  }
+
   Color? _parseHexColor(String hex) {
     final cleaned = hex.replaceAll('#', '').trim();
     if (cleaned.length != 6) return null;
@@ -856,6 +885,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   color: verified ? AppTheme.success : AppTheme.warning,
                 ),
               ),
+              if (_canManage && !verified && enabled) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _quickVerifyFact(item),
+                    icon: const Icon(Icons.verified_outlined, size: 16),
+                    label: const Text('Verify source for AI'),
+                  ),
+                ),
+              ],
             ],
           ],
         ),

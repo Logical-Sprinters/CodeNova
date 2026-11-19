@@ -20,15 +20,26 @@
    Do **not** create a duplicate `OPENROUTER_API_KEY` or put keys in `mobile/` or git.
 3. Redeploy the app so the server reloads env vars.
 
-#### Option B — `$0` Free OpenRouter Model (`:free`) for Testing / Local Demos
-OpenRouter `:free` endpoints work without a credit card (`$0` balance accounts allow **20 requests/min** and **50 requests/day**), provided the chosen `:free` model supports **`response_format: {type: "json_schema", strict: true}`**.
+#### Option B — `$0` Free Keys (Google Gemini Free Tier or OpenRouter `:free`)
 In local `backend/.env` (or a non-Antideploy test host):
-```dotenv
-AI_PROVIDER=openrouter
-AI_API_KEY=YOUR_OPENROUTER_KEY
-AI_BASE_URL=https://openrouter.ai/api/v1
-AI_MODEL=<structured-output-capable-model>:free
-```
+
+- **Google Gemini free tier (recommended $0 option):**
+  ```dotenv
+  AI_PROVIDER=gemini
+  AI_API_KEY=YOUR_GEMINI_API_KEY
+  AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+  AI_MODEL=gemini-3.5-flash-lite
+  ```
+  *(Note: New Google AI Studio keys require Gemini 3.x models such as `gemini-3.5-flash-lite` or `gemini-3.8-flash` instead of legacy `gemini-2.5-flash`; if an older model ID returns HTTP 404, BrandGuard automatically falls back across active Gemini Flash models.)*
+- **OpenRouter `:free` models** (`$0` balance accounts allow **20 requests/min** and **50 requests/day**):
+  ```dotenv
+  AI_PROVIDER=openrouter
+  AI_API_KEY=YOUR_OPENROUTER_KEY
+  AI_BASE_URL=https://openrouter.ai/api/v1
+  AI_MODEL=nvidia/nemotron-3-super-120b-a12b:free
+  ```
+  *(Note: Paid OpenRouter models still default to `data_collection: deny`; `:free` models automatically omit `data_collection: deny` unless `AI_DATA_COLLECTION=deny` is set and fall back cleanly to `json_object` when a free model rejects strict `json_schema`, while keeping full Pydantic + server-side grounding checks.)*
+
 *(Or use `AI_PROVIDER=openai` with `AI_BASE_URL=https://api.openai.com/v1` and your own OpenAI key.)*
 
 ---
@@ -40,7 +51,7 @@ Even when AI is enabled, BrandGuard **never runs ungrounded AI checks**:
 1. **Verified Fact Source Required:** A reviewer must add (or upload via `POST /api/v1/files?as_fact=true`) and explicitly mark **Verify** on at least one **Fact Source** for that brand under **Guidelines → Fact Sources**. If zero active verified Fact Sources exist for `brand_name` at `check_at` / `channel`, AI **abstains immediately** (0 API tokens spent).
 2. **Lexical Passage Retrieval (`app/checks/llm/verifier.py`):** Enabled verified facts active at `check_at` are split into overlapping 3,000-character passages (2,700-character stride), ranked by lexical overlap, and up to 5 passages are sent alongside up to 12,000 characters of copy.
 3. **Multimodal Vision Inspection (`app/checks/visual/inspector.py`):** When an image banner is attached and AI is configured alongside verified brand/visual rules, the same provider/key settings govern visual inspection; otherwise deterministic palette (`VIS-02`), perceptual logo hash (`VIS-05`), and Tesseract OCR (`image_ocr`) run locally and Vision AI explicitly abstains.
-4. **Strict Server Validation:** Calls enforce `response_format: json_schema` (`strict: true`), `store: false`, OpenRouter `require_parameters: true` + `data_collection: deny`, a 3,000-token cap, and a 25-second timeout.
+4. **Strict Server Validation:** OpenAI/paid-OpenRouter calls enforce `response_format: json_schema` (`strict: true`), `store: false`, `require_parameters: true` + `data_collection: deny`, a 3,000-token cap, and a 25-second timeout (`AI_PROVIDER=gemini` omits OpenAI-only `store` and uses `max_tokens: 3000`).
 5. **Post-Response Grounding Gate (`app/checks/grounding.py`):** The server verifies every returned `fact_id`, verbatim source quote, source hash, content/OCR span, and status consistency. Invalid or ungrounded AI outputs are **dropped / abstained** and logged.
 6. **Human Sign-Off Mandatory:** AI findings are advisory evidence only; publication requires independent reviewer approval.
 

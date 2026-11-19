@@ -24,21 +24,40 @@ SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SECRET_KEY", "") or os.envi
 SUPABASE_STORAGE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "brandguard-files")
 SEED_DEMO_USERS = os.environ.get("SEED_DEMO_USERS", "true").lower() == "true"
 JWT_SECRET = os.environ.get("JWT_SECRET", "")
-AI_PROVIDER = os.environ.get("AI_PROVIDER", "disabled").lower()
-AI_API_KEY = os.environ.get("AI_API_KEY", "") or (
-    os.environ.get("OPENROUTER_API_KEY", "") if AI_PROVIDER == "openrouter" else ""
-)
-AI_BASE_URL = os.environ.get(
-    "AI_BASE_URL",
-    (
-        "https://openrouter.ai/api/v1"
+AI_PROVIDER = os.environ.get("AI_PROVIDER", "disabled").strip().lower()
+AI_API_KEY = (
+    os.environ.get("AI_API_KEY", "").strip()
+    or (
+        os.environ.get("OPENROUTER_API_KEY", "").strip()
         if AI_PROVIDER == "openrouter"
-        else "https://api.openai.com/v1"
-    ),
-).rstrip("/")
-AI_MODEL = os.environ.get(
-    "AI_MODEL", "openai/gpt-5.4-mini" if AI_PROVIDER == "openrouter" else "gpt-5.4-mini"
+        else ""
+    )
+    or (
+        (
+            os.environ.get("GEMINI_API_KEY", "").strip()
+            or os.environ.get("GOOGLE_API_KEY", "").strip()
+        )
+        if AI_PROVIDER == "gemini"
+        else ""
+    )
 )
+_DEFAULT_AI_BASE_URL = (
+    "https://openrouter.ai/api/v1"
+    if AI_PROVIDER == "openrouter"
+    else (
+        "https://generativelanguage.googleapis.com/v1beta/openai"
+        if AI_PROVIDER == "gemini"
+        else "https://api.openai.com/v1"
+    )
+)
+AI_BASE_URL = os.environ.get("AI_BASE_URL", _DEFAULT_AI_BASE_URL).strip().rstrip("/")
+_DEFAULT_AI_MODEL = (
+    "openai/gpt-5.4-mini"
+    if AI_PROVIDER == "openrouter"
+    else ("gemini-3.5-flash-lite" if AI_PROVIDER == "gemini" else "gpt-5.4-mini")
+)
+AI_MODEL = os.environ.get("AI_MODEL", _DEFAULT_AI_MODEL).strip()
+AI_DATA_COLLECTION = os.environ.get("AI_DATA_COLLECTION", "").strip().lower()
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL", os.environ.get("APP_URL", "")).rstrip(
     "/"
 )
@@ -51,6 +70,9 @@ CORS_ORIGINS = [
 ]
 OVERRIDE_FRICTION_THRESHOLD = max(
     1, int(os.environ.get("OVERRIDE_FRICTION_THRESHOLD", "3"))
+)
+DECISION_AMEND_WINDOW_MINUTES = max(
+    1, int(os.environ.get("DECISION_AMEND_WINDOW_MINUTES", "60"))
 )
 TESSERACT_CMD = os.environ.get("TESSERACT_CMD", "").strip()
 # Compatibility tests only. There is intentionally no environment flag enabling ID-header login.

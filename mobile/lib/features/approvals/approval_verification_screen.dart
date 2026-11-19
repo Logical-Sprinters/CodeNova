@@ -408,6 +408,8 @@ class _ApprovalVerificationScreenState
                     Text(
                       valid
                           ? 'Approval seal is cryptographically valid'
+                          : sealStatus == 'REVOKED'
+                          ? 'Approval seal was revoked by reviewer'
                           : 'Approval invalid / tampered or stale',
                       style: AppTheme.labelLarge.copyWith(
                         color: valid ? AppTheme.success : AppTheme.danger,
@@ -418,6 +420,14 @@ class _ApprovalVerificationScreenState
                       _result!['reason']?.toString() ?? 'No reason returned.',
                       style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
                     ),
+                    if (sealStatus == 'REVOKED' &&
+                        (_result!['revoked_at']?.toString() ?? '').isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Revoked at ${_result!['revoked_at']}',
+                        style: AppTheme.monoLabel(color: AppTheme.muted),
+                      ),
+                    ],
                     if (diffSegments.isNotEmpty) ...[
                       const SizedBox(height: 10),
                       Text(

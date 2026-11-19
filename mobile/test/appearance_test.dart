@@ -1,5 +1,6 @@
 import 'package:brandguard/app/app_theme.dart';
 import 'package:brandguard/app/appearance_controller.dart';
+import 'package:brandguard/app/brandguard_app.dart';
 import 'package:brandguard/app/ui/app_widgets.dart';
 import 'package:brandguard/core/auth/demo_auth.dart';
 import 'package:brandguard/core/auth/session.dart';
@@ -109,8 +110,8 @@ void main() {
     expect(AppearanceController.parse('light'), AppearanceMode.light);
     expect(AppearanceController.parse('dark'), AppearanceMode.dark);
     expect(AppearanceController.parse('system'), AppearanceMode.system);
-    expect(AppearanceController.parse(null), AppearanceMode.system);
-    expect(AppearanceController.parse('neon'), AppearanceMode.system);
+    expect(AppearanceController.parse(null), AppearanceMode.light);
+    expect(AppearanceController.parse('neon'), AppearanceMode.light);
   });
 
   for (final brightness in Brightness.values) {
@@ -252,5 +253,21 @@ void main() {
     expect(controller.mode, AppearanceMode.light);
     expect(controller.storageValue, 'light');
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('legacy appearance key resets to light default on reopen', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'brandguard.appearance': 'system',
+    });
+    final controller = AppearanceController.instance;
+    controller.setMode(AppearanceMode.dark);
+    await tester.pumpWidget(const BrandGuardApp());
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(controller.mode, AppearanceMode.light);
+    expect(controller.isDark, isFalse);
+    await tester.pump(const Duration(milliseconds: 2800));
+    await tester.pumpAndSettle();
   });
 }

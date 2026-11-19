@@ -180,6 +180,65 @@ void main() {
     await submit(tester);
     expect(session.role, 'reviewer');
   });
+  testWidgets('remember me restores signed-in session on reopen and logout clears it', (
+    tester,
+  ) async {
+    BrandGuardApiService.clientForTesting = MockClient((request) async {
+      if (request.url.path == '/api/v1/auth/config') {
+        return http.Response(
+          '{"auth_provider":"local","demo_accounts_enabled":true}',
+          200,
+        );
+      }
+      if (request.url.path == '/api/v1/auth/refresh') {
+        final body = jsonDecode(request.body);
+        expect(body['refresh_token'], 'saved-refresh-grant');
+        return http.Response(
+          jsonEncode({
+            'access_token': 'restored-access-u1',
+            'refresh_token': 'rotated-refresh-u1',
+            'user': {
+              'user_id': DemoAuth.creator.userId,
+              'name': DemoAuth.creator.name,
+              'email': DemoAuth.creator.email,
+              'role': DemoAuth.creator.role,
+            },
+          }),
+          200,
+        );
+      }
+      return http.Response(
+        '{"total_checks":0,"pending":0,"approved":0,"rejected":0,"unread":0,"database":"sqlite","auth_provider":"local","ai_configured":false,"items":[],"reviews":[]}',
+        200,
+      );
+    });
+    SharedPreferences.setMockInitialValues({
+      BrandGuardApiService.rememberedSessionKey: jsonEncode({
+        'r': 'saved-refresh-grant',
+      }),
+    });
+
+    await tester.pumpWidget(const BrandGuardApp());
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 500));
+    await settleTestUi(tester);
+
+    expect(find.byType(BrandGuardShell), findsOneWidget);
+    expect(session.userId, DemoAuth.creator.userId);
+    expect(session.accessToken, 'restored-access-u1');
+
+    final prefs = await SharedPreferences.getInstance();
+    final saved = jsonDecode(
+      prefs.getString(BrandGuardApiService.rememberedSessionKey)!,
+    ) as Map<String, dynamic>;
+    expect(saved['r'], 'rotated-refresh-u1');
+
+    await BrandGuardApiService.signOut();
+    expect(
+      prefs.getString(BrandGuardApiService.rememberedSessionKey),
+      isNull,
+    );
+  });
   testWidgets('cloud config hides public demo values', (tester) async {
     BrandGuardApiService.clientForTesting = MockClient(
       (_) async => http.Response(

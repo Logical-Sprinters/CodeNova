@@ -20,8 +20,8 @@ CodeNova/
     lib/features/workspace/             Workspace hub, version history, audit ledger
     lib/features/receipts/              Structured processing receipts with hash chain & diff view
     lib/features/notifications/         In-app notifications with read/delete state
-    lib/features/profile/               Full My profile identity/session sheet, display name, preferences, logout
-    test/                               Mocked-client unit, 5-viewport layout & Round 3 UI tests (121 tests)
+    lib/features/profile/               My profile sheet, in-app Change password & session management, display name, preferences, logout
+    test/                               Mocked-client unit, 5-viewport layout & Round 3 UI tests (134 tests)
   backend/                              FastAPI backend (Python 3.11+, tested on 3.13)
     app/auth_service.py                 Local PBKDF2/JWT or Supabase Auth adapter
     app/database.py                     Transactional SQLite / PostgreSQL repository (`bg_entities`, `bg_documents`)
@@ -39,7 +39,7 @@ CodeNova/
     app/routers/                        authentication, brand, conflicts, email_delivery, files, library, overrides, receipts, recovery, reviews, workspace, audit
     data/brand_rules.json               Starter versioned rules with `rule_text`, temporal bounds, visual palettes
     tests/                              Inherited workflow regression tests (29 functions)
-    tests_secure/                       SQL/bearer security, grounding, temporal, overrides, conflicts, OCR/visual, provider contracts (61 functions; 137 total pytest cases across both suites)
+    tests_secure/                       SQL/bearer security, grounding, temporal, overrides, conflicts, OCR/visual, provider contracts (70 functions; 145 total pytest cases across both suites)
     migrations/001_core.sql             PostgreSQL schema with RLS
     supabase/002_private_storage.sql    Supabase Storage bucket & owner/reviewer policies
     manage.py                           CLI init/migrate/create-user/backup/restore

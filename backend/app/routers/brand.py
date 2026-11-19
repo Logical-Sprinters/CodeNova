@@ -17,7 +17,7 @@ from app.approval.store import (
     snapshot,
 )
 from app.audit.store import log_audit
-from app.auth import get_user
+from app.auth import can_read, get_user
 from app.checks.conflicts import detect_active_conflicts
 from app.checks.deterministic.engine import run_deterministic_checks
 from app.checks.grounding import filter_grounded_findings
@@ -32,7 +32,7 @@ from app.checks.visual.inspector import (
     inspect_visual_asset,
 )
 from app.notifications import notify_reviewers
-from app.receipts.store import create_receipt
+from app.receipts.store import create_receipt, load_receipts, save_receipts
 from app.routers.files import IMAGE_SUFFIXES, load_asset
 from app.rules_store.store import get_brand_rule_versions, resolve_active_rules
 from app.schemas.brand import (
@@ -334,6 +334,7 @@ def attach_receipt(record):
     receipt = create_receipt(
         {
             "check_id": record["check_id"],
+            "parent_check_id": record.get("parent_check_id"),
             "creator_id": record["creator_id"],
             "brand_name": record["brand_name"],
             "content_hash": record["content_hash"],
@@ -373,6 +374,7 @@ def response_for(record):
         content_version=record["content_version"],
         scan_status=record["scan_status"],
         review_status=record["status"],
+        parent_check_id=record.get("parent_check_id"),
         rules_version=record.get("rules_version"),
         check_at=record.get("check_at"),
         channel=record.get("channel", "all"),
@@ -541,6 +543,14 @@ async def check_brand(
     authorization: str = Header(default=""),
 ):
     with STORE_LOCK:
+        parent_check_id = None
+        if request.parent_check_id:
+            parent_record = get_record(request.parent_check_id)
+            if parent_record is None:
+                raise HTTPException(404, "Parent check not found")
+            if not can_read(parent_record, user):
+                raise HTTPException(403, "You cannot reference that check")
+            parent_check_id = parent_record["check_id"]
         now = datetime.now(timezone.utc).isoformat()
         new_check_id = str(uuid4())
         resolved_assets = resolve_assets(request.asset_ids, user, authorization)
@@ -553,18 +563,26 @@ async def check_brand(
             check_id=new_check_id,
             assets=resolved_assets,
         )
-        initial_status = (
-            "paused_conflict" if inspection.get("conflicts") else "pending"
-        )
+        if not request.submit_for_review:
+            initial_status = "draft"
+        elif inspection.get("conflicts"):
+            initial_status = "paused_conflict"
+        else:
+            initial_status = "pending"
         record = {
             "check_id": new_check_id,
+            "parent_check_id": parent_check_id,
             "brand_name": request.brand_name,
             "creator_id": user["user_id"],
+            "creator_name": user.get("name") or user.get("email") or user["user_id"],
+            "creator_email": user.get("email") or "",
             "content_version": 1,
             "created_at": now,
             "updated_at": now,
             "status": initial_status,
             "reviewer": None,
+            "reviewer_name": None,
+            "reviewer_email": None,
             "review_note": None,
             "decided_at": None,
             **inspection,
@@ -578,6 +596,7 @@ async def check_brand(
             record["check_id"],
             {
                 "brand": record["brand_name"],
+                "parent_check_id": parent_check_id,
                 "content_version": 1,
                 "content_hash": record["content_hash"],
                 "composite_hash": record.get("composite_hash"),
@@ -594,7 +613,7 @@ async def check_brand(
         if initial_status == "pending":
             notify_reviewers(
                 record["check_id"],
-                f"{record['brand_name']} content v{record['content_version']} awaits review.",
+                f"{record['brand_name']} submission awaits review.",
             )
         return response_for(record)
 
@@ -638,14 +657,27 @@ async def submit_version(
             check_id=check_id,
             assets=resolved_assets,
         )
-        new_status = "paused_conflict" if inspection.get("conflicts") else "pending"
+        if not request.submit_for_review:
+            new_status = "draft"
+        elif inspection.get("conflicts"):
+            new_status = "paused_conflict"
+        else:
+            new_status = "pending"
         record.update(inspection)
         record.update(
             content_version=current_version + 1,
+            creator_name=record.get("creator_name")
+            or user.get("name")
+            or user.get("email")
+            or user["user_id"],
+            creator_email=record.get("creator_email") or user.get("email") or "",
             status=new_status,
             reviewer=None,
+            reviewer_name=None,
+            reviewer_email=None,
             review_note=None,
             decided_at=None,
+            initial_decided_at=None,
             seal_id=None,
             updated_at=datetime.now(timezone.utc).isoformat(),
         )
@@ -677,8 +709,71 @@ async def submit_version(
         if new_status == "pending":
             notify_reviewers(
                 record["check_id"],
-                f"{record['brand_name']} content v{record['content_version']} awaits review.",
+                f"{record['brand_name']} updated submission (rev {record['content_version']}) awaits review.",
             )
+        return response_for(record)
+
+
+@router.post("/{check_id}/submit", response_model=BrandCheckResponse)
+async def submit_brand_check(
+    check_id: str,
+    user: dict = Depends(get_user),
+):
+    with STORE_LOCK:
+        record = get_record(check_id)
+        if record is None:
+            raise HTTPException(404, "Check not found")
+        if record.get("creator_id") != user["user_id"]:
+            raise HTTPException(403, "Only the submission owner can submit this check")
+        if record.get("status") in {"pending", "paused_conflict"}:
+            return response_for(record)
+        if record.get("status") != "draft":
+            raise HTTPException(
+                409,
+                "This check was already submitted or decided. Edit & resubmit to create a new revision.",
+            )
+        new_status = "paused_conflict" if record.get("conflicts") else "pending"
+        now_iso = datetime.now(timezone.utc).isoformat()
+        record.update(
+            status=new_status,
+            updated_at=now_iso,
+            creator_name=record.get("creator_name")
+            or user.get("name")
+            or user.get("email")
+            or user["user_id"],
+            creator_email=record.get("creator_email") or user.get("email") or "",
+        )
+        if record.get("versions"):
+            record["versions"][-1] = snapshot(record)
+        records = load_records()
+        save_records([record if row["check_id"] == check_id else row for row in records])
+        receipts = load_receipts()
+        for receipt in receipts:
+            if (
+                receipt.get("check_id") == check_id
+                and receipt.get("content_version") == record.get("content_version")
+            ):
+                receipt["final_status"] = new_status
+        save_receipts(receipts)
+        log_audit(
+            "submit_for_review",
+            user["user_id"],
+            check_id,
+            {
+                "content_version": record["content_version"],
+                "content_hash": record["content_hash"],
+                "status": new_status,
+                "receipt_id": record["receipt_id"],
+            },
+        )
+        if new_status == "pending":
+            ver = record.get("content_version") or 1
+            msg = (
+                f"{record['brand_name']} submission awaits review."
+                if ver <= 1
+                else f"{record['brand_name']} updated submission (rev {ver}) awaits review."
+            )
+            notify_reviewers(record["check_id"], msg)
         return response_for(record)
 
 

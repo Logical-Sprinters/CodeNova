@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../auth/session.dart';
 import 'api_config.dart';
@@ -16,8 +17,14 @@ class ApiException implements Exception {
 }
 
 class BrandGuardApiService {
+  static const rememberedSessionKey = 'bg_remembered_session';
+  static const rememberMePrefKey = 'bg_remember_session_enabled';
+  static bool _rememberSession = false;
+
   static http.Client _client = http.Client();
   static Future<void>? _refreshing;
+  static final ValueNotifier<int> syncTick = ValueNotifier<int>(0);
+  static void notifyDataChanged() => syncTick.value++;
   @visibleForTesting
   static set clientForTesting(http.Client value) {
     _client.close();
@@ -129,7 +136,16 @@ class BrandGuardApiService {
         retry: false,
       );
     }
-    return _decode(response);
+    final result = _decode(response);
+    final isMutation =
+        method.toUpperCase() != 'GET' &&
+        !path.startsWith('/api/v1/auth/') &&
+        path != '/api/v1/brand/preflight' &&
+        path != '/api/v1/approvals/verify';
+    if (isMutation) {
+      notifyDataChanged();
+    }
+    return result;
   }
 
   static void _acceptSession(Map<String, dynamic> data) {
@@ -145,15 +161,97 @@ class BrandGuardApiService {
     );
   }
 
-  static Future<void> login(String email, String password) async {
-    _acceptSession(
-      await request(
+  static Future<void> _persistRememberedSession(String? refreshGrant) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (_rememberSession && refreshGrant != null && refreshGrant.isNotEmpty) {
+        await prefs.setString(
+          rememberedSessionKey,
+          jsonEncode({'r': refreshGrant}),
+        );
+      } else {
+        await prefs.remove(rememberedSessionKey);
+      }
+    } catch (_) {
+      // Headless unit tests or restricted storage must not fail login.
+    }
+  }
+
+  static Future<void> _clearRememberedSession() async {
+    _rememberSession = false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(rememberedSessionKey);
+    } catch (_) {
+      // Ignored safely.
+    }
+  }
+
+  /// Restores an authenticated session from a saved refresh grant when
+  /// "Remember me" was enabled during sign-in. Passwords are never saved.
+  static Future<bool> tryRestoreSession() async {
+    String? stored;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      stored = prefs.getString(rememberedSessionKey);
+    } catch (_) {
+      return false;
+    }
+    if (stored == null || stored.isEmpty) return false;
+    String? refreshGrant;
+    try {
+      final decoded = jsonDecode(stored);
+      if (decoded is Map) {
+        refreshGrant = decoded['r']?.toString();
+      }
+    } catch (_) {
+      await _clearRememberedSession();
+      return false;
+    }
+    if (refreshGrant == null || refreshGrant.isEmpty) {
+      await _clearRememberedSession();
+      return false;
+    }
+
+    try {
+      final req = http.Request(
         'POST',
-        '/api/v1/auth/login',
-        authenticated: false,
-        body: {'email': email.trim(), 'password': password},
-      ),
+        Uri.parse('$baseUrl/api/v1/auth/refresh'),
+      );
+      req.headers.addAll({'Content-Type': 'application/json'});
+      req.body = jsonEncode({'refresh_token': refreshGrant});
+      final response = await _send(req, timeout: const Duration(seconds: 6));
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        await _clearRememberedSession();
+        return false;
+      }
+      final data = _decode(response);
+      _rememberSession = true;
+      _acceptSession(data);
+      await _persistRememberedSession(session.refreshToken);
+      return true;
+    } on ApiException {
+      await _clearRememberedSession();
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> login(
+    String email,
+    String password, {
+    bool rememberMe = false,
+  }) async {
+    final data = await request(
+      'POST',
+      '/api/v1/auth/login',
+      authenticated: false,
+      body: {'email': email.trim(), 'password': password},
     );
+    _rememberSession = rememberMe;
+    _acceptSession(data);
+    await _persistRememberedSession(session.refreshToken);
   }
 
   static Future<Map<String, dynamic>> signup(
@@ -185,8 +283,16 @@ class BrandGuardApiService {
         throw const ApiException('Session changed during refresh.');
       }
       _acceptSession(data);
+      if (_rememberSession) {
+        await _persistRememberedSession(session.refreshToken);
+      }
     } catch (_) {
-      if (session.refreshToken == refresh) session.signOut();
+      if (session.refreshToken == refresh) {
+        session.signOut();
+        if (_rememberSession) {
+          await _clearRememberedSession();
+        }
+      }
       rethrow;
     }
   }
@@ -194,6 +300,7 @@ class BrandGuardApiService {
   static Future<void> signOut() async {
     final token = session.accessToken;
     session.signOut();
+    await _clearRememberedSession();
     if (token == null) return;
     try {
       final req = http.Request(
@@ -244,6 +351,8 @@ class BrandGuardApiService {
     String? channel,
     String? checkAt,
     List<String>? assetIds,
+    bool submitForReview = true,
+    String? parentCheckId,
   }) => request(
     'POST',
     '/api/v1/brand/check',
@@ -254,8 +363,14 @@ class BrandGuardApiService {
       'channel': ?channel,
       'check_at': ?checkAt,
       if (assetIds != null && assetIds.isNotEmpty) 'asset_ids': assetIds,
+      if (!submitForReview) 'submit_for_review': false,
+      if (parentCheckId != null && parentCheckId.isNotEmpty)
+        'parent_check_id': parentCheckId,
     },
   );
+
+  static Future<Map<String, dynamic>> submitCheckForReview(String checkId) =>
+      request('POST', '/api/v1/brand/${Uri.encodeComponent(checkId)}/submit');
 
   /// Persists the display name on the server and refreshes the session user.
   static Future<User> updateDisplayName(String name) async {
@@ -282,6 +397,19 @@ class BrandGuardApiService {
     Map<String, bool> values,
   ) => request('PUT', '/api/v1/auth/preferences', body: values);
 
+  static Future<Map<String, dynamic>> changePassword({
+    required String newPassword,
+    String? currentPassword,
+  }) => request(
+    'PUT',
+    '/api/v1/auth/password',
+    body: {
+      'password': newPassword,
+      if (currentPassword != null && currentPassword.isNotEmpty)
+        'current_password': currentPassword,
+    },
+  );
+
   static Future<Map<String, dynamic>> getReviews({String? status}) => getJson(
     '/api/v1/reviews${status == null ? '' : '?status=${Uri.encodeQueryComponent(status)}'}',
   );
@@ -294,6 +422,7 @@ class BrandGuardApiService {
     String? channel,
     String? checkAt,
     List<String>? assetIds,
+    bool submitForReview = true,
   }) => request(
     'POST',
     '/api/v1/brand/$checkId/versions',
@@ -303,6 +432,7 @@ class BrandGuardApiService {
       'channel': ?channel,
       'check_at': ?checkAt,
       'asset_ids': ?assetIds,
+      if (!submitForReview) 'submit_for_review': false,
     },
   );
   static Future<Map<String, dynamic>> decideReview({
@@ -316,6 +446,20 @@ class BrandGuardApiService {
     body: {
       'decision': decision,
       'note': note,
+      'expected_version': ?expectedVersion,
+    },
+  );
+  static Future<Map<String, dynamic>> amendReviewDecision({
+    required String checkId,
+    required String decision,
+    required String reason,
+    int? expectedVersion,
+  }) => request(
+    'POST',
+    '/api/v1/reviews/$checkId/amend',
+    body: {
+      'decision': decision,
+      'reason': reason,
       'expected_version': ?expectedVersion,
     },
   );
@@ -449,7 +593,9 @@ class BrandGuardApiService {
     );
     req.headers['Authorization'] = 'Bearer ${session.accessToken}';
     req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: fileName));
-    return _decode(await _send(req));
+    final decoded = _decode(await _send(req));
+    notifyDataChanged();
+    return decoded;
   }
 
   static Future<Map<String, dynamic>> saveDraft(
@@ -478,6 +624,8 @@ class BrandGuardApiService {
     );
     req.headers['Authorization'] = 'Bearer ${session.accessToken}';
     req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: name));
-    return _decode(await _send(req));
+    final decoded = _decode(await _send(req));
+    notifyDataChanged();
+    return decoded;
   }
 }

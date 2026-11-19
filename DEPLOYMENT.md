@@ -1,6 +1,6 @@
 # BrandGuard — Live Deployment Handoff & Round 3 Redeploy Guide
 
-> **Round 3 (v3.0.0) Note:** The verification counts (`113` backend / `49` Flutter / `55` API / `17` email) below describe the initial `v2` Antideploy deployment in `validation/antideploy/`. Round 3 adds server-side grounding, temporal rules, conflicts, coded overrides, clarity tickets, visual/OCR inspection (`tesseract-ocr` in `Dockerfile`), and updated Flutter screens (`137` backend / `121` Flutter tests). Follow the **Round 3 Redeploy Checklist** below before updating the live URL.
+> **Round 3 (v3.0.0) Note:** The verification counts (`113` backend / `49` Flutter / `55` API / `17` email) below describe the initial `v2` Antideploy deployment in `validation/antideploy/`. Round 3 adds server-side grounding, temporal rules, conflicts, coded overrides, clarity tickets, visual/OCR inspection (`tesseract-ocr` in `Dockerfile`), real-time creator/reviewer workflows (`changes_requested` + Edit & Resubmit, in-app Password change, two-step inspect → Submit for authorised review, newest-first queues, creator/timestamp metadata, Light-mode default, Unseen/Seen notifications, Remember me session restore, non-destructive `Edit as new check` for Approved submissions), and updated Flutter screens (`145` backend / `134` Flutter tests). Follow the **Round 3 Redeploy Checklist** below before updating the live URL.
 
 ## Live Links
 

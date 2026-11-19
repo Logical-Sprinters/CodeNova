@@ -84,7 +84,7 @@ or rely on the existing `lintVital*` disable guard in `mobile/android/build.grad
 ```bash
 cd mobile
 flutter analyze          # Expected: No issues found!
-flutter test             # 121 tests (unit, connection/session, 5-viewport layout, Round 3 UI & My profile)
+flutter test             # 134 tests (unit, connection/session, Remember me restore, 5-viewport layout, Round 3 UI, My profile, Change password, real-time sync, Edit & resubmit, Approved -> Edit as new check, 2-step submit -> Reviews, Unseen/Seen notifications)
 ```
 
 Viewport coverage includes **320×640, 360×780, 390×844, 430×932, and 768×1024** without render overflow.
