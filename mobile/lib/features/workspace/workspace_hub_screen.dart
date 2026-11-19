@@ -49,7 +49,9 @@ class WorkspaceHubScreen extends StatelessWidget {
           ),
           (
             'Review Queue',
-            'Inspect submissions and record reviewer decisions.',
+            isReviewer
+                ? 'Inspect submissions and record reviewer decisions.'
+                : 'Track submissions, view reviewer feedback & resubmit changes.',
             Icons.assignment_turned_in_outlined,
             const ReviewQueueScreen(),
           ),

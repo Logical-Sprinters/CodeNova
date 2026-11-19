@@ -35,8 +35,16 @@ def get_receipt(receipt_id: str):
 
 
 def record_decision(
-    check_id: str, content_version: int, decision: str, reviewer: str, note: str
+    check_id: str,
+    content_version: int,
+    decision: str,
+    reviewer: str,
+    note: str,
+    seal_id: str | None = None,
+    *,
+    is_amendment: bool = False,
 ):
+    now_iso = datetime.now(timezone.utc).isoformat()
     with STORE_LOCK:
         receipts = load_receipts()
         for receipt in receipts:
@@ -48,6 +56,17 @@ def record_decision(
                     final_status=decision,
                     reviewer=reviewer,
                     review_note=note,
-                    decided_at=datetime.now(timezone.utc).isoformat(),
+                    decided_at=now_iso,
+                    seal_id=seal_id if decision == "approved" else None,
+                )
+                receipt.setdefault("decision_history", []).append(
+                    {
+                        "decision": decision,
+                        "kind": "amended" if is_amendment else "initial",
+                        "reviewer": reviewer,
+                        "note": note,
+                        "decided_at": now_iso,
+                        "seal_id": seal_id if decision == "approved" else None,
+                    }
                 )
         save_receipts(receipts)

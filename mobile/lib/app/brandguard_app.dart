@@ -21,7 +21,8 @@ class BrandGuardApp extends StatefulWidget {
 
 class _BrandGuardAppState extends State<BrandGuardApp>
     with WidgetsBindingObserver {
-  static const _preferenceKey = 'brandguard.appearance';
+  static const _preferenceKey = 'brandguard.appearance.v2';
+  static const _legacyPreferenceKey = 'brandguard.appearance';
 
   final _appearance = AppearanceController.instance;
   bool _ready = false;
@@ -43,11 +44,13 @@ class _BrandGuardAppState extends State<BrandGuardApp>
   Future<void> _restorePreference() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _appearance.setMode(
-        AppearanceController.parse(prefs.getString(_preferenceKey)),
-      );
+      final saved = prefs.getString(_preferenceKey);
+      if (saved == null && prefs.containsKey(_legacyPreferenceKey)) {
+        await prefs.remove(_legacyPreferenceKey);
+      }
+      _appearance.setMode(AppearanceController.parse(saved));
     } catch (_) {
-      // A preferences failure must never block startup: stay on `system`.
+      // A preferences failure must never block startup: stay on light.
     }
     if (mounted) setState(() => _ready = true);
   }

@@ -9,6 +9,7 @@ from app.config import initialize_data_store
 from app import config
 from app.http_security import CONTENT_SECURITY_POLICY, DOCUMENTATION_SECURITY_POLICY
 from app.routers.authentication import router as auth_router
+from app.routers.assistant import router as assistant_router
 from app.routers.recovery import router as recovery_router
 from app.routers.email_delivery import router as email_router
 from app.routers.library import router as library_router
@@ -43,6 +44,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(auth_router)
+app.include_router(assistant_router)
 app.include_router(recovery_router)
 app.include_router(email_router)
 app.include_router(library_router)

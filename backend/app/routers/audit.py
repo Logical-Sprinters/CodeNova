@@ -19,4 +19,9 @@ async def list_audit(user: dict = Depends(get_user)):
                 if r.get("creator_id") == user["user_id"]
             }
             events = [event for event in events if event["check_id"] in owned]
+        events = sorted(
+            events,
+            key=lambda e: e.get("timestamp") or "",
+            reverse=True,
+        )
         return {"total": len(events), "events": events}

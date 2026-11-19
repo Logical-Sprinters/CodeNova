@@ -249,10 +249,18 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
                           value: reviewStatus.replaceAll('_', ' '),
                           valueColor: reviewStatus == 'approved'
                               ? AppTheme.success
+                              : reviewStatus == 'changes_requested'
+                              ? AppTheme.warning
                               : reviewStatus == 'rejected'
                               ? AppTheme.danger
                               : AppTheme.warning,
                         ),
+                        if ((receipt?['review_note']?.toString() ?? '')
+                            .isNotEmpty)
+                          DetailRow(
+                            label: 'Reviewer feedback',
+                            value: receipt!['review_note'].toString(),
+                          ),
                         DetailRow(
                           label: 'Receipt status',
                           value:

@@ -6,10 +6,11 @@ BrandGuard is a mobile-first brand governance platform where creators draft or u
 
 | | |
 |---|---|
+| **Active Default Mode** | Local FastAPI + SQLite (`AUTH_PROVIDER=local`) · *Supabase cloud mode optional/deferred* |
 | **Hosted Web App** | https://brandguard-app.antideploy.app *(see [Deployment](#5-deployment--hosted-notes))* |
 | **Client** | Flutter (`mobile/`) + prebuilt same-origin web bundle (`browser_preview/`) |
 | **Backend** | FastAPI (`backend/`, Python **3.11+**, tested on **3.13**) |
-| **Database & Auth** | Local SQLite + PBKDF2/JWT (local mode) · Supabase PostgreSQL + Auth + private Storage (cloud mode) |
+| **Database & Auth** | Local SQLite + PBKDF2/JWT (active local default) · Supabase PostgreSQL + Auth + private Storage (optional cloud mode) |
 
 ---
 
@@ -32,7 +33,7 @@ BrandGuard is a mobile-first brand governance platform where creators draft or u
 1. **Real-Time Inline Preflight Checks** — `POST /api/v1/brand/preflight` runs live checks while drafting in **New Brand Check** without writing noisy drafts/receipts/audit entries.
 2. **Source-of-Truth Conflict Detection & Abstention** — `app/checks/conflicts.py` detects contradictions between active rules and verified facts sharing a `topic_key`, pauses the check (`abstained_conflict` / `paused_conflict`) instead of guessing, and lets reviewers resolve conflicts + optionally `auto_recheck` via `/api/v1/conflicts`.
 3. **Coded Reviewer Overrides & Friction-Based Clarity Tickets** — Reviewers can override individual findings with 6 structured reason codes (`FALSE_POSITIVE`, `APPROVED_EXCEPTION`, `AMBIGUOUS_RULE_TEXT`, `OUTDATED_RULE_OR_FACT`, `CONTEXTUAL_QUALIFIER`, `CHANNEL_EXEMPTION`) via `/api/v1/reviews/{check_id}/findings/{finding_id}/override`. Overrides **never silently mutate rules**; repeated overrides roll up into **Clarity Tickets** (`/api/v1/clarity-tickets`) for rule owners.
-4. **Cryptographic Tamper-Proof Receipt Diff & Full Profile Identity** — `ApprovalVerificationScreen` and `ReceiptDetailScreen` verify `receipt_hash` / chained integrity (`VALID` vs `VOIDED_TAMPERED`) and render inline word-level diffs between submitted and approved text. **Profile → My profile** displays full server-verified session & identity details (`Display name`, `Email`, `User id`, `Role`, `Auth provider`, `Database`, `Session state`) plus display-name editing backed by `PATCH /api/v1/auth/profile` and `GET/PUT /api/v1/auth/preferences`.
+4. **Cryptographic Tamper-Proof Receipt Diff, Time-Boxed Decision Reversal & Clean Profile** — `ApprovalVerificationScreen` and `ReceiptDetailScreen` verify `receipt_hash` / chained integrity (`VALID`, `VOIDED_TAMPERED`, or `REVOKED`) and render inline word-level diffs between submitted and approved text. Reviewers can amend or revoke their own approval/rejection within a configurable **60-minute** grace window (`POST /api/v1/reviews/{id}/amend`, returning `REVOKED` seals once superseded). **Profile → My profile** displays personal user identity (`Display name`, `Email`, `User id`, `Role`, `Session state`), display-name editing (`PATCH /api/v1/auth/profile`), password & session management (`PUT /api/v1/auth/password`), and preferences (`GET/PUT /api/v1/auth/preferences`) while hiding internal backend stack rows from the UI.
 
 ---
 
@@ -93,12 +94,26 @@ flutter run -d chrome --dart-define=API_BASE=http://127.0.0.1:8000
 flutter run --dart-define=API_BASE=https://brandguard-app.antideploy.app
 ```
 
+### D. Enable Grounded AI Verification (Local Mode)
+AI verification stays disabled (`AI_PROVIDER=disabled`) until a provider key is configured in `backend/.env` (never stored in Flutter or git):
+
+- **Fastest interactive setup (Windows):** Run **`ENABLE_AI.bat`** from the repo root (supports **Google Gemini free tier**, **OpenRouter**, or **OpenAI**), or run from `backend/`:
+  ```bash
+  python manage.py configure-ai
+  python manage.py test-ai
+  ```
+- **Auto-detection:** Setting `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `OPENROUTER_API_KEY`, or `OPENAI_API_KEY` in `backend/.env` while leaving `AI_PROVIDER` unset automatically enables that provider.
+- **Verify in the UI:** Restart the backend, sign in as a **Reviewer**, open **Guidelines → Fact Sources**, tap **Test AI verification** (`POST /api/v1/system/ai-test`), and ensure at least one Fact Source is added and marked **Verified**.
+- **In-App Chatbot Assistant:** Tap the floating chat button in the **bottom-right corner** of the main app shell (`BrandGuardShell`) to open the **BrandGuard AI** chat box (`POST /api/v1/assistant/chat`), ask policy/fact questions, or paste marketing copy for grounded suggestions + deterministic rule hits.
+
+See [docs/AI_SETUP.md](docs/AI_SETUP.md) for provider details, `:free` OpenRouter notes, and the strict grounding contract.
+
 ---
 
 ## 3. Authentication & Demo Credentials
 
 ### Local Mode (`AUTH_PROVIDER=local`, `SEED_DEMO_USERS=true` — default)
-When running locally with `backend/.env` unset (or `SEED_DEMO_USERS=true`), two local demo accounts are seeded automatically and displayed in the Sign In **Local demonstration accounts** card:
+When running locally with `backend/.env` unset (or `SEED_DEMO_USERS=true`), two local demo accounts are seeded automatically on the server (the Sign In screen displays only the email/password Sign In box without on-screen credential shortcuts):
 
 | Role | Name | Email | Password | Capabilities |
 |---|---|---|---|---|
@@ -123,11 +138,11 @@ All private endpoints require `Authorization: Bearer ACCESS_TOKEN`. Full OpenAPI
 | **Auth & Profile** | `GET /api/v1/auth/config`, `POST /login`, `/signup`, `/refresh`, `/logout`, `/recover`; `GET /me`, `PATCH /profile`, `GET/PUT /preferences`, `PUT /password` |
 | **Checks & Preflight** | `POST /api/v1/brand/preflight`, `POST /api/v1/brand/check`, `POST /api/v1/brand/{id}/versions`, `GET /api/v1/brand/rules/{brand_name}` |
 | **Files & Visual/OCR** | `POST /api/v1/files` (TXT, MD, text PDF, PNG, JPG, JPEG, WEBP; `?as_fact=true` reviewer-only), `GET /files/{id}`, `GET /files/{id}/download` |
-| **Reviews & Verify** | `GET /api/v1/reviews`, `PATCH /api/v1/reviews/{id}/decision`, `POST /api/v1/approvals/verify`, `POST /api/v1/approvals/verify-upload` |
+| **Reviews & Verify** | `GET /api/v1/reviews`, `PATCH /api/v1/reviews/{id}/decision`, `POST /api/v1/reviews/{id}/amend` (60m grace window), `POST /api/v1/approvals/verify`, `POST /api/v1/approvals/verify-upload` |
 | **Overrides & Tickets** | `POST /api/v1/reviews/{id}/findings/{finding_id}/override`, `GET /api/v1/overrides`, `GET /api/v1/clarity-tickets`, `PATCH /api/v1/clarity-tickets/{id}` |
 | **Conflicts** | `GET /api/v1/conflicts/`, `GET /api/v1/conflicts/{id}`, `POST /api/v1/conflicts/{id}/resolve` |
 | **Library** | `GET/POST/PUT/DELETE /api/v1/library/{guidelines,facts,rules}`, `POST /api/v1/library/rules/{rule_id}/logo-template` |
-| **Workspace & Audit** | `GET/POST/PUT/DELETE /api/v1/drafts`, `GET /api/v1/receipts/`, `GET /receipts/{id}`, `GET /audit`, `GET /history`, `GET /analytics`, `GET/PATCH/DELETE /notifications`, `GET /system/status` |
+| **Workspace & Audit** | `GET/POST/PUT/DELETE /api/v1/drafts`, `GET /api/v1/receipts/`, `GET /receipts/{id}`, `GET /audit`, `GET /history`, `GET /analytics`, `GET/PATCH/DELETE /notifications`, `GET /system/status`, `POST /system/ai-test`, `POST /assistant/chat` |
 
 ---
 
@@ -150,14 +165,14 @@ All private endpoints require `Authorization: Bearer ACCESS_TOKEN`. Full OpenAPI
 ```bash
 # Backend (from backend/)
 pytest -q
-# 142 tests total across tests/ + tests_secure/ (Phase 1-3 Round 3 + AI provider contracts):
-# - Linux/Docker with tesseract-ocr: 142 passed
-# - Without Tesseract binary installed locally: 140 passed, 2 OCR-binary tests skipped
+# 157 pytest cases total across tests/ + tests_secure/ (Round 3, 60m amend/revoke, AI/assistant/workflow contracts):
+# - Linux/Docker with tesseract-ocr: 157 passed
+# - Without Tesseract binary installed locally: 155 passed, 2 OCR-binary tests skipped
 
 # Flutter (from mobile/)
 flutter analyze
 flutter test
-# Analyzer clean (0 issues); 124 Flutter tests across mobile/test/ (run locally with Flutter SDK)
+# Analyzer clean (0 issues); 10 Flutter test files (85+ unit, layout-hardening & Round 3 UI tests)
 ```
 *(Note: Historical evidence in `validation/` covers the pre-Round-3 `v2.0.1` hosted release and is preserved unchanged until Round 3 is redeployed and re-audited.)*
 

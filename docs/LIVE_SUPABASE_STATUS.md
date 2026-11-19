@@ -1,5 +1,7 @@
 # BrandGuard — Hosted Supabase Status
 
+> **Current Status:** Deferred/optional for local development (`AUTH_PROVIDER=local` SQLite is active locally; see [../START_HERE.md](../START_HERE.md)). Existing Supabase infrastructure documented below remains untouched if needed later.
+
 ## Existing Project Preserved
 
 | Item | State |

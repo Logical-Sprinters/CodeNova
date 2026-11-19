@@ -20,14 +20,14 @@ CodeNova/
     lib/features/workspace/             Workspace hub, version history, audit ledger
     lib/features/receipts/              Structured processing receipts with hash chain & diff view
     lib/features/notifications/         In-app notifications with read/delete state
-    lib/features/profile/               Full My profile identity/session sheet, display name, preferences, logout
-    test/                               Mocked-client unit, 5-viewport layout & Round 3 UI tests (124 tests)
+    lib/features/profile/               My profile sheet, in-app Change password & session management, display name, preferences, logout
+    test/                               Mocked-client unit, layout-hardening & Round 3 UI tests (10 test files, 85+ tests)
   backend/                              FastAPI backend (Python 3.11+, tested on 3.13)
     app/auth_service.py                 Local PBKDF2/JWT or Supabase Auth adapter
     app/database.py                     Transactional SQLite / PostgreSQL repository (`bg_entities`, `bg_documents`)
     app/storage.py                      Repository interface + JSON test adapter
     app/rules_store/store.py            Versioned, temporal (`effective_from`/`expires_at`), channel-scoped rules
-    app/approval/store.py               Immutable check versions, SHA-256 content/receipt hashes, rule-diff verification
+    app/approval/store.py               Immutable check versions, 60-minute decision reversal (`decision_history`), SHA-256 content/receipt hashes, `REVOKED` seal handling, rule-diff verification
     app/audit/store.py                  Append-only governance audit ledger
     app/overrides/store.py              Coded finding overrides + friction-based clarity ticket aggregator
     app/receipts/store.py               Tamper-evident receipt builder & hash chain verification
@@ -38,13 +38,14 @@ CodeNova/
     app/checks/visual/inspector.py      Image metadata, Tesseract OCR, dominant palette (`VIS-02`), logo pHash (`VIS-05`), Vision AI
     app/routers/                        authentication, brand, conflicts, email_delivery, files, library, overrides, receipts, recovery, reviews, workspace, audit
     data/brand_rules.json               Starter versioned rules with `rule_text`, temporal bounds, visual palettes
-    tests/                              Inherited workflow regression tests (29 functions)
-    tests_secure/                       SQL/bearer security, grounding, temporal, overrides, conflicts, OCR/visual, provider contracts (66 functions; 142 total pytest cases across both suites)
-    migrations/001_core.sql             PostgreSQL schema with RLS
-    supabase/002_private_storage.sql    Supabase Storage bucket & owner/reviewer policies
-    manage.py                           CLI init/migrate/create-user/backup/restore
+    tests/                              Inherited workflow regression tests (33 test functions)
+    tests_secure/                       SQL/bearer security, grounding, temporal, overrides, conflicts, OCR/visual, 60m amend/revoke, AI, assistant chat & provider contracts (77 test functions; 157 total pytest cases across both suites)
+    migrations/001_core.sql             PostgreSQL schema with RLS (optional Supabase mode)
+    supabase/002_private_storage.sql    Supabase Storage bucket & owner/reviewer policies (optional Supabase mode)
+    manage.py                           CLI init/migrate/configure-ai/test-ai/create-user/backup/restore
     smoke_test.py                       HTTP smoke verification against isolated local backend
     .env.example                        Environment configuration template (no secrets)
+  ENABLE_AI.bat                         Windows interactive AI configuration + live verification launcher
   browser_preview/                      Compiled Flutter `--no-web-resources-cdn` output served same-origin by `app.web`
   docs/                                 Project, AI, and Supabase guides
   validation/                           Historical v2.0.1 / Antideploy validation evidence
@@ -69,9 +70,9 @@ All private endpoints require `Authorization: Bearer ACCESS_TOKEN`; forged user/
 | **Drafts** | `GET/POST/PUT/DELETE /api/v1/drafts` (owner-only, optional `expected_revision`) |
 | **Checks & Preflight** | `POST /api/v1/brand/preflight` (stateless editor preflight); `POST /api/v1/brand/check`, `POST /brand/{id}/versions` (`check_at`, `channel`, `content_type`, `asset_ids`), `GET /brand/rules/{brand_name}` |
 | **Conflicts** | `GET /api/v1/conflicts/`, `GET /conflicts/{id}`, `POST /conflicts/{id}/resolve` (`auto_recheck` support, reviewer/admin) |
-| **Reviews & Overrides** | `GET /api/v1/reviews[?status=pending\|approved\|rejected\|paused_conflict]`; `PATCH /reviews/{id}/decision`; `POST /reviews/{id}/findings/{fid}/override`; `GET /overrides`; `GET /clarity-tickets`; `PATCH /clarity-tickets/{id}` |
+| **Reviews & Overrides** | `GET /api/v1/reviews[?status=pending\|approved\|rejected\|paused_conflict\|changes_requested]`; `PATCH /reviews/{id}/decision`; `POST /reviews/{id}/amend` (`DECISION_AMEND_WINDOW_MINUTES=60`); `POST /reviews/{id}/findings/{fid}/override`; `GET /overrides`; `GET /clarity-tickets`; `PATCH /clarity-tickets/{id}` |
 | **Verification & Evidence** | `POST /api/v1/approvals/verify`, `POST /api/v1/approvals/verify-upload`; `GET /api/v1/receipts/`, `/receipts/{id}`, `/audit`, `/history` |
-| **Activity** | `GET /api/v1/analytics`, `/notifications`, `/system/status`; `PATCH/DELETE /notifications` |
+| **Activity** | `GET /api/v1/analytics`, `/notifications`, `/system/status`; `POST /system/ai-test`, `/assistant/chat`; `PATCH/DELETE /notifications` |
 
 ## Database & Transaction Model
 

@@ -23,6 +23,9 @@ def secure_store(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "JWT_SECRET", "tests-only-" + "secure-secret-" * 4)
     monkeypatch.setattr(config, "AI_PROVIDER", "disabled")
     monkeypatch.setattr(config, "AI_API_KEY", "")
+    monkeypatch.setattr(config, "AI_BASE_URL", "https://api.openai.com/v1")
+    monkeypatch.setattr(config, "AI_MODEL", "gpt-5.4-mini")
+    monkeypatch.setattr(config, "AI_DATA_COLLECTION", "")
     for module, attribute, filename in (
         (auth, "USERS_FILE", "users.json"),
         (approval_store, "STORE_FILE", "review_records.json"),

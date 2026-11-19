@@ -23,6 +23,9 @@ CITE = {"passage_id": "fact-one:0", "quote": "49 dollars per month"}
 def enable_ai(monkeypatch):
     monkeypatch.setattr(config, "AI_PROVIDER", "openai")
     monkeypatch.setattr(config, "AI_API_KEY", "mock-only-key")
+    monkeypatch.setattr(config, "AI_BASE_URL", "https://api.openai.com/v1")
+    monkeypatch.setattr(config, "AI_MODEL", "gpt-5.4-mini")
+    monkeypatch.setattr(config, "AI_DATA_COLLECTION", "")
 
 
 def result(status="supported"):
@@ -483,7 +486,7 @@ def test_reviewer_notifications_do_not_duplicate_v1_and_v2_for_same_check(
 
     rev_before = client.get("/api/v1/notifications", headers=reviewer).json()
     assert rev_before["total"] == 1
-    assert "v1 awaits review" in rev_before["items"][0]["body"]
+    assert "submission awaits review" in rev_before["items"][0]["body"]
 
     edited = client.post(
         f"/api/v1/brand/{cid}/versions",
@@ -495,7 +498,7 @@ def test_reviewer_notifications_do_not_duplicate_v1_and_v2_for_same_check(
     rev_after = client.get("/api/v1/notifications", headers=reviewer).json()
     assert rev_after["total"] == 1
     assert rev_after["unread"] == 1
-    assert "v2 awaits review" in rev_after["items"][0]["body"]
+    assert "(rev 2) awaits review" in rev_after["items"][0]["body"]
 
     decided = client.patch(
         f"/api/v1/reviews/{cid}/decision",
@@ -504,3 +507,163 @@ def test_reviewer_notifications_do_not_duplicate_v1_and_v2_for_same_check(
     )
     assert decided.status_code == 200
     assert client.get("/api/v1/notifications", headers=reviewer).json()["unread"] == 0
+
+
+def test_request_changes_allows_creator_resubmission_and_tracks_analytics(
+    client, headers
+):
+    creator, reviewer = headers["creator"], headers["reviewer"]
+    created = client.post(
+        "/api/v1/brand/check",
+        headers=creator,
+        json={"brand_name": "Acme", "content": "Initial draft claim"},
+    )
+    assert created.status_code == 200
+    cid = created.json()["check_id"]
+
+    req_changes = client.patch(
+        f"/api/v1/reviews/{cid}/decision",
+        headers=reviewer,
+        json={
+            "decision": "changes_requested",
+            "note": "Clarify billing cadence",
+            "expected_version": 1,
+        },
+    )
+    assert req_changes.status_code == 200
+    assert req_changes.json()["review"]["status"] == "changes_requested"
+    assert req_changes.json()["review"]["review_note"] == "Clarify billing cadence"
+
+    analytics = client.get("/api/v1/analytics", headers=creator).json()
+    assert analytics["changes_requested"] == 1
+    assert analytics["rejected"] == 0
+
+    creator_notes = client.get("/api/v1/notifications", headers=creator).json()
+    assert creator_notes["unread"] == 1
+    assert "Clarify billing cadence" in creator_notes["items"][0]["body"]
+
+    resubmitted = client.post(
+        f"/api/v1/brand/{cid}/versions",
+        headers=creator,
+        json={"content": "Monthly billing is 49 dollars.", "expected_version": 1},
+    )
+    assert resubmitted.status_code == 200
+    assert resubmitted.json()["review_status"] == "pending"
+    assert resubmitted.json()["content_version"] == 2
+
+    approved = client.patch(
+        f"/api/v1/reviews/{cid}/decision",
+        headers=reviewer,
+        json={"decision": "approved", "expected_version": 2},
+    )
+    assert approved.status_code == 200
+    assert approved.json()["review"]["status"] == "approved"
+
+
+def test_two_step_inspect_then_submit_and_newest_first_creator_metadata(
+    client, headers
+):
+    creator, reviewer = headers["creator"], headers["reviewer"]
+
+    first = client.post(
+        "/api/v1/brand/check",
+        headers=creator,
+        json={"brand_name": "Acme", "content": "Older submitted copy"},
+    )
+    assert first.status_code == 200
+
+    drafted = client.post(
+        "/api/v1/brand/check",
+        headers=creator,
+        json={
+            "brand_name": "Acme",
+            "content": "Newest inspected draft copy",
+            "submit_for_review": False,
+        },
+    )
+    assert drafted.status_code == 200
+    assert drafted.json()["review_status"] == "draft"
+    draft_cid = drafted.json()["check_id"]
+
+    # Unsubmitted inspection draft is NOT in the review queue yet.
+    queue_before = client.get("/api/v1/reviews", headers=reviewer).json()
+    assert [r["check_id"] for r in queue_before["reviews"]] == [
+        first.json()["check_id"]
+    ]
+    assert client.get("/api/v1/analytics", headers=creator).json()["pending"] == 1
+
+    # Explicit submit transitions draft -> pending and puts newest check at the TOP.
+    submitted = client.post(
+        f"/api/v1/brand/{draft_cid}/submit",
+        headers=creator,
+    )
+    assert submitted.status_code == 200
+    assert submitted.json()["review_status"] == "pending"
+
+    queue_after = client.get("/api/v1/reviews", headers=reviewer).json()
+    assert [r["check_id"] for r in queue_after["reviews"]] == [
+        draft_cid,
+        first.json()["check_id"],
+    ]
+    newest = queue_after["reviews"][0]
+    assert newest["creator_name"] == "Alice"
+    assert newest["creator_email"] == "creator@brandguard.demo"
+
+
+def test_revising_approved_check_creates_linked_new_check_without_breaking_seal(
+    client, headers
+):
+    creator, reviewer = headers["creator"], headers["reviewer"]
+
+    original = client.post(
+        "/api/v1/brand/check",
+        headers=creator,
+        json={"brand_name": "Acme", "content": "Approved launch announcement."},
+    ).json()
+    orig_id = original["check_id"]
+
+    decided = client.patch(
+        f"/api/v1/reviews/{orig_id}/decision",
+        headers=reviewer,
+        json={"decision": "approved", "note": "Looks compliant"},
+    )
+    assert decided.status_code == 200
+
+    # Derive a new check from the approved submission.
+    derived_draft = client.post(
+        "/api/v1/brand/check",
+        headers=creator,
+        json={
+            "brand_name": "Acme",
+            "content": "Amended launch announcement for November.",
+            "submit_for_review": False,
+            "parent_check_id": orig_id,
+        },
+    )
+    assert derived_draft.status_code == 200
+    derived_data = derived_draft.json()
+    assert derived_data["check_id"] != orig_id
+    assert derived_data["parent_check_id"] == orig_id
+    assert derived_data["review_status"] == "draft"
+
+    submitted = client.post(
+        f"/api/v1/brand/{derived_data['check_id']}/submit",
+        headers=creator,
+    )
+    assert submitted.status_code == 200
+    assert submitted.json()["review_status"] == "pending"
+    assert submitted.json()["parent_check_id"] == orig_id
+
+    # Original approved check and its cryptographic seal remain untouched & valid.
+    verify_orig = client.post(
+        "/api/v1/approvals/verify",
+        headers=creator,
+        json={
+            "check_id": orig_id,
+            "brand_name": "Acme",
+            "content": "Approved launch announcement.",
+        },
+    )
+    assert verify_orig.status_code == 200
+    assert verify_orig.json()["valid"] is True
+

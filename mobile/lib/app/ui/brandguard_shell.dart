@@ -1,9 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:material_ui/material_ui.dart';
 
 import '../app_theme.dart';
 import 'app_widgets.dart';
 import '../../core/auth/session.dart';
 import '../../core/network/brandguard_api_service.dart';
+import '../../features/assistant/assistant_chat_panel.dart';
 import '../../features/dashboard/home_dashboard_screen.dart';
 import '../../features/guidelines/guidelines_hub_screen.dart';
 import '../../features/profile/profile_screen.dart';
@@ -16,6 +19,17 @@ class BrandGuardShell extends StatefulWidget {
 
   final int initialIndex;
 
+  static int _tabSeq = 0;
+  static final ValueNotifier<(int, int)> _tabRequests =
+      ValueNotifier<(int, int)>((0, 0));
+  static final List<_BrandGuardShellState> _activeShells = [];
+
+  static bool get hasMountedShell => _activeShells.any((s) => s.mounted);
+
+  static void openTab(int index) {
+    _tabRequests.value = (index, ++_tabSeq);
+  }
+
   @override
   State<BrandGuardShell> createState() => _BrandGuardShellState();
 }
@@ -24,11 +38,35 @@ class _BrandGuardShellState extends State<BrandGuardShell> {
   late int _index = widget.initialIndex;
   int _pending = 0;
   int _unread = 0;
+  int _homeRefreshTick = 0;
+  int _reviewsRefreshTick = 0;
+  bool _chatOpen = false;
+  String _chatBrand = 'Acme';
+  List<AssistantMessage> _chatMessages = const [];
 
   @override
   void initState() {
     super.initState();
+    BrandGuardShell._activeShells.add(this);
+    BrandGuardShell._tabRequests.addListener(_onTabRequested);
+    BrandGuardApiService.syncTick.addListener(_onDataSynced);
     _refreshBadges();
+  }
+
+  @override
+  void dispose() {
+    BrandGuardShell._activeShells.remove(this);
+    BrandGuardShell._tabRequests.removeListener(_onTabRequested);
+    BrandGuardApiService.syncTick.removeListener(_onDataSynced);
+    super.dispose();
+  }
+
+  void _onTabRequested() {
+    if (mounted) _select(BrandGuardShell._tabRequests.value.$1);
+  }
+
+  void _onDataSynced() {
+    if (mounted) _refreshBadges();
   }
 
   /// Best-effort badge counts with one retry. A failure here never blocks
@@ -56,28 +94,76 @@ class _BrandGuardShellState extends State<BrandGuardShell> {
   }
 
   void _select(int value) {
-    if (value == _index) return;
-    setState(() => _index = value);
+    setState(() {
+      _index = value;
+      if (value == 0) _homeRefreshTick++;
+      if (value == 2) _reviewsRefreshTick++;
+    });
     _refreshBadges();
   }
 
   @override
   Widget build(BuildContext context) {
     AppTheme.watch(context);
-    const pages = [
-      HomeDashboardScreen(embedded: true),
-      WorkspaceHubScreen(embedded: true),
-      ReviewQueueScreen(embedded: true),
-      GuidelinesHubScreen(embedded: true),
-      ProfileScreen(embedded: true),
+    final pages = [
+      HomeDashboardScreen(embedded: true, refreshTick: _homeRefreshTick),
+      const WorkspaceHubScreen(embedded: true),
+      ReviewQueueScreen(embedded: true, refreshTick: _reviewsRefreshTick),
+      const GuidelinesHubScreen(embedded: true),
+      const ProfileScreen(embedded: true),
     ];
 
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
         bottom: false,
-        child: IndexedStack(index: _index, children: pages),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 560;
+            final panelHeight = math.max(
+              220.0,
+              math.min(500.0, constraints.maxHeight - 16),
+            );
+            final panelWidth = isWide
+                ? math.min(390.0, constraints.maxWidth - 32)
+                : math.max(220.0, constraints.maxWidth - 16);
+
+            return Stack(
+              children: [
+                IndexedStack(index: _index, children: pages),
+                if (_chatOpen)
+                  Positioned(
+                    right: isWide ? 16 : 8,
+                    left: isWide ? null : 8,
+                    bottom: isWide ? 16 : 8,
+                    width: isWide ? panelWidth : null,
+                    height: panelHeight,
+                    child: AssistantChatBox(
+                      messages: _chatMessages,
+                      brandName: _chatBrand,
+                      onMessagesChanged: (next) =>
+                          setState(() => _chatMessages = next),
+                      onBrandChanged: (next) =>
+                          setState(() => _chatBrand = next),
+                      onClose: () => setState(() => _chatOpen = false),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
       ),
+      floatingActionButton: _chatOpen
+          ? null
+          : FloatingActionButton(
+              key: const ValueKey('chatbot-launcher-btn'),
+              onPressed: () => setState(() => _chatOpen = true),
+              tooltip: 'BrandGuard AI Assistant',
+              backgroundColor: AppTheme.navy,
+              foregroundColor: Colors.white,
+              elevation: 4,
+              child: const Icon(Icons.chat_bubble_outline_rounded, size: 22),
+            ),
       bottomNavigationBar: _BottomBar(
         index: _index,
         pending: _pending,
@@ -135,8 +221,8 @@ class _BottomBar extends StatelessWidget {
       ),
       child: SafeArea(
         top: false,
-        child: SizedBox(
-          height: 60,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 60),
           child: Row(
             children: [
               for (var i = 0; i < items.length; i++)
@@ -182,8 +268,9 @@ class _BottomItem extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.symmetric(vertical: 4),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               SizedBox(

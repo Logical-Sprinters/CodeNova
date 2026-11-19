@@ -19,7 +19,7 @@ class SignInScreen extends StatefulWidget {
 class _SignInScreenState extends State<SignInScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
-  bool _busy = false, _remember = false, _demo = false, _obscure = true;
+  bool _busy = false, _remember = true, _obscure = true;
   bool _checkingConnection = true;
   String? _error, _notice, _connectionError, _authProvider;
 
@@ -34,7 +34,10 @@ class _SignInScreenState extends State<SignInScreen> {
       final prefs = await SharedPreferences.getInstance();
       if (!mounted) return;
       setState(() {
-        _remember = prefs.getBool(DemoAuth.rememberEmailKey) ?? false;
+        _remember =
+            prefs.getBool(BrandGuardApiService.rememberMePrefKey) ??
+            prefs.getBool(DemoAuth.rememberEmailKey) ??
+            true;
         if (_remember && _email.text.isEmpty) {
           _email.text = prefs.getString(DemoAuth.rememberedEmailKey) ?? '';
         }
@@ -63,13 +66,14 @@ class _SignInScreenState extends State<SignInScreen> {
         );
       }
       if (!mounted) return;
+      final isLocalDemo =
+          provider == 'local' && status['demo_accounts_enabled'] == true;
       setState(() {
         _authProvider = provider as String;
-        // Fail closed: public local-demo values appear only after an explicit
-        // successful local-server response, never on a timeout or cloud server.
-        _demo = provider == 'local' && status['demo_accounts_enabled'] == true;
         _checkingConnection = false;
-        if (!_demo && !_busy && DemoAuth.findAccount(_email.text) != null) {
+        if (!isLocalDemo &&
+            !_busy &&
+            DemoAuth.findAccount(_email.text) != null) {
           _email.clear();
           _password.clear();
         }
@@ -77,7 +81,6 @@ class _SignInScreenState extends State<SignInScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _demo = false;
         _checkingConnection = false;
         _connectionError = error.toString();
       });
@@ -106,18 +109,10 @@ class _SignInScreenState extends State<SignInScreen> {
     super.dispose();
   }
 
-  void _fill(DemoAccount account) {
-    setState(() {
-      _email.text = account.email;
-      _password.text = DemoAuth.password;
-      _error = null;
-      _notice = null;
-    });
-  }
-
   Future<void> _openDashboard() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(BrandGuardApiService.rememberMePrefKey, _remember);
       await prefs.setBool(DemoAuth.rememberEmailKey, _remember);
       if (_remember) {
         await prefs.setString(DemoAuth.rememberedEmailKey, _email.text.trim());
@@ -157,7 +152,11 @@ class _SignInScreenState extends State<SignInScreen> {
       _notice = null;
     });
     try {
-      await BrandGuardApiService.login(_email.text, _password.text);
+      await BrandGuardApiService.login(
+        _email.text,
+        _password.text,
+        rememberMe: _remember,
+      );
       if (!mounted) return;
       await _openDashboard();
     } catch (error) {
@@ -309,7 +308,7 @@ class _SignInScreenState extends State<SignInScreen> {
                                 onTap: () =>
                                     setState(() => _remember = !_remember),
                                 child: Text(
-                                  'Remember email only',
+                                  'Remember me (stay signed in)',
                                   style: AppTheme.bodySmall.copyWith(
                                     color: AppTheme.ink,
                                   ),
@@ -403,7 +402,7 @@ class _SignInScreenState extends State<SignInScreen> {
                           children: [
                             Flexible(
                               child: Text(
-                                'Tokens stay in memory. Passwords are never saved on this device.',
+                                'Passwords are never saved on this device. Uncheck "Remember me" on shared devices.',
                                 textAlign: TextAlign.center,
                                 style: AppTheme.monoLabel().copyWith(
                                   fontSize: 9.5,
@@ -415,7 +414,6 @@ class _SignInScreenState extends State<SignInScreen> {
                       ],
                     ),
                   ),
-                  if (_demo) ...[const SizedBox(height: 14), _demoCard()],
                   const SizedBox(height: 18),
                   Wrap(
                     alignment: WrapAlignment.center,
@@ -509,67 +507,6 @@ class _SignInScreenState extends State<SignInScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _demoCard() {
-    return SurfaceCard(
-      key: const ValueKey('demo-access-card'),
-      color: AppTheme.surfaceTint,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.science_outlined, size: 16, color: AppTheme.tealText),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'Local demonstration accounts',
-                  style: AppTheme.labelLarge.copyWith(color: AppTheme.tealText),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'creator@brandguard.demo\nreviewer@brandguard.demo',
-            style: TextStyle(
-              fontFamily: 'Manrope',
-              fontSize: 12.5,
-              height: 1.5,
-              color: AppTheme.ink,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text('Password for both: Demo@12345'),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  key: const ValueKey('demo-creator'),
-                  onPressed: () => _fill(DemoAuth.creator),
-                  child: const Text('Use Creator'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton(
-                  key: const ValueKey('demo-reviewer'),
-                  onPressed: () => _fill(DemoAuth.reviewer),
-                  child: const Text('Use Reviewer'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Local server only — these public accounts are not cloud accounts.',
-            style: AppTheme.monoLabel().copyWith(fontSize: 9),
-          ),
-        ],
-      ),
     );
   }
 

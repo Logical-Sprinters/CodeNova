@@ -44,6 +44,7 @@ async def list_receipts(user: dict = Depends(get_user)):
             record = get_record(receipt["check_id"])
             if record is not None and can_read(record, user):
                 visible.append(receipt_view(receipt, record))
+        visible.sort(key=lambda r: r.get("timestamp") or "", reverse=True)
         return {"total": len(visible), "receipts": visible}
 
 

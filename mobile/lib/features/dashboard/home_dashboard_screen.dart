@@ -13,11 +13,16 @@ import '../reviews/review_queue_screen.dart';
 import '../workspace/workspace_hub_screen.dart';
 
 class HomeDashboardScreen extends StatefulWidget {
-  const HomeDashboardScreen({super.key, this.embedded = false});
+  const HomeDashboardScreen({
+    super.key,
+    this.embedded = false,
+    this.refreshTick = 0,
+  });
 
   /// When true the screen is hosted inside [BrandGuardShell] and only renders
   /// its scrolling content.
   final bool embedded;
+  final int refreshTick;
 
   @override
   State<HomeDashboardScreen> createState() => _HomeDashboardScreenState();
@@ -28,50 +33,87 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   List<Map<String, dynamic>> _activity = const [];
   int _unread = 0;
   bool _loading = true;
+  bool _fetching = false;
+  bool _queuedReload = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+    BrandGuardApiService.syncTick.addListener(_onDataSynced);
     _load();
   }
 
-  Future<void> _load() async {
+  @override
+  void didUpdateWidget(covariant HomeDashboardScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.refreshTick != oldWidget.refreshTick) {
+      _load(silent: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    BrandGuardApiService.syncTick.removeListener(_onDataSynced);
+    super.dispose();
+  }
+
+  void _onDataSynced() {
+    if (mounted) _load(silent: true);
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    if (_fetching) {
+      _queuedReload = true;
+      return;
+    }
+    _fetching = true;
+    _queuedReload = false;
     // One retry: hosted Supabase can be slow on a cold start. A transient
     // failure must never leave the dashboard stuck on a loading placeholder.
     Object? lastError;
-    for (var attempt = 0; attempt < 2; attempt++) {
-      try {
-        final data = await Future.wait([
-          BrandGuardApiService.getJson('/api/v1/analytics'),
-          BrandGuardApiService.getJson('/api/v1/notifications'),
-          BrandGuardApiService.getJson('/api/v1/system/status'),
-        ]);
-        if (!mounted) return;
-        setState(() {
-          _analytics = data[0];
-          _unread = (data[1]['unread'] as num?)?.toInt() ?? 0;
-          _activity = (data[1]['items'] as List? ?? [])
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .take(3)
-              .toList();
-          _system = data[2];
-          _loading = false;
-          _error = null;
-        });
-        return;
-      } catch (error) {
-        lastError = error;
-        if (attempt == 0) {
-          await Future<void>.delayed(const Duration(milliseconds: 800));
+    try {
+      for (var attempt = 0; attempt < 2; attempt++) {
+        try {
+          final data = await Future.wait([
+            BrandGuardApiService.getJson('/api/v1/analytics'),
+            BrandGuardApiService.getJson('/api/v1/notifications'),
+            BrandGuardApiService.getJson('/api/v1/system/status'),
+          ]);
+          if (!mounted) return;
+          setState(() {
+            _analytics = data[0];
+            _unread = (data[1]['unread'] as num?)?.toInt() ?? 0;
+            _activity = (data[1]['items'] as List? ?? [])
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .take(3)
+                .toList();
+            _system = data[2];
+            _loading = false;
+            _error = null;
+          });
+          return;
+        } catch (error) {
+          lastError = error;
+          if (attempt == 0) {
+            await Future<void>.delayed(const Duration(milliseconds: 800));
+          }
         }
       }
+      if (!mounted) return;
+      if (!silent || _analytics == null) {
+        setState(() {
+          _error = lastError?.toString() ?? 'The server did not respond.';
+          _loading = false;
+        });
+      }
+    } finally {
+      _fetching = false;
+      if (_queuedReload && mounted) {
+        _queuedReload = false;
+        _load(silent: true);
+      }
     }
-    if (!mounted) return;
-    setState(() {
-      _error = lastError?.toString() ?? 'The server did not respond.';
-      _loading = false;
-    });
   }
 
   Future<void> _open(Widget screen) async {
@@ -97,6 +139,24 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
           else if (_error != null)
             ErrorBlock(message: _error!, onRetry: _load)
           else ...[
+            if (_metric('changes_requested') > 0) ...[
+              InlineNotice(
+                tone: Tone.warning,
+                icon: Icons.edit_note_rounded,
+                title:
+                    '${_metric('changes_requested')} submission${_metric('changes_requested') == 1 ? '' : 's'} need${_metric('changes_requested') == 1 ? 's' : ''} changes',
+                message:
+                    'A reviewer requested edits. Open the check to read feedback, edit your copy, and resubmit.',
+                action: FilledButton.icon(
+                  onPressed: () => _open(
+                    const ReviewQueueScreen(initialTab: 'Changes Requested'),
+                  ),
+                  icon: const Icon(Icons.edit_note_rounded, size: 17),
+                  label: const Text('Review & edit'),
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
             Row(
               children: [
                 Text(
@@ -314,6 +374,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   Widget _metrics() {
     final total = _metric('total_checks');
     final pending = _metric('pending');
+    final changesReq = _metric('changes_requested');
     final approved = _metric('approved');
     final rejected = _metric('rejected');
     final findings = _metric('total_findings');
@@ -402,7 +463,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                 value: total == 0 ? 0 : approved / total,
                 caption: total == 0
                     ? 'No checks recorded yet.'
-                    : '$approved approved · $pending pending · $rejected rejected of $total total',
+                    : '$approved approved · $pending pending${changesReq > 0 ? ' · $changesReq changes requested' : ''} · $rejected rejected of $total total',
               ),
             ],
           ),
@@ -455,12 +516,22 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
 
   Widget _activityRow(Map<String, dynamic> item) {
     final unread = item['read'] != true;
+    final checkId = item['check_id']?.toString() ?? '';
+    final isChangesReq =
+        item['title']?.toString().toLowerCase().contains('changes') ?? false;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: SurfaceCard(
         padding: const EdgeInsets.all(12),
         radius: 16,
-        onTap: () => _open(const NotificationsScreen()),
+        onTap: () => checkId.isNotEmpty
+            ? _open(
+                ReviewQueueScreen(
+                  initialTab: isChangesReq ? 'Changes Requested' : 'All',
+                  initialCheckId: checkId,
+                ),
+              )
+            : _open(const NotificationsScreen()),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -522,17 +593,22 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   }
 
   String _stamp(Object? value) {
-    final text = value?.toString() ?? '';
-    if (text.length >= 16) {
-      return text.substring(0, 16).replaceFirst('T', ' · ');
-    }
-    return text;
+    final raw = value?.toString() ?? '';
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return raw;
+    final local = parsed.toLocal();
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final hour12 = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final amPm = local.hour >= 12 ? 'PM' : 'AM';
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${two(local.day)} ${months[local.month - 1]} ${local.year} · $hour12:${two(local.minute)} $amPm';
   }
 
   Widget _systemStrip() {
     final aiConfigured = _system?['ai_configured'] == true;
-    final database = _system?['database'] ?? '—';
-    final provider = _system?['auth_provider'] ?? '—';
     return InlineNotice(
       tone: aiConfigured ? Tone.success : Tone.warning,
       icon: aiConfigured ? Icons.auto_awesome_rounded : Icons.info_outline,
@@ -540,7 +616,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
           ? 'AI comparison enabled'
           : 'AI not configured: checks abstain on factual claims',
       message:
-          'Backend: $database · auth: $provider. Deterministic rules and human review still run. A clean scan is not publication approval.',
+          'Deterministic rules and human review still run. A clean scan is not publication approval.',
     );
   }
 }
