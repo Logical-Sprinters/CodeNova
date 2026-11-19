@@ -15,6 +15,7 @@ By default, `AI_PROVIDER=disabled` so deterministic rules, temporal/channel reso
 2. **Test anytime from terminal or UI:**
    - **Terminal:** `python manage.py test-ai` (from `backend/`)
    - **In-App (Reviewer):** Restart the backend (`START_BACKEND.bat` / `uvicorn`), open **Guidelines → Fact Sources**, and tap **Test AI verification** (`POST /api/v1/system/ai-test`).
+   - **In-App Chatbot (Creator & Reviewer):** Tap the floating chat icon in the **bottom-right corner** of the main shell to open the **BrandGuard AI** chat box (`POST /api/v1/assistant/chat`) for grounded Q&A and draft copy pre-checks (with automatic deterministic fallback if AI is off or rate-limited).
 
 > **Auto-detection:** If you edit `backend/.env` manually and set `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `OPENROUTER_API_KEY`, or `OPENAI_API_KEY` while leaving `AI_PROVIDER` unset/blank, BrandGuard automatically activates that provider. Explicit `AI_PROVIDER=disabled` overrides any key.
 

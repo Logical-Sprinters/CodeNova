@@ -141,7 +141,9 @@ class BrandGuardApiService {
         method.toUpperCase() != 'GET' &&
         !path.startsWith('/api/v1/auth/') &&
         path != '/api/v1/brand/preflight' &&
-        path != '/api/v1/approvals/verify';
+        path != '/api/v1/approvals/verify' &&
+        path != '/api/v1/assistant/chat' &&
+        path != '/api/v1/system/ai-test';
     if (isMutation) {
       notifyDataChanged();
     }
@@ -575,6 +577,25 @@ class BrandGuardApiService {
 
   static Future<Map<String, dynamic>> testAiConnection() =>
       request('POST', '/api/v1/system/ai-test');
+
+  static Future<Map<String, dynamic>> assistantChat({
+    required String message,
+    String brandName = 'Acme',
+    String channel = 'all',
+    String? draftText,
+    List<Map<String, String>> history = const [],
+  }) => request(
+    'POST',
+    '/api/v1/assistant/chat',
+    body: {
+      'message': message,
+      'brand_name': brandName,
+      'channel': channel,
+      if (draftText != null && draftText.trim().isNotEmpty)
+        'draft_text': draftText.trim(),
+      if (history.isNotEmpty) 'history': history,
+    },
+  );
 
   static Future<Map<String, dynamic>> uploadLogoTemplate({
     required String ruleId,

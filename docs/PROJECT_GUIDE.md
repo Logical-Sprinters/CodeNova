@@ -39,7 +39,7 @@ CodeNova/
     app/routers/                        authentication, brand, conflicts, email_delivery, files, library, overrides, receipts, recovery, reviews, workspace, audit
     data/brand_rules.json               Starter versioned rules with `rule_text`, temporal bounds, visual palettes
     tests/                              Inherited workflow regression tests (33 test functions)
-    tests_secure/                       SQL/bearer security, grounding, temporal, overrides, conflicts, OCR/visual, 60m amend/revoke, AI & provider contracts (73 test functions; 153 total pytest cases across both suites)
+    tests_secure/                       SQL/bearer security, grounding, temporal, overrides, conflicts, OCR/visual, 60m amend/revoke, AI, assistant chat & provider contracts (77 test functions; 157 total pytest cases across both suites)
     migrations/001_core.sql             PostgreSQL schema with RLS (optional Supabase mode)
     supabase/002_private_storage.sql    Supabase Storage bucket & owner/reviewer policies (optional Supabase mode)
     manage.py                           CLI init/migrate/configure-ai/test-ai/create-user/backup/restore
@@ -72,7 +72,7 @@ All private endpoints require `Authorization: Bearer ACCESS_TOKEN`; forged user/
 | **Conflicts** | `GET /api/v1/conflicts/`, `GET /conflicts/{id}`, `POST /conflicts/{id}/resolve` (`auto_recheck` support, reviewer/admin) |
 | **Reviews & Overrides** | `GET /api/v1/reviews[?status=pending\|approved\|rejected\|paused_conflict\|changes_requested]`; `PATCH /reviews/{id}/decision`; `POST /reviews/{id}/amend` (`DECISION_AMEND_WINDOW_MINUTES=60`); `POST /reviews/{id}/findings/{fid}/override`; `GET /overrides`; `GET /clarity-tickets`; `PATCH /clarity-tickets/{id}` |
 | **Verification & Evidence** | `POST /api/v1/approvals/verify`, `POST /api/v1/approvals/verify-upload`; `GET /api/v1/receipts/`, `/receipts/{id}`, `/audit`, `/history` |
-| **Activity** | `GET /api/v1/analytics`, `/notifications`, `/system/status`; `POST /system/ai-test`; `PATCH/DELETE /notifications` |
+| **Activity** | `GET /api/v1/analytics`, `/notifications`, `/system/status`; `POST /system/ai-test`, `/assistant/chat`; `PATCH/DELETE /notifications` |
 
 ## Database & Transaction Model
 

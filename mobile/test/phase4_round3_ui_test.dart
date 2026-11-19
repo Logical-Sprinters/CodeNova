@@ -1796,8 +1796,94 @@ void main() {
       await settleTestUi(tester);
 
       expect(probeCalled, isTrue);
-      expect(find.text('AI Active (gemini)'), findsOneWidget);
+      expect(find.text('AI ACTIVE (GEMINI)'), findsOneWidget);
       expect(find.textContaining('gemini-3.5-flash-lite'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Bottom-right BrandGuard AI chatbot launcher opens panel, sends chat, and renders cleanly at 280x600 @ 1.6x',
+    (tester) async {
+      Map<String, dynamic>? chatBody;
+      BrandGuardApiService.clientForTesting = MockClient((request) async {
+        final path = request.url.path;
+        if (path == '/api/v1/analytics') {
+          return http.Response(
+            jsonEncode({
+              'total_checks': 0,
+              'pending': 0,
+              'approved': 0,
+              'rejected': 0,
+              'total_findings': 0,
+              'scan_passed': 0,
+            }),
+            200,
+          );
+        }
+        if (path == '/api/v1/assistant/chat' && request.method == 'POST') {
+          chatBody = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response(
+            jsonEncode({
+              'reply':
+                  'Replace "guaranteed" with "designed for high availability" per BG-002.',
+              'mode': 'ai',
+              'ai_used': true,
+              'provider': 'gemini',
+              'model': 'gemini-3.5-flash-lite',
+              'note': '',
+              'citations': ['BG-002'],
+              'deterministic_hits': [
+                {
+                  'rule_id': 'BG-002',
+                  'evidence': 'guaranteed',
+                  'severity': 'warning',
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        return http.Response('{"items":[],"unread":0}', 200);
+      });
+
+      tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+      await open(
+        tester,
+        const BrandGuardShell(),
+        size: const Size(280, 600),
+      );
+      expect(
+        find.byKey(const ValueKey('chatbot-launcher-btn')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('chatbot-launcher-btn')));
+      await settleTestUi(tester);
+      expect(find.byKey(const ValueKey('chatbot-panel')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('chatbot-input')),
+        'Check copy: guaranteed risk-free',
+      );
+      await tester.tap(find.byKey(const ValueKey('chatbot-send-btn')));
+      await settleTestUi(tester);
+
+      expect(chatBody?['message'], 'Check copy: guaranteed risk-free');
+      expect(chatBody?['brand_name'], 'Acme');
+      expect(find.textContaining('BG-002'), findsWidgets);
+      expect(find.textContaining('gemini-3.5-flash-lite'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(find.byKey(const ValueKey('chatbot-close-btn')));
+      await settleTestUi(tester);
+      expect(find.byKey(const ValueKey('chatbot-panel')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('chatbot-launcher-btn')),
+        findsOneWidget,
+      );
     },
   );
 }

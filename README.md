@@ -104,6 +104,7 @@ AI verification stays disabled (`AI_PROVIDER=disabled`) until a provider key is 
   ```
 - **Auto-detection:** Setting `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `OPENROUTER_API_KEY`, or `OPENAI_API_KEY` in `backend/.env` while leaving `AI_PROVIDER` unset automatically enables that provider.
 - **Verify in the UI:** Restart the backend, sign in as a **Reviewer**, open **Guidelines → Fact Sources**, tap **Test AI verification** (`POST /api/v1/system/ai-test`), and ensure at least one Fact Source is added and marked **Verified**.
+- **In-App Chatbot Assistant:** Tap the floating chat button in the **bottom-right corner** of the main app shell (`BrandGuardShell`) to open the **BrandGuard AI** chat box (`POST /api/v1/assistant/chat`), ask policy/fact questions, or paste marketing copy for grounded suggestions + deterministic rule hits.
 
 See [docs/AI_SETUP.md](docs/AI_SETUP.md) for provider details, `:free` OpenRouter notes, and the strict grounding contract.
 
@@ -141,7 +142,7 @@ All private endpoints require `Authorization: Bearer ACCESS_TOKEN`. Full OpenAPI
 | **Overrides & Tickets** | `POST /api/v1/reviews/{id}/findings/{finding_id}/override`, `GET /api/v1/overrides`, `GET /api/v1/clarity-tickets`, `PATCH /api/v1/clarity-tickets/{id}` |
 | **Conflicts** | `GET /api/v1/conflicts/`, `GET /api/v1/conflicts/{id}`, `POST /api/v1/conflicts/{id}/resolve` |
 | **Library** | `GET/POST/PUT/DELETE /api/v1/library/{guidelines,facts,rules}`, `POST /api/v1/library/rules/{rule_id}/logo-template` |
-| **Workspace & Audit** | `GET/POST/PUT/DELETE /api/v1/drafts`, `GET /api/v1/receipts/`, `GET /receipts/{id}`, `GET /audit`, `GET /history`, `GET /analytics`, `GET/PATCH/DELETE /notifications`, `GET /system/status`, `POST /system/ai-test` |
+| **Workspace & Audit** | `GET/POST/PUT/DELETE /api/v1/drafts`, `GET /api/v1/receipts/`, `GET /receipts/{id}`, `GET /audit`, `GET /history`, `GET /analytics`, `GET/PATCH/DELETE /notifications`, `GET /system/status`, `POST /system/ai-test`, `POST /assistant/chat` |
 
 ---
 
@@ -164,9 +165,9 @@ All private endpoints require `Authorization: Bearer ACCESS_TOKEN`. Full OpenAPI
 ```bash
 # Backend (from backend/)
 pytest -q
-# 153 pytest cases total across tests/ + tests_secure/ (Round 3, 60m amend/revoke, AI/workflow contracts):
-# - Linux/Docker with tesseract-ocr: 153 passed
-# - Without Tesseract binary installed locally: 151 passed, 2 OCR-binary tests skipped
+# 157 pytest cases total across tests/ + tests_secure/ (Round 3, 60m amend/revoke, AI/assistant/workflow contracts):
+# - Linux/Docker with tesseract-ocr: 157 passed
+# - Without Tesseract binary installed locally: 155 passed, 2 OCR-binary tests skipped
 
 # Flutter (from mobile/)
 flutter analyze
