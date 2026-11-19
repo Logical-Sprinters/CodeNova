@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:material_ui/material_ui.dart';
 
 import '../../app/app_theme.dart';
@@ -86,6 +88,7 @@ class _ApprovalVerificationScreenState
                 children: [
                   TextField(
                     controller: _checkIdCtrl,
+                    key: const ValueKey('approval-check-id'),
                     decoration: const InputDecoration(
                       labelText: 'Check ID',
                       prefixIcon: Icon(Icons.badge_outlined, size: 18),
@@ -94,6 +97,7 @@ class _ApprovalVerificationScreenState
                   const SizedBox(height: 10),
                   TextField(
                     controller: _brandNameCtrl,
+                    key: const ValueKey('approval-brand-name'),
                     decoration: const InputDecoration(
                       labelText: 'Brand',
                       prefixIcon: Icon(Icons.storefront_outlined, size: 18),
@@ -102,6 +106,7 @@ class _ApprovalVerificationScreenState
                   const SizedBox(height: 10),
                   TextField(
                     controller: _contentCtrl,
+                    key: const ValueKey('approval-content'),
                     maxLines: 7,
                     decoration: const InputDecoration(
                       labelText: 'Exact approved content',
@@ -175,7 +180,12 @@ class _ApprovalVerificationScreenState
                       const Divider(),
                       const SizedBox(height: 8),
                       ..._result!.entries
-                          .where((e) => e.key != 'valid' && e.key != 'reason')
+                          .where(
+                            (e) =>
+                                e.key != 'valid' &&
+                                e.key != 'reason' &&
+                                e.key != 'text_diff',
+                          )
                           .map(
                             (e) => DetailRow(
                               label: e.key.replaceAll('_', ' '),
@@ -187,6 +197,11 @@ class _ApprovalVerificationScreenState
                   ],
                 ),
               ),
+            if (_result?['text_diff'] is List &&
+                (_result!['text_diff'] as List).isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _textDiffPanel(_result!['text_diff'] as List),
+            ],
             const SizedBox(height: 12),
             const InlineNotice(
               tone: Tone.warning,
@@ -195,6 +210,82 @@ class _ApprovalVerificationScreenState
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _textDiffPanel(List<dynamic> diffs) {
+    final changes = diffs.whereType<Map>().toList(growable: false);
+    if (changes.isEmpty) return const SizedBox.shrink();
+
+    return SurfaceCard(
+      borderColor: AppTheme.warning.withValues(alpha: 0.45),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Exact text differences', style: AppTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+            'Whitespace is shown explicitly: spaces as \\u0020, line breaks as \\n.',
+            style: AppTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          for (var index = 0; index < changes.length; index++) ...[
+            if (index > 0) const Divider(height: 20),
+            Text(
+              'CHANGE ${index + 1}',
+              style: AppTheme.monoLabel(color: AppTheme.muted),
+            ),
+            const SizedBox(height: 8),
+            _diffValue(
+              'APPROVED',
+              changes[index]['approved_text'],
+              AppTheme.dangerBg,
+              AppTheme.danger,
+            ),
+            const SizedBox(height: 6),
+            _diffValue(
+              'SUBMITTED',
+              changes[index]['submitted_text'],
+              AppTheme.successBg,
+              AppTheme.success,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _diffValue(
+    String label,
+    Object? value,
+    Color background,
+    Color foreground,
+  ) {
+    final text = value?.toString() ?? '';
+    final visibleText = text.isEmpty
+        ? '(empty)'
+        : jsonEncode(text).replaceAll(' ', r'\u0020');
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: AppTheme.monoLabel(color: foreground)),
+          const SizedBox(height: 4),
+          SelectableText(
+            visibleText,
+            style: AppTheme.bodyMedium.copyWith(
+              color: foreground,
+              fontFamily: 'monospace',
+            ),
+          ),
+        ],
       ),
     );
   }

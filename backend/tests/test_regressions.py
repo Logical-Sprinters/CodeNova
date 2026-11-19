@@ -272,8 +272,48 @@ def test_verification_is_audited_and_preserves_exact_text(client):
             },
         )
         assert result.status_code == 200 and result.json()["valid"] is expected
+        if not expected:
+            assert result.json()["text_diff"] == [
+                {
+                    "operation": "delete",
+                    "approved_text": "  ",
+                    "submitted_text": "",
+                },
+                {
+                    "operation": "delete",
+                    "approved_text": "\n",
+                    "submitted_text": "",
+                },
+            ]
     verifications = [e for e in audits.load_audit() if e["action"] == "verify_approval"]
     assert [e["details"]["valid"] for e in verifications] == [True, False]
+
+
+def test_verification_returns_exact_word_diff_for_tampered_content(client):
+    approved_text = "The product is safe."
+    check = create(client, approved_text)
+    assert approve(client, check["check_id"]).status_code == 200
+
+    response = client.post(
+        "/api/v1/approvals/verify",
+        headers=CREATOR,
+        json={
+            "check_id": check["check_id"],
+            "brand_name": "Acme",
+            "content": "The product is unsafe.",
+        },
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["valid"] is False
+    assert result["text_diff"] == [
+        {
+            "operation": "replace",
+            "approved_text": "safe",
+            "submitted_text": "unsafe",
+        }
+    ]
 
 
 def test_concurrent_checks_do_not_lose_records_in_single_worker(client):

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart';
@@ -31,6 +32,13 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
   String? _draftId;
   int? _revision;
   bool _busy = false;
+  Timer? _preflightDebounce;
+  int _preflightRequestId = 0;
+  String _preflightStatus = 'idle';
+  String? _preflightError;
+  int _preflightRulesChecked = 0;
+  List<Map<String, dynamic>> _preflightFindings = [];
+  List<Map<String, dynamic>> _preflightConflicts = [];
 
   @override
   void initState() {
@@ -48,15 +56,87 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
         ),
       );
     }
+    if (_content.text.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _schedulePreflight();
+      });
+    }
   }
 
   @override
   void dispose() {
+    _preflightDebounce?.cancel();
+    _preflightRequestId++;
     _title.dispose();
     _brand.dispose();
     _content.dispose();
     _palette.dispose();
     super.dispose();
+  }
+
+  void _onLiveInputChanged() {
+    setState(() {});
+    _schedulePreflight();
+  }
+
+  void _schedulePreflight() {
+    _preflightDebounce?.cancel();
+    final requestId = ++_preflightRequestId;
+    final content = _content.text;
+    final brandName = _brand.text.trim();
+    if (content.trim().isEmpty || brandName.isEmpty) {
+      setState(() {
+        _preflightStatus = 'idle';
+        _preflightError = null;
+        _preflightRulesChecked = 0;
+        _preflightFindings = [];
+        _preflightConflicts = [];
+      });
+      return;
+    }
+    setState(() {
+      _preflightStatus = 'waiting';
+      _preflightError = null;
+    });
+    _preflightDebounce = Timer(const Duration(milliseconds: 500), () {
+      _runPreflight(requestId, brandName, content);
+    });
+  }
+
+  Future<void> _runPreflight(
+    int requestId,
+    String brandName,
+    String content,
+  ) async {
+    if (!mounted || requestId != _preflightRequestId) return;
+    setState(() => _preflightStatus = 'checking');
+    try {
+      final result = await BrandGuardApiService.preflightCheck(
+        brandName: brandName,
+        content: content,
+      );
+      if (!mounted || requestId != _preflightRequestId) return;
+      setState(() {
+        _preflightStatus = result['status']?.toString() ?? 'checked';
+        _preflightRulesChecked =
+            int.tryParse(result['rules_checked']?.toString() ?? '') ?? 0;
+        _preflightFindings = (result['findings'] as List? ?? [])
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+        _preflightConflicts = (result['source_conflicts'] as List? ?? [])
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+        _preflightError = null;
+      });
+    } catch (error) {
+      if (!mounted || requestId != _preflightRequestId) return;
+      setState(() {
+        _preflightStatus = 'error';
+        _preflightError = error.toString();
+        _preflightFindings = [];
+        _preflightConflicts = [];
+      });
+    }
   }
 
   int get _wordCount {
@@ -207,6 +287,8 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
       return;
     }
     FocusScope.of(context).unfocus();
+    _preflightDebounce?.cancel();
+    _preflightRequestId++;
     setState(() => _busy = true);
     final exactText = _content.text;
     try {
@@ -252,6 +334,11 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
             visualAnalysis: result['visual_analysis'] is Map
                 ? Map<String, dynamic>.from(result['visual_analysis'] as Map)
                 : null,
+            sourceConflicts: result['source_conflicts'] is List
+                ? (result['source_conflicts'] as List)
+                      .map((item) => Map<String, dynamic>.from(item as Map))
+                      .toList()
+                : const [],
           ),
         ),
       );
@@ -345,7 +432,7 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
               key: const ValueKey('draft-title'),
               controller: _title,
               enabled: !_busy,
-              onChanged: (_) => setState(() {}),
+              onChanged: (_) => _onLiveInputChanged(),
               textInputAction: TextInputAction.next,
               decoration: const InputDecoration(
                 labelText: 'Draft title',
@@ -357,7 +444,7 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
               key: const ValueKey('check-brand'),
               controller: _brand,
               enabled: !_busy,
-              onChanged: (_) => setState(() {}),
+              onChanged: (_) => _onLiveInputChanged(),
               decoration: const InputDecoration(
                 labelText: 'Brand',
                 helperText: 'Acme ships starter rules. Reviewers can add another brand.',
@@ -373,7 +460,7 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
               minLines: 8,
               maxLines: 24,
               maxLength: 200000,
-              onChanged: (_) => setState(() {}),
+              onChanged: (_) => _onLiveInputChanged(),
               textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(
                 alignLabelWithHint: true,
@@ -396,6 +483,8 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 10),
+            _preflightPanel(),
             const SizedBox(height: 18),
             SectionHeading(
               title: 'Attached visual assets',
@@ -664,6 +753,155 @@ class _NewBrandCheckScreenState extends State<NewBrandCheckScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _preflightPanel() {
+    if (_preflightStatus == 'idle') {
+      return const InlineNotice(
+        tone: Tone.neutral,
+        icon: Icons.radar_rounded,
+        title: 'Rule Radar is ready',
+        message: 'Type or paste content to check active rules. Live feedback is preliminary; final review still runs when you submit.',
+      );
+    }
+    if (_preflightStatus == 'waiting') {
+      return const InlineNotice(
+        tone: Tone.info,
+        icon: Icons.more_time_rounded,
+        title: 'Rule Radar · waiting',
+        message: 'Checking after you pause typing for 500 ms.',
+      );
+    }
+    if (_preflightStatus == 'checking') {
+      return const InlineNotice(
+        tone: Tone.info,
+        icon: Icons.sync_rounded,
+        title: 'Rule Radar · checking',
+        message: 'Running deterministic rules. You can keep editing.',
+      );
+    }
+    if (_preflightStatus == 'error') {
+      return InlineNotice(
+        tone: Tone.warning,
+        icon: Icons.cloud_off_rounded,
+        title: 'Live check unavailable',
+        message:
+            '${_preflightError ?? 'The server did not respond.'} Final submission remains available and runs its full check.',
+      );
+    }
+
+    final blocked = _preflightConflicts.isNotEmpty;
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                blocked
+                    ? Icons.pause_circle_outline_rounded
+                    : Icons.radar_rounded,
+                size: 18,
+                color: blocked ? AppTheme.warning : AppTheme.tealText,
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Rule Radar', style: AppTheme.titleMedium)),
+              StatusPill(
+                label: blocked
+                    ? 'Source conflict'
+                    : _preflightFindings.isEmpty
+                    ? 'No findings'
+                    : '${_preflightFindings.length} finding(s)',
+                tone: blocked
+                    ? Tone.warning
+                    : _preflightFindings.isEmpty
+                    ? Tone.success
+                    : Tone.danger,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '$_preflightRulesChecked active rules checked · Preliminary only, not approval',
+            style: AppTheme.bodySmall,
+          ),
+          if (blocked) ...[
+            const SizedBox(height: 10),
+            InlineNotice(
+              tone: Tone.warning,
+              title: 'Conflicting verified sources',
+              message: 'A matching source conflict must be resolved by a reviewer before this content can be approved.',
+            ),
+            for (final conflict in _preflightConflicts)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  '${conflict['topic_key']}: ${(conflict['evidence'] as List? ?? []).map((item) => (item as Map)['title']).join(' vs ')}',
+                  style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+                ),
+              ),
+          ],
+          if (_preflightFindings.isEmpty && !blocked) ...[
+            const SizedBox(height: 8),
+            Text(
+              'No configured rule violations found in the current text.',
+              style: AppTheme.bodySmall.copyWith(color: AppTheme.success),
+            ),
+          ],
+          for (final finding in _preflightFindings) ...[
+            const SizedBox(height: 8),
+            SurfaceCard(
+              padding: const EdgeInsets.all(10),
+              radius: 12,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          finding['rule_id']?.toString() ?? 'Rule finding',
+                          style: AppTheme.monoLabel(color: AppTheme.ink),
+                        ),
+                      ),
+                      StatusPill(
+                        label: finding['severity']?.toString() ?? 'warning',
+                        tone: finding['severity'] == 'critical'
+                            ? Tone.danger
+                            : finding['severity'] == 'review'
+                            ? Tone.warning
+                            : Tone.info,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    finding['message']?.toString() ?? 'Rule needs attention.',
+                    style: AppTheme.bodyMedium,
+                  ),
+                  if ((finding['evidence']?.toString() ?? '').isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        'Matched: “${finding['evidence']}” · chars ${finding['start_index']}-${finding['end_index']}',
+                        style: AppTheme.bodySmall.copyWith(color: AppTheme.ink),
+                      ),
+                    ),
+                  if ((finding['suggestion']?.toString() ?? '').isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        'Suggestion: ${finding['suggestion']}',
+                        style: AppTheme.bodySmall,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

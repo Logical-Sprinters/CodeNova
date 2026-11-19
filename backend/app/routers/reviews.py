@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.checks.source_conflicts import detect_source_conflicts
@@ -6,6 +8,9 @@ from app.approval.store import (
     generate_content_hash,
     get_record,
     list_records,
+    load_records,
+    save_records,
+    snapshot,
     verify_approval,
 )
 from app.audit.store import log_audit
@@ -14,6 +19,7 @@ from app.receipts.store import record_decision
 from app.rules_store.store import get_brand_rule_versions
 from app.schemas.brand import ApprovalVerifyRequest, ReviewDecisionRequest
 from app.storage import STORE_LOCK
+from app.conflicts.store import detect_conflicts
 from app.notifications import notify
 
 router = APIRouter(tags=["Reviews and Approvals"])
@@ -26,7 +32,11 @@ async def get_reviews(status: str | None = None, user: dict = Depends(get_user))
     records = [record for record in list_records(status) if can_read(record, user)]
     for record in records:
         # Re-evaluate against the latest trusted library sources for reviewer visibility.
-        record["source_conflicts"] = detect_source_conflicts(record["brand_name"])
+        record["source_conflicts"] = detect_source_conflicts(
+            record["brand_name"]
+        ) + detect_conflicts(
+            record["brand_name"], record["content"], persist=False
+        )
     return {"reviews": records, "total": len(records)}
 
 
@@ -34,6 +44,7 @@ async def get_reviews(status: str | None = None, user: dict = Depends(get_user))
 async def review_decision(
     check_id: str, request: ReviewDecisionRequest, user: dict = Depends(get_user)
 ):
+    source_conflict_detected = False
     with STORE_LOCK:
         if user.get("role") not in {"reviewer", "admin"}:
             raise HTTPException(403, "Only reviewers can approve/reject")
@@ -74,40 +85,84 @@ async def review_decision(
             raise HTTPException(
                 409, "Stored content does not match its hash. Resubmit this check."
             )
-        result = decide_record(
-            check_id, request.decision, user["user_id"], request.note.strip()
+        active_conflicts = [
+            conflict
+            for conflict in detect_conflicts(record["brand_name"], record["content"])
+            if conflict.get("status") == "unresolved"
+        ]
+        if active_conflicts:
+            from app.routers.brand import attach_receipt, inspect_content
+
+            inspection = inspect_content(
+                record["content"],
+                record["brand_name"],
+                source_conflicts=active_conflicts,
+            )
+            record.update(inspection, source_conflicts=active_conflicts)
+            record["scan_status"] = "source_conflict"
+            record["updated_at"] = datetime.now(timezone.utc).isoformat()
+            attach_receipt(record)
+            if record.get("versions"):
+                record["versions"][-1] = snapshot(record)
+            records = load_records()
+            save_records(
+                [record if item["check_id"] == check_id else item for item in records]
+            )
+            log_audit(
+                "source_conflict_pause",
+                user["user_id"],
+                check_id,
+                {
+                    "conflict_ids": [item["id"] for item in active_conflicts],
+                    "receipt_id": record["receipt_id"],
+                    "decision_blocked": request.decision,
+                },
+            )
+            source_conflict_detected = True
+        else:
+            result = decide_record(
+                check_id, request.decision, user["user_id"], request.note.strip()
+            )
+            record_decision(
+                check_id,
+                result["content_version"],
+                request.decision,
+                user["user_id"],
+                request.note.strip(),
+                approval_fingerprint=result.get("approval_fingerprint"),
+                approval_fingerprint_algorithm=result.get(
+                    "approval_fingerprint_algorithm"
+                ),
+            )
+            log_audit(
+                "review_decision",
+                user["user_id"],
+                check_id,
+                {
+                    "decision": request.decision,
+                    "content_version": result["content_version"],
+                    "content_hash": result["content_hash"],
+                    "rules_version": result["rules_version"],
+                    "receipt_id": result["receipt_id"],
+                    "approval_fingerprint": result.get("approval_fingerprint"),
+                    "approval_fingerprint_algorithm": result.get(
+                        "approval_fingerprint_algorithm"
+                    ),
+                },
+            )
+            notify(
+                [result["creator_id"]],
+                "Review decision",
+                f"{result['brand_name']} content v{result['content_version']} was {request.decision}.",
+                "decision",
+                check_id,
+            )
+    if source_conflict_detected:
+        raise HTTPException(
+            409,
+            "Review paused: a source conflict was detected. An authorized reviewer must resolve it before deciding.",
         )
-        record_decision(
-            check_id,
-            result["content_version"],
-            request.decision,
-            user["user_id"],
-            request.note.strip(),
-            approval_fingerprint=result.get("approval_fingerprint"),
-            approval_fingerprint_algorithm=result.get("approval_fingerprint_algorithm"),
-        )
-        log_audit(
-            "review_decision",
-            user["user_id"],
-            check_id,
-            {
-                "decision": request.decision,
-                "content_version": result["content_version"],
-                "content_hash": result["content_hash"],
-                "rules_version": result["rules_version"],
-                "receipt_id": result["receipt_id"],
-                "approval_fingerprint": result.get("approval_fingerprint"),
-                "approval_fingerprint_algorithm": result.get("approval_fingerprint_algorithm"),
-            },
-        )
-        notify(
-            [result["creator_id"]],
-            "Review decision",
-            f"{result['brand_name']} content v{result['content_version']} was {request.decision}.",
-            "decision",
-            check_id,
-        )
-        return {"message": f"Content {request.decision}.", "review": result}
+    return {"message": f"Content {request.decision}.", "review": result}
 
 
 @router.post("/api/v1/approvals/verify")

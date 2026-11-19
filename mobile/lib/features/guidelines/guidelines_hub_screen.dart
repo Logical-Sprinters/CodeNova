@@ -8,6 +8,7 @@ import '../../core/network/brandguard_api_service.dart';
 import 'brand_guidelines_screen.dart';
 import 'fact_sources_screen.dart';
 import 'upload_rule_screen.dart';
+import 'conflict_manager_screen.dart';
 
 /// Guidelines tab: shared guidance, enforceable rules and verified fact
 /// sources, summarised from the live API.
@@ -177,6 +178,16 @@ class _GuidelinesHubScreenState extends State<GuidelinesHubScreen> {
                   'Upload private documents and verify eligible evidence.',
               tone: Tone.info,
               onTap: () => _open(const FactSourcesScreen()),
+            ),
+            const SizedBox(height: 8),
+            NavigationRow(
+              icon: Icons.gavel_rounded,
+              title: 'Rule Conflict Manager',
+              subtitle: isReviewer
+                  ? 'Resolve conflicting source facts and resume affected reviews.'
+                  : 'View source conflict escalation status.',
+              tone: Tone.warning,
+              onTap: () => _open(const ConflictManagerScreen()),
             ),
             const SizedBox(height: 16),
             InlineNotice(

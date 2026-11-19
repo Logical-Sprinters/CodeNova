@@ -147,6 +147,41 @@ linked hote hain. Original image permanently store nahi hoti.
   Kisi module ke liye zaroori setup missing ho ya logo unverified rahe toh scan `partial` hota hai,
   `passed` nahi.
 
+## 5b. Source-of-truth conflict escalation
+
+Verified fact sources can be assigned a `topic_key`, normalized value, department and effective
+dates in the Fact Sources library. When applicable verified sources disagree on a topic mentioned
+in submitted copy, the check is marked `source_conflict`, AI verification abstains, and reviewer
+decisions are blocked. The Rule Conflict Manager lets a reviewer select the authoritative verified
+source or explicitly leave the conflict unresolved with a recorded reason. Selecting a source pins
+it as official, marks competing active facts superseded, rechecks paused submissions, and records
+the resolution and new receipt in the audit trail.
+
+Document text extraction does not decide which policy statement is authoritative: reviewers must
+inspect and verify source text and enter its topic/value metadata before it can participate in
+conflict detection. Conflicts are detected only for matching topics and effective periods that
+include the current date; ambiguous topics or values require reviewer curation.
+
+## 5c. Shift-Left Live Editor
+
+The Brand Check editor calls `POST /api/v1/brand/preflight` after 500 ms without typing. This
+authenticated endpoint runs the same deterministic rules as final submission, checks matching
+source conflicts, and never invokes the AI provider or creates a review/receipt. The mobile Rule
+Radar shows matched text, rule IDs, severities, suggestions and source-conflict status. Requests
+have an 8-second timeout; results for older text are discarded, and network errors do not erase
+the draft or block the separate final check.
+
+Reviewers can configure missing-disclaimer warnings by entering a required phrase on an enforceable
+rule. This check is case-insensitive. Live results are preliminary only: submission still runs the
+full policy, multimodal, receipt and review workflow.
+
+## 5d. SHA-256 approval tamper diff
+
+The authenticated Verify Approval screen checks the exact submitted text against the approved
+version. If the content hash differs, the API returns localized approved/submitted text hunks and
+the screen highlights each change. Punctuation and whitespace are included; whitespace is escaped
+in the diff so spaces and line breaks are visible. A failed check still requires a new review.
+
 ## 6. Testing / quality
 
 Is delivery par jo actually chalaya gaya (reproducible commands):

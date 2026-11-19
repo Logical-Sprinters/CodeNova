@@ -4,6 +4,7 @@ This is not a production security certification. See docs/PROJECT_GUIDE.md.
 """
 
 import json
+from datetime import date, timedelta
 
 import pytest
 
@@ -47,6 +48,77 @@ def test_health_and_routes(client):
     assert client.get("/").json()["status"] == "running"
     assert client.get("/health").json()["status"] == "healthy"
     assert "/api/v1/brand/check" in client.get("/openapi.json").json()["paths"]
+
+
+def test_preflight_runs_fast_rules_without_creating_a_review(
+    client, creator_headers, reviewer_headers, monkeypatch
+):
+    from app.routers import brand
+
+    monkeypatch.setattr(
+        brand,
+        "run_ai_verification",
+        lambda *args, **kwargs: pytest.fail("Preflight must not invoke AI"),
+    )
+    rule = client.post(
+        "/api/v1/library/rules",
+        headers=reviewer_headers,
+        json={
+            "title": "Mandatory disclaimer",
+            "brand_name": "Acme",
+            "pattern": "",
+            "required_phrase": "Terms and conditions apply.",
+            "description": "Required disclaimer is missing.",
+            "severity": "warning",
+            "suggestion": "Add the approved disclaimer.",
+            "enabled": True,
+        },
+    )
+    assert rule.status_code == 201, rule.text
+    audits_before = len(audit_store.load_audit())
+
+    content = "Our plan guarantees results and is free forever."
+    response = client.post(
+        "/api/v1/brand/preflight",
+        headers=creator_headers,
+        json={"brand_name": "Acme", "content": content},
+    )
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["status"] == "checked"
+    assert result["preliminary_only"] is True
+    assert result["rules_checked"] >= 3
+    assert {finding["rule_id"] for finding in result["findings"]} == {
+        "BG-002",
+        "ACME-001",
+        rule.json()["id"],
+    }
+    missing_disclaimer = next(
+        finding for finding in result["findings"] if finding["rule_id"] == rule.json()["id"]
+    )
+    assert missing_disclaimer["evidence"] == ""
+    assert missing_disclaimer["start_index"] == len(content)
+
+    with_disclaimer = client.post(
+        "/api/v1/brand/preflight",
+        headers=creator_headers,
+        json={
+            "brand_name": "Acme",
+            "content": f"{content} Terms and conditions apply.",
+        },
+    )
+    assert with_disclaimer.status_code == 200, with_disclaimer.text
+    assert rule.json()["id"] not in {
+        finding["rule_id"] for finding in with_disclaimer.json()["findings"]
+    }
+    assert client.post(
+        "/api/v1/brand/preflight",
+        headers=creator_headers,
+        json={"brand_name": "Acme", "content": ""},
+    ).json()["status"] == "empty"
+    assert approval_store.load_records() == []
+    assert receipt_store.load_receipts() == []
+    assert len(audit_store.load_audit()) == audits_before
 
 
 @pytest.mark.parametrize("headers", [{}, {"X-User-Id": "unknown"}])
@@ -316,6 +388,213 @@ def test_current_clean_text_response_and_empty_body_validation(client, creator_h
         headers=creator_headers,
     )
     assert response.status_code == 422
+
+
+def test_source_conflict_pauses_review_and_reviewer_resolves_it(
+    client, creator_headers, reviewer_headers
+):
+    base_fact = {
+        "brand_name": "Acme",
+        "category": "Product Claims",
+        "source_url": "",
+        "pattern": "",
+        "severity": "review",
+        "suggestion": "",
+        "replacement": None,
+        "enabled": True,
+        "verified": True,
+        "topic_key": "transfer_fee",
+        "effective_from": "2026-10-01",
+        "effective_to": "",
+        "department": "Marketing",
+        "authority": "department",
+    }
+    marketing = client.post(
+        "/api/v1/library/facts",
+        headers=reviewer_headers,
+        json=base_fact | {
+            "title": "Marketing Playbook",
+            "content": "Customers can transfer money with zero fees.",
+            "normalized_value": "0",
+        },
+    )
+    legal = client.post(
+        "/api/v1/library/facts",
+        headers=reviewer_headers,
+        json=base_fact | {
+            "title": "Legal Fact Sheet",
+            "content": "A 25 rupee transfer fee applies to every eligible transaction.",
+            "normalized_value": "25",
+            "department": "Legal",
+            "authority": "official",
+        },
+    )
+    assert marketing.status_code == 201
+    assert legal.status_code == 201
+
+    result = client.post(
+        "/api/v1/brand/check",
+        headers=creator_headers,
+        json={
+            "brand_name": "Acme",
+            "content": "Enjoy zero-fee transfers with Acme.",
+            "content_type": "text",
+        },
+    )
+    assert result.status_code == 200, result.text
+    data = result.json()
+    assert data["status"] == "review_paused"
+    assert data["scan_status"] == "source_conflict"
+    assert data["source_conflicts"][0]["topic_key"] == "transfer_fee"
+    assert data["ai_verification"]["status"] == "abstained"
+    assert "conflict" in data["ai_verification"]["message"].lower()
+
+    creator_cannot_resolve = client.post(
+        f"/api/v1/conflicts/{data['source_conflicts'][0]['id']}/resolve",
+        headers=creator_headers,
+        json={
+            "selected_fact_id": legal.json()["id"],
+            "resolution_reason": "Attempt to override policy.",
+        },
+    )
+    assert creator_cannot_resolve.status_code == 403
+
+    blocked = client.patch(
+        f"/api/v1/reviews/{data['check_id']}/decision",
+        headers=reviewer_headers,
+        json={"decision": "approved", "note": "Trying before resolution"},
+    )
+    assert blocked.status_code == 409
+
+    conflict_id = data["source_conflicts"][0]["id"]
+    resolved = client.post(
+        f"/api/v1/conflicts/{conflict_id}/resolve",
+        headers=reviewer_headers,
+        json={
+            "selected_fact_id": legal.json()["id"],
+            "resolution_reason": "Legal fact sheet is the current authoritative source.",
+        },
+    )
+    assert resolved.status_code == 200, resolved.text
+    assert resolved.json()["status"] == "resolved"
+    assert resolved.json()["superseded_fact_ids"] == [marketing.json()["id"]]
+    rechecked = resolved.json()["rechecked_reviews"]
+    assert len(rechecked) == 1
+    assert rechecked[0]["check_id"] == data["check_id"]
+    assert rechecked[0]["creator_id"] == "u1"
+    assert rechecked[0]["scan_status"] == "passed"
+    assert rechecked[0]["previous_scan_status"] == "source_conflict"
+    record = approval_store.get_record(data["check_id"])
+    assert record["source_conflicts"] == []
+    assert record["scan_status"] == "passed"
+    assert record["ai_verification"]["status"] == "abstained"
+    assert record["receipt_id"] != data["receipt_id"]
+    assert client.patch(
+        f"/api/v1/reviews/{data['check_id']}/decision",
+        headers=reviewer_headers,
+        json={"decision": "approved", "note": "Rechecked"},
+    ).status_code == 200
+
+
+def test_keep_unresolved_does_not_unpause_the_submission(
+    client, creator_headers, reviewer_headers
+):
+    facts = {
+        "brand_name": "Acme",
+        "category": "Product Claims",
+        "source_url": "",
+        "pattern": "",
+        "severity": "review",
+        "suggestion": "",
+        "replacement": None,
+        "enabled": True,
+        "verified": True,
+        "topic_key": "transfer_fee",
+        "normalized_value": "0",
+    }
+    for title, content, value in (
+        ("Marketing", "Zero transfer fees.", "0"),
+        ("Legal", "A ₹25 transfer fee applies.", "25"),
+    ):
+        response = client.post(
+            "/api/v1/library/facts",
+            headers=reviewer_headers,
+            json=facts | {"title": title, "content": content, "normalized_value": value},
+        )
+        assert response.status_code == 201, response.text
+    result = client.post(
+        "/api/v1/brand/check",
+        headers=creator_headers,
+        json={"brand_name": "Acme", "content": "Zero-fee transfers."},
+    ).json()
+    conflict = result["source_conflicts"][0]
+    kept = client.post(
+        f"/api/v1/conflicts/{conflict['id']}/resolve",
+        headers=reviewer_headers,
+        json={
+            "selected_fact_id": None,
+            "resolution_reason": "Waiting for final legal confirmation.",
+        },
+    )
+    assert kept.status_code == 200, kept.text
+    assert kept.json()["status"] == "unresolved"
+    assert kept.json().get("rechecked_reviews") == []
+    assert approval_store.get_record(result["check_id"])["source_conflicts"]
+    assert client.patch(
+        f"/api/v1/reviews/{result['check_id']}/decision",
+        headers=reviewer_headers,
+        json={"decision": "approved", "note": "Should remain blocked"},
+    ).status_code == 409
+
+
+def test_source_conflict_detection_ignores_nonoverlapping_effective_periods(
+    client, creator_headers, reviewer_headers
+):
+    base = {
+        "brand_name": "Acme",
+        "category": "Product Claims",
+        "source_url": "",
+        "pattern": "",
+        "severity": "review",
+        "suggestion": "",
+        "replacement": None,
+        "enabled": True,
+        "verified": True,
+        "topic_key": "transfer_fee",
+    }
+    today = date.today()
+    facts = [
+        {
+            "title": "Expired Marketing Policy",
+            "content": "No transfer fee applies.",
+            "normalized_value": "0",
+            "effective_from": (today - timedelta(days=10)).isoformat(),
+            "effective_to": (today - timedelta(days=1)).isoformat(),
+        },
+        {
+            "title": "Future Legal Policy",
+            "content": "A ₹25 transfer fee applies.",
+            "normalized_value": "25",
+            "effective_from": (today + timedelta(days=1)).isoformat(),
+            "effective_to": "",
+        },
+    ]
+    for fact in facts:
+        response = client.post(
+            "/api/v1/library/facts",
+            headers=reviewer_headers,
+            json=base | fact,
+        )
+        assert response.status_code == 201, response.text
+
+    result = client.post(
+        "/api/v1/brand/check",
+        headers=creator_headers,
+        json={"brand_name": "Acme", "content": "No-fee transfers."},
+    )
+    assert result.status_code == 200, result.text
+    assert result.json()["source_conflicts"] == []
+    assert result.json()["scan_status"] != "source_conflict"
 
 
 def test_store_paths_do_not_depend_on_current_working_directory(isolated_stores):

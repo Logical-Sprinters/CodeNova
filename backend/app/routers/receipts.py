@@ -13,7 +13,8 @@ def receipt_view(receipt, record):
     rules = get_brand_rule_versions(record["brand_name"])
     current_rules = rules["current_version"] if rules else None
     current = (
-        receipt.get("content_version") == record.get("content_version")
+        receipt.get("receipt_id") == record.get("receipt_id")
+        and receipt.get("content_version") == record.get("content_version")
         and receipt["content_hash"] == record["content_hash"]
     )
     rules_current = receipt.get("rules_version") == current_rules

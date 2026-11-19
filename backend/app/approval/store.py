@@ -1,6 +1,8 @@
 """Review records, exact-text hashes and content-version snapshots."""
 
 import hashlib
+import re
+from difflib import SequenceMatcher
 from datetime import datetime, timezone
 
 from app.config import DATA_DIR
@@ -39,6 +41,22 @@ def generate_approval_fingerprint(record: dict) -> str:
         payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
     )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def exact_text_diff(approved: str, submitted: str) -> list[dict[str, str]]:
+    approved_tokens = re.findall(r"\s+|[^\w\s]+|\w+", approved)
+    submitted_tokens = re.findall(r"\s+|[^\w\s]+|\w+", submitted)
+    matcher = SequenceMatcher(None, approved_tokens, submitted_tokens)
+    return [
+        {
+            "operation": operation,
+            "approved_text": "".join(approved_tokens[approved_start:approved_end]),
+            "submitted_text": "".join(submitted_tokens[submitted_start:submitted_end]),
+        }
+        for operation, approved_start, approved_end, submitted_start, submitted_end
+        in matcher.get_opcodes()
+        if operation != "equal"
+    ]
 
 
 def snapshot(record):
@@ -119,7 +137,11 @@ def verify_approval(
     if record["brand_name"].strip().lower() != brand_name.strip().lower():
         return {"valid": False, "reason": "Brand does not match."}
     if record["content_hash"] != generate_content_hash(content):
-        return {"valid": False, "reason": "Content has changed since approval."}
+        return {
+            "valid": False,
+            "reason": "Content has changed since approval.",
+            "text_diff": exact_text_diff(record["content"], content),
+        }
     if record.get("rules_version") != current_rules_version:
         return {"valid": False, "reason": "Brand rules have changed since approval."}
     stored_fingerprint = record.get("approval_fingerprint")

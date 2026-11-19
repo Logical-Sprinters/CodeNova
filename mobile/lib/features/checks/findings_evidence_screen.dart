@@ -15,6 +15,7 @@ class FindingsEvidenceScreen extends StatefulWidget {
   final int? contentVersion;
   final Map<String, dynamic>? aiVerification;
   final Map<String, dynamic>? visualAnalysis;
+  final List<Map<String, dynamic>> sourceConflicts;
   final List<dynamic> findings;
 
   const FindingsEvidenceScreen({
@@ -29,6 +30,7 @@ class FindingsEvidenceScreen extends StatefulWidget {
     this.contentVersion,
     this.aiVerification,
     this.visualAnalysis,
+    this.sourceConflicts = const [],
   });
 
   @override
@@ -339,6 +341,10 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
                   ),
                   const SizedBox(height: 10),
                   _statusCard(),
+                  if (widget.sourceConflicts.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _sourceConflictCard(),
+                  ],
                   if (widget.visualAnalysis != null) ...[
                     const SizedBox(height: 12),
                     _visualAnalysisCard(),
@@ -419,6 +425,8 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
                 child: Text(
                   widget.status == 'review_required'
                       ? 'Review required'
+                      : widget.status == 'review_paused'
+                      ? 'Review paused'
                       : 'Brand check complete',
                   maxLines: 2,
                   style: AppTheme.titleMedium.copyWith(fontSize: 16),
@@ -473,6 +481,58 @@ class _FindingsEvidenceScreenState extends State<FindingsEvidenceScreen> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sourceConflictCard() {
+    final conflict = widget.sourceConflicts.first;
+    final evidence = (conflict['evidence'] as List? ?? []);
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const InlineNotice(
+            tone: Tone.warning,
+            title: 'REVIEW PAUSED — SOURCE CONFLICT',
+            message:
+                'Conflicting company information was detected. Approval cannot continue until an authorized reviewer resolves it.',
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Topic: ${conflict['topic_key']}',
+            style: AppTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          ...evidence.whereType<Map>().map((item) {
+            final map = Map<String, dynamic>.from(item);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SurfaceCard(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      map['title']?.toString() ?? 'Source',
+                      style: AppTheme.titleMedium.copyWith(fontSize: 14),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Normalized value: ${map['normalized_value']}',
+                      style: AppTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      map['original_clause']?.toString() ?? '',
+                      style: AppTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
         ],
       ),
     );

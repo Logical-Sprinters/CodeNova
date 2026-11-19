@@ -10,6 +10,7 @@ import httpx
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
 from fastapi.responses import Response
 from pypdf import PdfReader
+from docx import Document
 
 from app import config
 from app.auth import can_read, get_user, require_reviewer
@@ -40,6 +41,16 @@ def extract(filename, raw):
                     "No text was extracted. Scanned/image PDFs need OCR, which is not configured.",
                 )
             return text, "application/pdf"
+        if suffix == ".docx":
+            document = Document(BytesIO(raw))
+            text = "\n".join(
+                paragraph.text
+                for paragraph in document.paragraphs
+                if paragraph.text.strip()
+            )[:100000]
+            if not text.strip():
+                raise HTTPException(422, "The document has no readable text")
+            return text, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     except HTTPException:
         raise
     except Exception as error:
@@ -48,7 +59,7 @@ def extract(filename, raw):
         ) from error
     raise HTTPException(
         415,
-        "Supported uploads: .txt, .md and text-based .pdf only. Image OCR is not configured.",
+        "Supported uploads: .txt, .md, text-based .pdf and .docx. Image OCR is not configured.",
     )
 
 

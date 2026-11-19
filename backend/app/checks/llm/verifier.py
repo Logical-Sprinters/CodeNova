@@ -50,6 +50,7 @@ def retrieve_facts(content, brand_name="Acme", facts=None):
         if (
             not fact.get("verified")
             or not fact.get("enabled", True)
+            or fact.get("approval_status", "active") != "active"
             or fact.get("brand_name", "Acme").strip().casefold()
             != brand_name.strip().casefold()
         ):

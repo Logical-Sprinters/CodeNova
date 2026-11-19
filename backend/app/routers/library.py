@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 import regex
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app import config
 from app.auth import get_user, require_reviewer
@@ -28,11 +28,19 @@ class LibraryItem(BaseModel):
     content: str = Field(default="", max_length=100000)
     source_url: str = Field(default="", max_length=2048)
     pattern: str = Field(default="", max_length=500)
+    required_phrase: str = Field(default="", max_length=500)
     severity: Literal["warning", "review", "critical"] = "review"
     suggestion: str = Field(default="", max_length=2000)
     replacement: str | None = Field(default=None, max_length=2000)
     enabled: bool = True
     verified: bool = False
+    topic_key: str = Field(default="", max_length=80)
+    normalized_value: str = Field(default="", max_length=500)
+    department: str = Field(default="", max_length=120)
+    effective_from: str = Field(default="", max_length=10)
+    effective_to: str = Field(default="", max_length=10)
+    approval_status: Literal["active", "superseded", "archived"] = "active"
+    authority: Literal["official", "department", "source"] = "source"
 
     @field_validator("title", "brand_name")
     @classmethod
@@ -53,6 +61,26 @@ class LibraryItem(BaseModel):
             )
         return value
 
+    @field_validator("effective_from", "effective_to")
+    @classmethod
+    def valid_effective_date(cls, value):
+        if value:
+            try:
+                datetime.strptime(value, "%Y-%m-%d")
+            except ValueError as error:
+                raise ValueError("Effective dates must use YYYY-MM-DD") from error
+        return value
+
+    @model_validator(mode="after")
+    def valid_effective_period(self):
+        if (
+            self.effective_from
+            and self.effective_to
+            and self.effective_to < self.effective_from
+        ):
+            raise ValueError("Effective-to date must not precede effective-from date")
+        return self
+
 
 def collection(kind):
     if kind not in {"guidelines", "facts", "rules"}:
@@ -70,6 +98,7 @@ def rule_rows(brand_name):
             "title": r.get("name", r["id"]),
             "brand_name": brand_name,
             "pattern": r["pattern"],
+            "required_phrase": r.get("required_phrase", ""),
             "description": r.get("message", ""),
             "severity": r.get("severity", "review"),
             "suggestion": r.get("suggestion", ""),
@@ -92,19 +121,21 @@ def update_rule(brand_name, item_id, value):
         raise HTTPException(404, "Rule not found")
     rules = [r for r in rules if r["id"] != item_id]
     if value is not None:
-        if not value.pattern.strip():
+        if not value.pattern.strip() and not value.required_phrase.strip():
             raise HTTPException(
                 422, "A regex pattern is required for an enforceable rule"
             )
-        try:
-            regex.compile(value.pattern)
-        except regex.error as error:
-            raise HTTPException(422, f"Invalid regex pattern: {error}") from error
+        if value.pattern.strip():
+            try:
+                regex.compile(value.pattern)
+            except regex.error as error:
+                raise HTTPException(422, f"Invalid regex pattern: {error}") from error
         rules.append(
             {
                 "id": item_id,
                 "name": value.title,
                 "pattern": value.pattern,
+                "required_phrase": value.required_phrase.strip(),
                 "severity": value.severity,
                 "message": value.description or value.title,
                 "suggestion": value.suggestion,

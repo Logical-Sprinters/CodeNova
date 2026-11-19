@@ -29,6 +29,19 @@ class BrandCheckRequest(BrandContent):
     content_type: Literal["text"] = "text"
 
 
+class PreflightRequest(BaseModel):
+    brand_name: str = Field(min_length=1, max_length=128)
+    content: str = Field(default="", max_length=200_000)
+
+    @field_validator("brand_name")
+    @classmethod
+    def nonblank_preflight_brand(cls, value):
+        value = value.strip()
+        if not value:
+            raise ValueError("Brand name must not be blank.")
+        return value
+
+
 class ContentVersionRequest(TextContent):
     expected_version: int | None = Field(default=None, ge=1)
 

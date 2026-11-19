@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from app import auth, config
 from app.approval import store as approval_store
 from app.audit import store as audit_store
+from app.conflicts import store as conflict_store
 from app.config import DEFAULT_DATA_DIR
 from app.main import app
 from app.receipts import store as receipt_store
@@ -28,13 +29,22 @@ def isolated_stores(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", data_dir)
     for name in ("users.json", "brand_rules.json"):
         shutil.copy2(DEFAULT_DATA_DIR / name, data_dir / name)
-    for name in ("review_records.json", "receipts.json", "audit_log.json"):
+    for name in (
+        "review_records.json",
+        "receipts.json",
+        "audit_log.json",
+        "rule_conflicts.json",
+        "library_facts.json",
+        "notifications.json",
+    ):
         (data_dir / name).write_text("[]\n", encoding="utf-8")
 
     for module, attribute, filename in (
         (auth, "USERS_FILE", "users.json"),
         (approval_store, "STORE_FILE", "review_records.json"),
         (audit_store, "AUDIT_FILE", "audit_log.json"),
+        (conflict_store, "CONFLICTS_FILE", "rule_conflicts.json"),
+        (conflict_store, "FACTS_FILE", "library_facts.json"),
         (receipt_store, "RECEIPTS_FILE", "receipts.json"),
         (rule_store, "RULES_FILE", "brand_rules.json"),
     ):

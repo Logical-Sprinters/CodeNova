@@ -62,7 +62,11 @@ def test_retrieval_excludes_unverified_and_reaches_later_passages(client):
     }
     passages = verifier.retrieve_facts(
         "Acme costs dollars monthly",
-        facts=[later, FACT | {"id": "unverified", "verified": False}],
+        facts=[
+            later,
+            FACT | {"id": "unverified", "verified": False},
+            FACT | {"id": "superseded", "approval_status": "superseded"},
+        ],
     )
     assert all(p["id"] == "fact-one" for p in passages)
     assert any("49 dollars" in p["_excerpt"] for p in passages)

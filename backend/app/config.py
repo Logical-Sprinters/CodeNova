@@ -87,6 +87,7 @@ def initialize_data_store():
             "review_records.json",
             "receipts.json",
             "audit_log.json",
+            "rule_conflicts.json",
         ):
             default = {} if name == "brand_rules.json" else []
             marker = DATA_DIR / name

@@ -55,9 +55,24 @@ def run_deterministic_checks(content: str, brand_name: str):
         for rule in all_rules:
             if not rule.get("enabled", True):
                 continue
-            for match in re.finditer(
-                rule["pattern"], content, flags=re.IGNORECASE, timeout=0.2
-            ):
+            required_phrase = str(rule.get("required_phrase") or "").strip()
+            if required_phrase and required_phrase.casefold() not in content.casefold():
+                findings.append(
+                    Finding(
+                        rule_id=rule.get("id", rule.get("rule_id")),
+                        severity=rule["severity"],
+                        message=rule["message"],
+                        evidence="",
+                        start_index=len(content),
+                        end_index=len(content),
+                        suggestion=rule.get("suggestion")
+                        or f"Add the required wording: {required_phrase}",
+                    )
+                )
+            pattern = str(rule.get("pattern") or "").strip()
+            if not pattern:
+                continue
+            for match in re.finditer(pattern, content, flags=re.IGNORECASE, timeout=0.2):
                 suggestion, replacement = get_suggestion(rule, match.group())
                 findings.append(
                     Finding(

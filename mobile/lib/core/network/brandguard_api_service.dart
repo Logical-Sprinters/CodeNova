@@ -92,6 +92,7 @@ class BrandGuardApiService {
     Map<String, dynamic>? body,
     bool authenticated = true,
     bool retry = true,
+    Duration timeout = const Duration(seconds: 45),
   }) async {
     if (authenticated && session.accessToken == null) {
       throw const ApiException('Please sign in first.');
@@ -103,7 +104,7 @@ class BrandGuardApiService {
       authenticated ? _headers : {'Content-Type': 'application/json'},
     );
     if (body != null) req.body = jsonEncode(body);
-    final response = await _send(req);
+    final response = await _send(req, timeout: timeout);
     if (response.statusCode == 401 &&
         authenticated &&
         retry &&
@@ -127,6 +128,7 @@ class BrandGuardApiService {
         body: body,
         authenticated: true,
         retry: false,
+        timeout: timeout,
       );
     }
     return _decode(response);
@@ -225,6 +227,16 @@ class BrandGuardApiService {
     'POST',
     '/api/v1/brand/check',
     body: {'brand_name': brandName, 'content': content, 'content_type': 'text'},
+  );
+
+  static Future<Map<String, dynamic>> preflightCheck({
+    required String brandName,
+    required String content,
+  }) => request(
+    'POST',
+    '/api/v1/brand/preflight',
+    body: {'brand_name': brandName, 'content': content},
+    timeout: const Duration(seconds: 8),
   );
 
   /// Persists the display name on the server and refreshes the session user.

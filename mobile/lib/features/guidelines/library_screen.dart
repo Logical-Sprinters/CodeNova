@@ -67,6 +67,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       'title': 'Title',
       if (widget.kind == 'rules') ...{
         'pattern': 'Regex pattern (enforced by API)',
+        'required_phrase': 'Required phrase (warning if missing)',
         'description': 'Finding message',
         'suggestion': 'Suggested action',
         'replacement': 'Replacement (optional)',
@@ -74,6 +75,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
       if (widget.kind == 'facts') ...{
         'content': 'Actual source text',
         'source_url': 'Source URL (optional)',
+        'topic_key': 'Topic key (for example transfer_fee)',
+        'normalized_value': 'Normalized value (for example 25 or 0)',
+        'department': 'Department',
+        'effective_from': 'Effective from (YYYY-MM-DD)',
+        'effective_to': 'Effective to (YYYY-MM-DD, optional)',
       },
       if (widget.kind == 'guidelines') ...{
         'description': 'Guideline',
@@ -168,6 +174,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           'brand_name': _brand.text.trim(),
                           'enabled': enabled,
                           'verified': verified,
+                          'approval_status':
+                              item?['approval_status'] ?? 'active',
+                          'authority': item?['authority'] ?? 'source',
                           'severity': item?['severity'] ?? 'review',
                         };
                         if (body['replacement'] == '') {

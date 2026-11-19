@@ -85,6 +85,11 @@ def _load_sources(brand_name: str) -> list[dict]:
                 continue
             if kind == "facts" and not item.get("verified", False):
                 continue
+            if (
+                kind == "facts"
+                and item.get("approval_status", "active") != "active"
+            ):
+                continue
             sources.append({
                 "id": item.get("id", "unknown"),
                 "type": "fact" if kind == "facts" else "guideline",

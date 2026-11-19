@@ -14,31 +14,42 @@ from app.approval.store import (
 )
 from app.audit.store import log_audit
 from app.auth import get_user
-from app.checks.deterministic.engine import run_deterministic_checks
-from app.checks.llm.verifier import run_ai_verification
+from app.checks.deterministic.engine import BASE_RULES, run_deterministic_checks
+from app.checks.llm.verifier import abstain, run_ai_verification
 from app.checks.multimodal import analyze_image
 from app.checks.source_conflicts import detect_source_conflicts
 from app.receipts.store import create_receipt
-from app.rules_store.store import get_brand_rule_versions
+from app.rules_store.store import get_brand_rule_versions, get_brand_rules
 from app.schemas.brand import (
     BrandCheckRequest,
     BrandCheckResponse,
     ContentVersionRequest,
+    PreflightRequest,
 )
 from app.storage import STORE_LOCK
 from app.notifications import notify_reviewers
+from app.conflicts.store import detect_conflicts
 
 router = APIRouter(prefix="/api/v1/brand", tags=["Brand Checks"])
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_REFERENCE_BYTES = 2 * 1024 * 1024
 
 
-def inspect_content(content, brand_name):
+def inspect_content(content, brand_name, source_conflicts=None):
     deterministic = [
         finding.model_dump()
         for finding in run_deterministic_checks(content, brand_name)
     ]
-    ai_result = run_ai_verification(content, brand_name=brand_name)
+    all_source_conflicts = detect_source_conflicts(brand_name) + (
+        source_conflicts or []
+    )
+    ai_result = (
+        abstain(
+            "Source-of-truth conflict detected. AI verification is paused until an authorized reviewer resolves it."
+        )
+        if all_source_conflicts
+        else run_ai_verification(content, brand_name=brand_name)
+    )
     findings = deterministic + ai_result.get("findings", [])
     rules = get_brand_rule_versions(brand_name)
     return {
@@ -47,9 +58,15 @@ def inspect_content(content, brand_name):
         "rules_version": rules["current_version"] if rules else None,
         "findings": findings,
         "deterministic_count": len(deterministic),
-        "scan_status": "findings_detected" if findings else "passed",
+        "scan_status": (
+            "source_conflict"
+            if all_source_conflicts
+            else "findings_detected"
+            if findings
+            else "passed"
+        ),
         "ai_verification": ai_result,
-        "source_conflicts": detect_source_conflicts(brand_name),
+        "source_conflicts": all_source_conflicts,
     }
 
 
@@ -69,6 +86,7 @@ def attach_receipt(record):
             "scan_status": record["scan_status"],
             "ai_verification": record["ai_verification"],
             "visual_analysis": record.get("visual_analysis"),
+            "source_conflicts": record.get("source_conflicts", []),
             "final_status": record["status"],
         }
     )
@@ -81,7 +99,11 @@ def response_for(record):
         check_id=record["check_id"],
         receipt_id=record["receipt_id"],
         brand_name=record["brand_name"],
-        status="review_required",
+        status=(
+            "review_paused"
+            if record.get("source_conflicts")
+            else "review_required"
+        ),
         findings=record["findings"],
         total_findings=len(record["findings"])
         + len((record.get("visual_analysis") or {}).get("violations", [])),
@@ -99,7 +121,14 @@ def response_for(record):
 def create_check(user, brand_name, content, visual_analysis=None):
     with STORE_LOCK:
         now = datetime.now(timezone.utc).isoformat()
-        inspection = inspect_content(content, brand_name)
+        source_conflicts = detect_conflicts(brand_name, content)
+        unresolved_conflicts = [
+            conflict for conflict in source_conflicts
+            if conflict["status"] == "unresolved"
+        ]
+        inspection = inspect_content(
+            content, brand_name, source_conflicts=unresolved_conflicts
+        )
         violations = (visual_analysis or {}).get("violations", [])
         record = {
             "check_id": str(uuid4()),
@@ -113,9 +142,13 @@ def create_check(user, brand_name, content, visual_analysis=None):
             "review_note": None,
             "decided_at": None,
             "visual_analysis": visual_analysis,
+            "source_conflicts": unresolved_conflicts,
             **inspection,
         }
-        if violations or record["findings"]:
+        if record.get("source_conflicts"):
+            record["scan_status"] = "source_conflict"
+            record["status"] = "pending"
+        elif violations or record["findings"]:
             record["scan_status"] = "findings_detected"
         elif visual_analysis and visual_analysis.get("status") != "complete":
             record["scan_status"] = "partial"
@@ -143,9 +176,150 @@ def create_check(user, brand_name, content, visual_analysis=None):
         return response_for(record)
 
 
+def recheck_after_source_resolution(resolved_conflict_ids, actor_id):
+    from app.approval.store import load_records, save_records
+    from app.notifications import notify
+
+    resolved_ids = set(resolved_conflict_ids)
+    if not resolved_ids:
+        return []
+    rechecked = []
+    with STORE_LOCK:
+        records = load_records()
+        for record in records:
+            if record.get("status") != "pending":
+                continue
+            prior_conflicts = record.get("source_conflicts") or []
+            if not any(item.get("id") in resolved_ids for item in prior_conflicts):
+                continue
+
+            active_conflicts = [
+                conflict
+                for conflict in detect_conflicts(record["brand_name"], record["content"])
+                if conflict.get("status") == "unresolved"
+            ]
+            inspection = inspect_content(
+                record["content"],
+                record["brand_name"],
+                source_conflicts=active_conflicts,
+            )
+            previous_scan_status = record.get("scan_status")
+            visual_violations = (record.get("visual_analysis") or {}).get(
+                "violations", []
+            )
+            if inspection["source_conflicts"]:
+                scan_status = "source_conflict"
+            elif inspection["findings"] or visual_violations:
+                scan_status = "findings_detected"
+            elif (
+                record.get("visual_analysis")
+                and record["visual_analysis"].get("status") != "complete"
+            ):
+                scan_status = "partial"
+            else:
+                scan_status = "passed"
+            record.update(
+                inspection,
+                source_conflicts=inspection["source_conflicts"],
+                scan_status=scan_status,
+                updated_at=datetime.now(timezone.utc).isoformat(),
+            )
+            attach_receipt(record)
+            if record.get("versions"):
+                record["versions"][-1] = snapshot(record)
+            rechecked.append(
+                {
+                    "check_id": record["check_id"],
+                    "creator_id": record["creator_id"],
+                    "scan_status": scan_status,
+                    "previous_scan_status": previous_scan_status,
+                    "receipt_id": record["receipt_id"],
+                }
+            )
+            log_audit(
+                "source_conflict_recheck",
+                actor_id,
+                record["check_id"],
+                {
+                    "resolved_conflict_ids": sorted(resolved_ids),
+                    "previous_scan_status": previous_scan_status,
+                    "scan_status": scan_status,
+                    "receipt_id": record["receipt_id"],
+                },
+            )
+        if rechecked:
+            save_records(records)
+
+    for item in rechecked:
+        notify(
+            [item["creator_id"]],
+            "Source conflict resolved",
+            (
+                "Your submission has been rechecked and remains paused because another source conflict is unresolved."
+                if item["scan_status"] == "source_conflict"
+                else f"Your submission has been rechecked ({item['scan_status']}). It is pending authorized review."
+            ),
+            "review",
+            item["check_id"],
+        )
+        if item["scan_status"] != "source_conflict":
+            notify_reviewers(
+                item["check_id"],
+                f"Rechecked {item['check_id']} after source conflict resolution; it awaits review.",
+            )
+    return rechecked
+
+
 @router.post("/check", response_model=BrandCheckResponse)
 async def check_brand(request: BrandCheckRequest, user: dict = Depends(get_user)):
     return create_check(user, request.brand_name, request.content)
+
+
+@router.post("/preflight")
+async def preflight_check(
+    request: PreflightRequest, user: dict = Depends(get_user)
+):
+    content = request.content
+    rules = get_brand_rules(request.brand_name)
+    rules_checked = sum(
+        1 for rule in BASE_RULES + (rules["rules"] if rules else [])
+        if rule.get("enabled", True)
+    )
+    findings = (
+        [
+            finding.model_dump()
+            for finding in run_deterministic_checks(content, request.brand_name)
+        ]
+        if content.strip()
+        else []
+    )
+    source_conflicts = (
+        detect_source_conflicts(request.brand_name)
+        + detect_conflicts(request.brand_name, content, persist=False)
+        if content.strip()
+        else []
+    )
+    unresolved_conflicts = [
+        conflict for conflict in source_conflicts
+        if conflict.get("status") == "unresolved"
+    ]
+    rule_versions = get_brand_rule_versions(request.brand_name)
+    return {
+        "status": (
+            "source_conflict"
+            if unresolved_conflicts
+            else "checked"
+            if content.strip()
+            else "empty"
+        ),
+        "findings": findings,
+        "source_conflicts": unresolved_conflicts,
+        "rules_checked": rules_checked,
+        "rules_version": (
+            rule_versions["current_version"] if rule_versions else None
+        ),
+        "preliminary_only": True,
+    }
 
 
 async def read_image(file: UploadFile | None, limit: int, label: str):
@@ -239,9 +413,20 @@ async def submit_version(
             )
         old_hash = record["content_hash"]
         old_status = record["status"]
-        # Re-run the real checker and fetch the CURRENT rules version on every edit.
-        inspection = inspect_content(request.content, record["brand_name"])
-        record.update(inspection)
+        source_conflicts = detect_conflicts(record["brand_name"], request.content)
+        unresolved_conflicts = [
+            conflict
+            for conflict in source_conflicts
+            if conflict["status"] == "unresolved"
+        ]
+        inspection = inspect_content(
+            request.content,
+            record["brand_name"],
+            source_conflicts=unresolved_conflicts,
+        )
+        record.update(
+            inspection, source_conflicts=inspection["source_conflicts"]
+        )
         record["visual_analysis"] = None
         record.update(
             content_version=current_version + 1,
@@ -253,6 +438,10 @@ async def submit_version(
             approval_fingerprint_algorithm=None,
             updated_at=datetime.now(timezone.utc).isoformat(),
         )
+        if record["source_conflicts"]:
+            record["scan_status"] = "source_conflict"
+        elif record["findings"]:
+            record["scan_status"] = "findings_detected"
         attach_receipt(record)
         record.setdefault("versions", []).append(snapshot(record))
         records = load_records()

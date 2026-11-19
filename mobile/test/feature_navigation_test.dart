@@ -182,6 +182,45 @@ void main() {
     expect(find.textContaining('AI not configured:'), findsOneWidget);
     expect(find.textContaining('SAMPLE OVERVIEW'), findsNothing);
   });
+  testWidgets('approval verification shows exact approved and submitted text', (
+    tester,
+  ) async {
+    http.Request? verification;
+    BrandGuardApiService.clientForTesting = MockClient((request) async {
+      verification = request;
+      return http.Response(
+        jsonEncode({
+          'valid': false,
+          'reason': 'Content has changed since approval.',
+          'text_diff': [
+            {
+              'operation': 'replace',
+              'approved_text': 'safe',
+              'submitted_text': 'unsafe',
+            },
+          ],
+        }),
+        200,
+      );
+    });
+
+    await open(tester, const ApprovalVerificationScreen());
+    await tester.enterText(
+      find.byKey(const ValueKey('approval-check-id')),
+      'check-one',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('approval-content')),
+      'The product is unsafe.',
+    );
+    await tester.tap(find.text('Verify against server'));
+    await settleTestUi(tester);
+
+    expect(verification?.url.path, '/api/v1/approvals/verify');
+    expect(find.text('Exact text differences'), findsOneWidget);
+    expect(find.text('"safe"'), findsOneWidget);
+    expect(find.text('"unsafe"'), findsOneWidget);
+  });
   testWidgets(
     'editor sends exact untrimmed content and displays real AI abstention',
     (tester) async {
@@ -224,10 +263,103 @@ void main() {
     },
   );
   testWidgets(
+    'live editor debounces requests and ignores stale preflight results',
+    (tester) async {
+      final pending = <Completer<http.Response>>[];
+      final requestedContent = <String>[];
+      BrandGuardApiService.clientForTesting = MockClient((request) async {
+        expect(request.url.path, '/api/v1/brand/preflight');
+        requestedContent.add(
+          (jsonDecode(request.body) as Map<String, dynamic>)['content']
+              as String,
+        );
+        final response = Completer<http.Response>();
+        pending.add(response);
+        return response.future;
+      });
+
+      await open(tester, const NewBrandCheckScreen());
+      final editor = find.byKey(const ValueKey('check-content'));
+      await tester.enterText(editor, 'guaranteed returns');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.enterText(editor, 'Our product is free forever.');
+      await tester.pump(const Duration(milliseconds: 499));
+      expect(requestedContent, isEmpty);
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+      expect(requestedContent, ['Our product is free forever.']);
+
+      await tester.enterText(editor, 'A different current draft.');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
+      expect(requestedContent, [
+        'Our product is free forever.',
+        'A different current draft.',
+      ]);
+
+      pending[1].complete(
+        http.Response(
+          jsonEncode({
+            'status': 'checked',
+            'rules_checked': 2,
+            'findings': [
+              {
+                'rule_id': 'LATEST-RULE',
+                'severity': 'warning',
+                'message': 'Current text finding',
+                'evidence': 'draft',
+                'start_index': 22,
+                'end_index': 27,
+                'suggestion': 'Review the current copy.',
+              },
+            ],
+            'source_conflicts': [],
+          }),
+          200,
+        ),
+      );
+      await tester.pump();
+      await settleTestUi(tester);
+      expect(find.text('LATEST-RULE'), findsOneWidget);
+
+      pending[0].complete(
+        http.Response(
+          jsonEncode({
+            'status': 'checked',
+            'rules_checked': 2,
+            'findings': [
+              {
+                'rule_id': 'STALE-RULE',
+                'severity': 'critical',
+                'message': 'Old text finding',
+                'evidence': 'guaranteed',
+                'start_index': 0,
+                'end_index': 10,
+              },
+            ],
+            'source_conflicts': [],
+          }),
+          200,
+        ),
+      );
+      await tester.pump();
+      await settleTestUi(tester);
+      expect(find.text('LATEST-RULE'), findsOneWidget);
+      expect(find.text('STALE-RULE'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
     'saved draft editor updates the same server id with revision protection',
     (tester) async {
       http.Request? saved;
       BrandGuardApiService.clientForTesting = MockClient((request) async {
+        if (request.url.path == '/api/v1/brand/preflight') {
+          return http.Response(
+            '{"status":"checked","rules_checked":2,"findings":[],"source_conflicts":[]}',
+            200,
+          );
+        }
         saved = request;
         return http.Response('{"id":"draft-one","revision":4}', 200);
       });
