@@ -19,6 +19,7 @@ from app.routers.brand import router as brand_router
 from app.routers.receipts import router as receipts_router
 from app.routers.reviews import router as reviews_router
 from app.routers.conflicts import router as conflicts_router
+from app.routers.chat import router as chat_router
 
 
 @asynccontextmanager
@@ -52,6 +53,7 @@ app.include_router(reviews_router)
 app.include_router(receipts_router)
 app.include_router(audit_router)
 app.include_router(conflicts_router)
+app.include_router(chat_router)
 
 
 @app.get("/")

@@ -6,6 +6,7 @@ import '../../app/ui/brandguard_shell.dart';
 import '../../core/auth/session.dart';
 import '../../core/network/brandguard_api_service.dart';
 import '../checks/new_brand_check_screen.dart';
+import '../chat/chat_assistant_screen.dart';
 import '../guidelines/fact_sources_screen.dart';
 import '../guidelines/upload_rule_screen.dart';
 import '../notifications/notifications_screen.dart';
@@ -298,6 +299,23 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
               ),
               icon: const Icon(Icons.add_rounded, size: 18),
               label: const Text('New Brand Check'),
+            ),
+          ),
+          const SizedBox(height: 9),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _open(const ChatAssistantScreen()),
+              style: OutlinedButton.styleFrom(
+                backgroundColor: Colors.white.withValues(alpha: 0.06),
+                foregroundColor: AppTheme.mintBright,
+                side: BorderSide(
+                  color: AppTheme.mintBright.withValues(alpha: 0.35),
+                ),
+                minimumSize: const Size(0, 44),
+              ),
+              icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+              label: const Text('Ask BrandGuard Assistant'),
             ),
           ),
         ],

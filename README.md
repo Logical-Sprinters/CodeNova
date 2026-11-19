@@ -88,6 +88,7 @@ loading / empty / error states dikhata hai (blank ya red screen nahi):
 | Create account | `POST /api/v1/auth/signup` |
 | Forgot password | `POST /api/v1/auth/recover` |
 | Home | `/analytics`, `/notifications`, `/system/status` |
+| BrandGuard Assistant | `/api/v1/chat`, `/api/v1/chat/context`, `/api/v1/chat/suggestions`, `/api/v1/chat/conversations` |
 | Workspace hub | saare modules ka entry point |
 | New brand check | `POST /api/v1/drafts`, `POST /api/v1/files` (documents), `POST /api/v1/brand/check`, `POST /api/v1/brand/multimodal-check` |
 | Findings & evidence | `POST /api/v1/brand/{id}/versions` (submit) |
@@ -117,7 +118,9 @@ dikhana galat hoga, isliye humne unhe honest tareeke se handle kiya:
 6. **"Request changes"** — UI mein hai, lekin backend sirf `approved`/`rejected` supports karta hai,
    isliye "changes requested" note ke saath `rejected` record hota hai (pehle se same behaviour).
 7. **AI comparison** — `AI_PROVIDER=disabled` hai, isliye findings screen par "AI comparison:
-   abstained" saaf dikhta hai. AI funded hone par hi real comparison hoga.
+   abstained" saaf dikhta hai. Assistant verified BrandGuard context se jawab deta hai; provider
+   configured na ho toh woh limitation batakar retrieved sources dikhata hai. Model-generated
+   answers ke liye provider key sirf backend `backend/.env` mein configure karo.
 8. **Dark theme** — token ke hisaab se light theme audited + shipped hai; dark/system par tap karne se
    honest snackbar aata hai (aadhi-adhoori dark theme nahi dikhayi).
 
@@ -181,6 +184,20 @@ The authenticated Verify Approval screen checks the exact submitted text against
 version. If the content hash differs, the API returns localized approved/submitted text hunks and
 the screen highlights each change. Punctuation and whitespace are included; whitespace is escaped
 in the diff so spaces and line breaks are visible. A failed check still requires a new review.
+
+## 5e. BrandGuard Assistant
+
+Home dashboard se assistant kholo. Creator aur authorised reviewer ke liye prompts role ke mutabik
+badalte hain; response language English, Hindi ya Hinglish select ki ja sakti hai. Chat history
+authenticated user ke account tak scoped hai. Users apne accessible campaign ko context ke roop mein
+select kar sakte hain; backend har request par ownership/role check karta hai. Guideline, fact, rule,
+finding aur campaign references response ke saath dikhte hain.
+
+`AI_PROVIDER` default roop se disabled hai. Is mode mein chat accessible BrandGuard context ke
+grounded excerpts dikhata hai, lekin model-generated natural-language answers nahi deta. Fact
+sources ke liye sirf active, reviewer-verified records retrieve hote hain. OpenAI ya OpenRouter
+enable karne ke liye backend `.env.example` follow karo; API key Flutter app mein kabhi mat rakho.
+Is MVP mein chatbot read-only hai, aur is repository mein organisation/tenant model nahi hai.
 
 ## 6. Testing / quality
 
