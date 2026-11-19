@@ -1,5 +1,7 @@
 # BrandGuard Supabase — Maintain the Existing Hosted Setup
 
+> **Current Status:** Optional / deferred for local development. Active local runs use SQLite + local JWT (`AUTH_PROVIDER=local`) by default — see [../START_HERE.md](../START_HERE.md). Use this guide only when switching back to or redeploying hosted Supabase mode.
+
 **Current app:** https://brandguard-app.antideploy.app . Hosting and real auth-email
 callbacks are already deployed; do not redo project creation or choose another
 provider. See [LIVE_SUPABASE_STATUS.md](LIVE_SUPABASE_STATUS.md) and

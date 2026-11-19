@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app import config
 from app.auth import can_read, get_user
 from app.approval.store import load_records
+from app.checks.llm.verifier import run_ai_verification
 from app.storage import STORE_LOCK, read_json, write_json
 
 router = APIRouter(prefix="/api/v1", tags=["Drafts, analytics and notifications"])
@@ -263,4 +264,51 @@ def status(user=Depends(get_user)):
         "storage": "supabase" if config.AUTH_PROVIDER == "supabase" else "local",
         "ai_verification_limit": 12000,
         "document_extraction_limit": 100000,
+    }
+
+
+@router.post("/system/ai-test")
+def test_ai_connection(user: dict = Depends(get_user)):
+    if user.get("role") not in {"reviewer", "admin"}:
+        raise HTTPException(403, "Only reviewers can test live AI verification")
+    configured = (
+        config.AI_PROVIDER in {"openai", "openrouter", "gemini"}
+        and bool(config.AI_API_KEY)
+    )
+    if not configured:
+        return {
+            "configured": False,
+            "provider": config.AI_PROVIDER,
+            "model": None,
+            "live_ok": False,
+            "status": "abstained",
+            "message": "No AI key is configured in backend/.env. Run ENABLE_AI.bat or `python backend/manage.py configure-ai`, then restart the backend.",
+            "citations": [],
+        }
+
+    probe_fact = {
+        "id": "ai-probe-fact",
+        "brand_name": "Acme",
+        "title": "Acme SLA Reference",
+        "content": "Acme Enterprise includes a 99.95% uptime SLA and costs $49 per month.",
+        "verified": True,
+        "enabled": True,
+        "source_url": "https://example.com/sla",
+        "version": "1.0.0",
+        "channels": ["all"],
+    }
+    res = run_ai_verification(
+        "Acme Enterprise includes a 99.95% uptime SLA and costs $49 per month.",
+        brand_facts=[probe_fact],
+        brand_name="Acme",
+    )
+    live_ok = res.get("status") in {"supported", "needs_review"}
+    return {
+        "configured": True,
+        "provider": config.AI_PROVIDER,
+        "model": res.get("model") or config.AI_MODEL,
+        "live_ok": live_ok,
+        "status": res.get("status", "abstained"),
+        "message": res.get("message", ""),
+        "citations": res.get("citations", []),
     }

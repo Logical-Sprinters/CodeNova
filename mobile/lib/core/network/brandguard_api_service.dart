@@ -573,6 +573,9 @@ class BrandGuardApiService {
     },
   );
 
+  static Future<Map<String, dynamic>> testAiConnection() =>
+      request('POST', '/api/v1/system/ai-test');
+
   static Future<Map<String, dynamic>> uploadLogoTemplate({
     required String ruleId,
     required String fileName,

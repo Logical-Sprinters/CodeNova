@@ -1,5 +1,7 @@
 # BrandGuard — Start Here (v3.0.0 / Round 3)
 
+> **Current focus:** **Local mode (`AUTH_PROVIDER=local`, SQLite `backend/data/brandguard.sqlite3`)** is the primary active workflow. Cloud Supabase migration/switchover is optional and currently deferred.
+
 ## 1. Run Locally on Your Laptop (Full Round 3 Experience)
 
 ### Requirements
@@ -55,19 +57,42 @@ Copy-Item mobile\build\web\* browser_preview\ -Recurse -Force
 For native Android/iOS (`RUN_MOBILE.bat` / `RUN_MOBILE.sh`):
 ```bash
 cd mobile
-flutter run --dart-define=API_BASE=https://brandguard-app.antideploy.app
-# Or for local backend on Android emulator:
+# Local backend on Android emulator (matches local SQLite backend):
 flutter run --dart-define=API_BASE=http://10.0.2.2:8000
+
+# Local backend in Chrome / Desktop:
+flutter run -d chrome --dart-define=API_BASE=http://127.0.0.1:8000
+
+# Optional hosted app (Supabase mode):
+flutter run --dart-define=API_BASE=https://brandguard-app.antideploy.app
 ```
 
 ---
 
-## 3. Public Hosted App & Round 3 Deployment Notes
+## 3. Enable Grounded AI Verification (Local Mode)
 
-- **Live URL:** **https://brandguard-app.antideploy.app** (hosted on Antideploy with Supabase Auth/Postgres/Storage).
+AI stays off (`AI_PROVIDER=disabled`) until a server key is configured in `backend/.env`:
+
+1. **Windows:** Run **`ENABLE_AI.bat`** from the repo root (prompts cleanly for **Google Gemini free tier**, **OpenRouter**, or **OpenAI** without echoing the key, saves `backend/.env`, and tests the live model immediately).
+   **macOS / Linux / CLI:**
+   ```bash
+   cd backend
+   python manage.py configure-ai
+   python manage.py test-ai
+   ```
+   *(Or manually place `GEMINI_API_KEY=...`, `OPENROUTER_API_KEY=...`, or `OPENAI_API_KEY=...` in `backend/.env` with `AI_PROVIDER` unset — BrandGuard auto-detects the provider.)*
+2. Restart the backend (`START_BACKEND.bat` / `uvicorn`).
+3. Sign in as Reviewer (`reviewer@brandguard.demo` / `Demo@12345`), open **Guidelines → Fact Sources**, tap **Test AI verification**, and add + **Verify** at least one Fact Source so live brand checks run grounded AI verification instead of abstaining.
+
+See [docs/AI_SETUP.md](docs/AI_SETUP.md) for details.
+
+---
+
+## 4. Optional Hosted Supabase Mode (Deferred for Now)
+
+- **Live URL:** **https://brandguard-app.antideploy.app** (optional cloud deployment on Antideploy with Supabase Auth/Postgres/Storage; local development does **not** require Supabase).
 - **Accounts:** Earlier temporary evaluation accounts expired on **17 November 2026, 01:30:31 IST**. Create a personal Creator account via **Create account → confirm email → Sign In**, and assign Reviewer/Admin only through Supabase `app_metadata.brandguard_role` or `manage.py create-user`.
-- **Redeploying Round 3 to Antideploy:**
+- **When redeploying Round 3 to Antideploy later:**
   1. Ensure `browser_preview/` has your fresh `flutter build web --no-web-resources-cdn` output.
   2. Update the Supabase `brandguard-files` bucket `allowed_mime_types` to also include `image/png`, `image/jpeg`, `image/webp` before uploading banners in cloud mode (see [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md)).
   3. Deploy via Antideploy using the existing app ID in `.antideploy.json` (see [DEPLOYMENT.md](DEPLOYMENT.md)).
-- **AI Mode:** Currently `AI_PROVIDER=disabled` by default (deterministic rules, temporal checks, conflict detection, OCR/palette/logo checks, clarity tickets, and tamper-proof approvals all work without an AI key). To enable live AI comparison or Vision inspection, see [docs/AI_SETUP.md](docs/AI_SETUP.md) and remember to add + **Verify** at least 1 Fact Source under **Guidelines → Fact Sources**.

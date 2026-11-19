@@ -15,11 +15,11 @@ Flutter mobile-first client (*Executive Precision* design system) connecting to 
 | **Home Dashboard** | Greeting hero, live metrics, decision mix, fast actions, brand filter, recent activity |
 | **New Brand Check** | Exact-text editor, live preflight (`POST /api/v1/brand/preflight`), temporal `check_at` & `channel` selector, private document & image banner upload (`PNG/JPG/JPEG/WEBP` + OCR/palette/logo telemetry), policy summary |
 | **Findings & Evidence** | Grounded rule cards (`rule_id`, `rule_version`, verbatim `rule_quote`, content/OCR span), AI abstention/evidence citations, reviewer coded finding overrides (`6` structured reasons), submit for review |
-| **Review Queue** | Status filter (`pending`, `approved`, `rejected`, `paused_conflict`), exact-text inspection, approve/reject with notes, self-review prevention |
-| **Governance Modules** | **Clarity Tickets** (rolled-up rule friction tickets), **Conflicts** (active rule/fact contradiction queue + resolution + `auto_recheck`), **Verify Approval** (`VALID` / `VOIDED_TAMPERED` + character/word diff + file re-verification) |
-| **Guidelines Hub** | Shared **Brand Guidelines**, **Enforceable Rules** (temporal + channel + logo template upload), **Fact Sources** (reviewer verification gate) |
-| **Receipts & Audit** | Structured `ReceiptDetailScreen` with hashes, grounding evidence, inline diff, and raw payload |
-| **Profile** | Role pill, **My profile** full session & backend identity sheet + **Edit display name**, appearance & notification preferences (`PATCH /api/v1/auth/profile`, `GET/PUT /api/v1/auth/preferences`), backend status, logout |
+| **Review Queue** | Status filter (`pending`, `approved`, `rejected`, `paused_conflict`, `changes_requested`), exact-text inspection, approve/reject/`Request changes` with notes, **60-minute Amend / Revoke decision** (`POST /api/v1/reviews/{id}/amend`), immediate **Undo / Amend** SnackBar, self-review prevention, non-destructive **Edit as new check** for Approved items |
+| **Governance Modules** | **Clarity Tickets** (rolled-up rule friction tickets), **Conflicts** (active rule/fact contradiction queue + resolution + `auto_recheck`), **Verify Approval** (`VALID` / `VOIDED_TAMPERED` / `REVOKED` + character/word diff + file re-verification) |
+| **Guidelines Hub** | Shared **Brand Guidelines**, **Enforceable Rules** (temporal + channel + logo template upload), **Fact Sources** (reviewer verification gate + reviewer-only **Test AI verification** live probe) |
+| **Receipts & Audit** | Structured `ReceiptDetailScreen` with hashes, grounding evidence, inline diff, decision reversal history, and **Approval Ledger** tap-to-inspect + Amend/Revoke actions |
+| **Profile** | Role pill, **My profile** personal identity sheet (`Display name`, `Email`, `User id`, `Role`, `Session state`) + **Edit display name**, **Password & sessions** in-app password update, appearance & notification preferences (`PATCH /api/v1/auth/profile`, `PUT /api/v1/auth/password`, `GET/PUT /api/v1/auth/preferences`), logout (internal backend/DB infrastructure rows intentionally omitted) |
 
 ---
 
@@ -84,10 +84,10 @@ or rely on the existing `lintVital*` disable guard in `mobile/android/build.grad
 ```bash
 cd mobile
 flutter analyze          # Expected: No issues found!
-flutter test             # 134 tests (unit, connection/session, Remember me restore, 5-viewport layout, Round 3 UI, My profile, Change password, real-time sync, Edit & resubmit, Approved -> Edit as new check, 2-step submit -> Reviews, Unseen/Seen notifications)
+flutter test             # 10 test files (85+ unit, connection/session, Remember me restore, layout hardening, Round 3 UI, 60m amend/revoke, Profile cleanup, Fact Sources Test AI, Edit as new check, Unseen/Seen notifications)
 ```
 
-Viewport coverage includes **320×640, 360×780, 390×844, 430×932, and 768×1024** without render overflow.
+Viewport coverage includes **280×600 (@ 1.6x text scale), 320×568, 360×780, 430×932, and 768×1024** without render overflow.
 
 ---
 

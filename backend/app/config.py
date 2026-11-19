@@ -24,40 +24,84 @@ SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SECRET_KEY", "") or os.envi
 SUPABASE_STORAGE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "brandguard-files")
 SEED_DEMO_USERS = os.environ.get("SEED_DEMO_USERS", "true").lower() == "true"
 JWT_SECRET = os.environ.get("JWT_SECRET", "")
-AI_PROVIDER = os.environ.get("AI_PROVIDER", "disabled").strip().lower()
-AI_API_KEY = (
-    os.environ.get("AI_API_KEY", "").strip()
-    or (
-        os.environ.get("OPENROUTER_API_KEY", "").strip()
-        if AI_PROVIDER == "openrouter"
-        else ""
+def _resolve_ai_settings(env=None):
+    source = os.environ if env is None else env
+    raw_provider = source.get("AI_PROVIDER")
+    provider = raw_provider.strip().lower() if raw_provider is not None else ""
+
+    gemini_key = (
+        source.get("GEMINI_API_KEY", "").strip()
+        or source.get("GOOGLE_API_KEY", "").strip()
     )
-    or (
-        (
-            os.environ.get("GEMINI_API_KEY", "").strip()
-            or os.environ.get("GOOGLE_API_KEY", "").strip()
+    openrouter_key = source.get("OPENROUTER_API_KEY", "").strip()
+    openai_key = source.get("OPENAI_API_KEY", "").strip()
+    generic_key = source.get("AI_API_KEY", "").strip()
+
+    if not provider:
+        if gemini_key:
+            provider = "gemini"
+        elif openrouter_key:
+            provider = "openrouter"
+        elif openai_key:
+            provider = "openai"
+        else:
+            provider = "disabled"
+
+    if provider == "disabled":
+        api_key = ""
+    elif provider == "openrouter":
+        api_key = generic_key or openrouter_key
+    elif provider == "gemini":
+        api_key = generic_key or gemini_key
+    elif provider == "openai":
+        api_key = generic_key or openai_key
+    else:
+        api_key = generic_key
+
+    default_base = (
+        "https://openrouter.ai/api/v1"
+        if provider == "openrouter"
+        else (
+            "https://generativelanguage.googleapis.com/v1beta/openai"
+            if provider == "gemini"
+            else "https://api.openai.com/v1"
         )
-        if AI_PROVIDER == "gemini"
-        else ""
     )
-)
-_DEFAULT_AI_BASE_URL = (
-    "https://openrouter.ai/api/v1"
-    if AI_PROVIDER == "openrouter"
-    else (
-        "https://generativelanguage.googleapis.com/v1beta/openai"
-        if AI_PROVIDER == "gemini"
-        else "https://api.openai.com/v1"
+    base_url = source.get("AI_BASE_URL", "").strip().rstrip("/") or default_base
+    default_model = (
+        "openai/gpt-5.4-mini"
+        if provider == "openrouter"
+        else ("gemini-3.5-flash-lite" if provider == "gemini" else "gpt-5.4-mini")
     )
-)
-AI_BASE_URL = os.environ.get("AI_BASE_URL", _DEFAULT_AI_BASE_URL).strip().rstrip("/")
-_DEFAULT_AI_MODEL = (
-    "openai/gpt-5.4-mini"
-    if AI_PROVIDER == "openrouter"
-    else ("gemini-3.5-flash-lite" if AI_PROVIDER == "gemini" else "gpt-5.4-mini")
-)
-AI_MODEL = os.environ.get("AI_MODEL", _DEFAULT_AI_MODEL).strip()
-AI_DATA_COLLECTION = os.environ.get("AI_DATA_COLLECTION", "").strip().lower()
+    model = source.get("AI_MODEL", "").strip() or default_model
+    data_collection = source.get("AI_DATA_COLLECTION", "").strip().lower()
+    return {
+        "AI_PROVIDER": provider,
+        "AI_API_KEY": api_key,
+        "AI_BASE_URL": base_url,
+        "AI_MODEL": model,
+        "AI_DATA_COLLECTION": data_collection,
+    }
+
+
+_AI_DEFAULTS = _resolve_ai_settings()
+AI_PROVIDER = _AI_DEFAULTS["AI_PROVIDER"]
+AI_API_KEY = _AI_DEFAULTS["AI_API_KEY"]
+AI_BASE_URL = _AI_DEFAULTS["AI_BASE_URL"]
+AI_MODEL = _AI_DEFAULTS["AI_MODEL"]
+AI_DATA_COLLECTION = _AI_DEFAULTS["AI_DATA_COLLECTION"]
+
+
+def reload_ai_settings():
+    global AI_PROVIDER, AI_API_KEY, AI_BASE_URL, AI_MODEL, AI_DATA_COLLECTION
+    load_dotenv(BACKEND_DIR / ".env", override=True)
+    resolved = _resolve_ai_settings()
+    AI_PROVIDER = resolved["AI_PROVIDER"]
+    AI_API_KEY = resolved["AI_API_KEY"]
+    AI_BASE_URL = resolved["AI_BASE_URL"]
+    AI_MODEL = resolved["AI_MODEL"]
+    AI_DATA_COLLECTION = resolved["AI_DATA_COLLECTION"]
+    return resolved
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL", os.environ.get("APP_URL", "")).rstrip(
     "/"
 )

@@ -17,6 +17,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
   final _brand = TextEditingController(text: 'Acme');
   List<Map<String, dynamic>> _items = [];
   bool _loading = true;
+  bool _testingAi = false;
+  Map<String, dynamic>? _aiProbeResult;
   String? _error;
   bool get _canManage => session.currentUser?.isReviewer ?? false;
   String get _base => '/api/v1/library/${widget.kind}';
@@ -60,6 +62,23 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(message.toString())));
+    }
+  }
+
+  Future<void> _testAiVerification() async {
+    if (_testingAi) return;
+    setState(() => _testingAi = true);
+    try {
+      final res = await BrandGuardApiService.testAiConnection();
+      if (!mounted) return;
+      setState(() {
+        _aiProbeResult = res;
+        _testingAi = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _testingAi = false);
+      _message(e);
     }
   }
 
@@ -633,6 +652,73 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     ? 'Only enabled, reviewer-verified source text is eligible for retrieval. Unverified uploads are excluded.'
                     : 'Guidance helps humans decide. Only Rules change inspection output.',
               ),
+              if (_canManage && isFacts) ...[
+                const SizedBox(height: 10),
+                SurfaceCard(
+                  radius: 16,
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          StatusPill(
+                            label: _aiProbeResult == null
+                                ? 'AI Probe Ready'
+                                : (_aiProbeResult!['live_ok'] == true
+                                    ? 'AI Active (${_aiProbeResult!['provider'] ?? ''})'
+                                    : 'AI Disabled / Check Key'),
+                            tone: _aiProbeResult == null
+                                ? Tone.navy
+                                : (_aiProbeResult!['live_ok'] == true
+                                    ? Tone.success
+                                    : Tone.warning),
+                            compact: true,
+                          ),
+                          OutlinedButton.icon(
+                            key: const ValueKey('test-ai-btn'),
+                            onPressed: _testingAi ? null : _testAiVerification,
+                            icon: _testingAi
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.auto_awesome_outlined,
+                                    size: 16,
+                                  ),
+                            label: Text(
+                              _testingAi ? 'Testing...' : 'Test AI verification',
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_aiProbeResult != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          [
+                            if ((_aiProbeResult!['model']?.toString() ?? '')
+                                .isNotEmpty)
+                              'Model: ${_aiProbeResult!['model']}',
+                            if ((_aiProbeResult!['message']?.toString() ?? '')
+                                .isNotEmpty)
+                              _aiProbeResult!['message'].toString(),
+                          ].join(' · '),
+                          style: AppTheme.bodySmall.copyWith(
+                            color: AppTheme.muted,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               SectionHeading(
                 title: 'Library entries',

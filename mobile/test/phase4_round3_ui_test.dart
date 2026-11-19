@@ -1762,4 +1762,42 @@ void main() {
       expect(find.textContaining('auth: local'), findsNothing);
     },
   );
+
+  testWidgets(
+    'Reviewer can probe AI verification from Fact Sources screen',
+    (tester) async {
+      var probeCalled = false;
+      BrandGuardApiService.clientForTesting = MockClient((request) async {
+        if (request.url.path == '/api/v1/library/facts') {
+          return http.Response('{"items":[]}', 200);
+        }
+        if (request.url.path == '/api/v1/system/ai-test' &&
+            request.method == 'POST') {
+          probeCalled = true;
+          return http.Response(
+            jsonEncode({
+              'configured': true,
+              'provider': 'gemini',
+              'model': 'gemini-3.5-flash-lite',
+              'live_ok': true,
+              'status': 'supported',
+              'message': 'Matches the SLA reference.',
+              'citations': const [],
+            }),
+            200,
+          );
+        }
+        return http.Response('{}', 200);
+      });
+
+      await open(tester, const FactSourcesScreen());
+      expect(find.byKey(const ValueKey('test-ai-btn')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('test-ai-btn')));
+      await settleTestUi(tester);
+
+      expect(probeCalled, isTrue);
+      expect(find.text('AI Active (gemini)'), findsOneWidget);
+      expect(find.textContaining('gemini-3.5-flash-lite'), findsOneWidget);
+    },
+  );
 }

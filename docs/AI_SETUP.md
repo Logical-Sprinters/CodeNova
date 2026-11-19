@@ -1,27 +1,26 @@
 # BrandGuard AI — Grounded Text & Multimodal Vision Configuration
 
-## 1. Current Hosted State (Antideploy)
+## 1. Local Setup (Recommended — 60-Second Guided Wizard)
 
-- **Provider path:** Antideploy's OpenRouter integration (`OPENROUTER_API_KEY` provisioned server-side on Antideploy).
-- **Base URL:** `https://openrouter.ai/api/v1`.
-- **Configured model:** `openai/gpt-5.4-mini` (advertises OpenAI-compatible strict JSON schema structured outputs).
-- **Current status:** Wallet balance is **₹0** and deployed **`AI_PROVIDER=disabled`**. Deterministic rules, temporal/channel resolution, conflict detection, OCR/palette/logo visual inspection, clarity tickets, and human review all run at **$0** without an AI key; AI fields explicitly return `abstained` instead of fabricating a pass.
+By default, `AI_PROVIDER=disabled` so deterministic rules, temporal/channel resolution, conflict detection, OCR/palette/logo visual inspection, clarity tickets, and human review all run at **$0** without a provider key (AI fields explicitly return `abstained`).
 
-### Two Ways to Enable Live AI
+### Fastest Way to Enable Live AI Locally
+1. **Run the interactive setup script** (saves directly to `backend/.env` with hidden key input and immediately runs a live probe):
+   - **Windows:** Double-click or run **`ENABLE_AI.bat`** from the repo root.
+   - **macOS / Linux / CLI:**
+     ```bash
+     cd backend
+     python manage.py configure-ai
+     ```
+2. **Test anytime from terminal or UI:**
+   - **Terminal:** `python manage.py test-ai` (from `backend/`)
+   - **In-App (Reviewer):** Restart the backend (`START_BACKEND.bat` / `uvicorn`), open **Guidelines → Fact Sources**, and tap **Test AI verification** (`POST /api/v1/system/ai-test`).
 
-#### Option A — Antideploy OpenRouter Wallet (Paid Pay-As-You-Go, No Subscription)
-1. Fund the Antideploy AI wallet: https://antideploy.com/settings/billing#add-money (**15% platform fee:** ₹100 AI credit costs ₹115; pay-as-you-go).
-2. On the **same** Antideploy app's server-only environment variables, set:
-   ```dotenv
-   AI_PROVIDER=openrouter
-   AI_BASE_URL=https://openrouter.ai/api/v1
-   AI_MODEL=openai/gpt-5.4-mini
-   ```
-   Do **not** create a duplicate `OPENROUTER_API_KEY` or put keys in `mobile/` or git.
-3. Redeploy the app so the server reloads env vars.
+> **Auto-detection:** If you edit `backend/.env` manually and set `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `OPENROUTER_API_KEY`, or `OPENAI_API_KEY` while leaving `AI_PROVIDER` unset/blank, BrandGuard automatically activates that provider. Explicit `AI_PROVIDER=disabled` overrides any key.
 
-#### Option B — `$0` Free Keys (Google Gemini Free Tier or OpenRouter `:free`)
-In local `backend/.env` (or a non-Antideploy test host):
+---
+
+## 2. Supported Providers (`backend/.env` Server-Only)
 
 - **Google Gemini free tier (recommended $0 option):**
   ```dotenv
@@ -39,12 +38,20 @@ In local `backend/.env` (or a non-Antideploy test host):
   AI_MODEL=nvidia/nemotron-3-super-120b-a12b:free
   ```
   *(Note: Paid OpenRouter models still default to `data_collection: deny`; `:free` models automatically omit `data_collection: deny` unless `AI_DATA_COLLECTION=deny` is set and fall back cleanly to `json_object` when a free model rejects strict `json_schema`, while keeping full Pydantic + server-side grounding checks.)*
+- **Direct OpenAI:**
+  ```dotenv
+  AI_PROVIDER=openai
+  AI_API_KEY=YOUR_OPENAI_API_KEY
+  AI_BASE_URL=https://api.openai.com/v1
+  AI_MODEL=gpt-5.4-mini
+  ```
 
-*(Or use `AI_PROVIDER=openai` with `AI_BASE_URL=https://api.openai.com/v1` and your own OpenAI key.)*
+### Optional Hosted Mode (Antideploy — Deferred/Optional)
+- Antideploy's hosted `OPENROUTER_API_KEY` path remains server-side only with `AI_PROVIDER=disabled` while wallet balance is **₹0** (`https://antideploy.com/settings/billing#add-money` if ever enabled on hosted Antideploy). Do **not** copy keys into `mobile/` or git.
 
 ---
 
-## 2. Grounded-Output Contract (Applies to Both Copy & Vision)
+## 3. Grounded-Output Contract (Applies to Both Copy & Vision)
 
 Even when AI is enabled, BrandGuard **never runs ungrounded AI checks**:
 
@@ -57,13 +64,14 @@ Even when AI is enabled, BrandGuard **never runs ungrounded AI checks**:
 
 ---
 
-## 3. Live Acceptance Checklist (After Enabling a Key)
+## 4. Live Acceptance Checklist (After Enabling a Key)
 
-1. Add & **Verify** a Fact Source for your test brand under **Guidelines → Fact Sources**.
-2. Test three cases in **New Brand Check**:
+1. Run `ENABLE_AI.bat` (or `python manage.py configure-ai` / `test-ai`) and confirm **Live AI verification SUCCEEDED**.
+2. Add & **Verify** a Fact Source for your test brand under **Guidelines → Fact Sources** (and optionally tap **Test AI verification** there).
+3. Test three cases in **New Brand Check**:
    - A claim directly **supported** by the verified Fact Source.
    - A claim **contradicting** the verified Fact Source (`AI-FACT-*` finding + verbatim quote).
    - An **unsupported** claim with no matching fact (`abstained` / unverified notice).
-3. Test an **image banner** with embedded prohibited text to verify OCR (`image_ocr`) + visual checks + Vision AI behavior.
+4. Test an **image banner** with embedded prohibited text to verify OCR (`image_ocr`) + visual checks + Vision AI behavior.
 
 *Note: Image OCR (`tesseract-ocr`) is included in Round 3. Web crawling, scanned-PDF rasterization, spend-tracking UI, and async inference queues are intentionally not included.*
