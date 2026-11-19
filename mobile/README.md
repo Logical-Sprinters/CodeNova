@@ -11,7 +11,7 @@ Flutter mobile-first client (*Executive Precision* design system) connecting to 
 | Area | What's Implemented |
 |---|---|
 | **Navigation** | Fixed 5-tab shell: **Home · Workspace · Reviews · Guidelines · Profile** + floating bottom-right **BrandGuard AI** chatbot (`POST /api/v1/assistant/chat`) |
-| **Auth Flow** | Splash, Sign In (server provider pill, local demo autofill only in local mode), Create Account, Forgot Password |
+| **Auth Flow** | Splash, clean Sign In box (email/password + Remember me, server provider pill; local demo chooser omitted from UI), Create Account, Forgot Password |
 | **Home Dashboard** | Greeting hero, live metrics, decision mix, fast actions, brand filter, recent activity |
 | **New Brand Check** | Exact-text editor, live preflight (`POST /api/v1/brand/preflight`), temporal `check_at` & `channel` selector, private document & image banner upload (`PNG/JPG/JPEG/WEBP` + OCR/palette/logo telemetry), policy summary |
 | **Findings & Evidence** | Grounded rule cards (`rule_id`, `rule_version`, verbatim `rule_quote`, content/OCR span), AI abstention/evidence citations, reviewer coded finding overrides (`6` structured reasons), submit for review |

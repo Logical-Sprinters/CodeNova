@@ -66,7 +66,8 @@ void main() {
         ),
       );
       await settleTestUi(tester);
-      expect(find.byKey(const ValueKey('demo-access-card')), findsOneWidget);
+      expect(find.byKey(const ValueKey('demo-access-card')), findsNothing);
+      expect(find.text('Password for both: Demo@12345'), findsNothing);
     },
   );
 

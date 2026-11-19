@@ -113,7 +113,7 @@ See [docs/AI_SETUP.md](docs/AI_SETUP.md) for provider details, `:free` OpenRoute
 ## 3. Authentication & Demo Credentials
 
 ### Local Mode (`AUTH_PROVIDER=local`, `SEED_DEMO_USERS=true` — default)
-When running locally with `backend/.env` unset (or `SEED_DEMO_USERS=true`), two local demo accounts are seeded automatically and displayed in the Sign In **Local demonstration accounts** card:
+When running locally with `backend/.env` unset (or `SEED_DEMO_USERS=true`), two local demo accounts are seeded automatically on the server (the Sign In screen displays only the email/password Sign In box without on-screen credential shortcuts):
 
 | Role | Name | Email | Password | Capabilities |
 |---|---|---|---|---|

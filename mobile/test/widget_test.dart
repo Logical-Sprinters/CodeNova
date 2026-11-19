@@ -75,14 +75,17 @@ void main() {
     await settleTestUi(tester);
   }
 
-  testWidgets('splash opens password login and visible enabled demo autofill', (
+  testWidgets('splash opens clean password sign-in box without visible demo card', (
     tester,
   ) async {
     await tester.pumpWidget(const BrandGuardApp());
     await tester.pump(const Duration(milliseconds: 2700));
     await settleTestUi(tester);
     expect(find.byType(SignInScreen), findsOneWidget);
-    expect(find.text('Password for both: Demo@12345'), findsOneWidget);
+    expect(find.byKey(const ValueKey('demo-access-card')), findsNothing);
+    expect(find.text('Password for both: Demo@12345'), findsNothing);
+    expect(find.text('Use Creator'), findsNothing);
+    expect(find.text('Use Reviewer'), findsNothing);
     expect(session.userId, isNull);
   });
   for (final account in DemoAuth.accounts) {
@@ -90,10 +93,14 @@ void main() {
       '${account.role} signs in through server and keeps passwords/tokens out of preferences',
       (tester) async {
         await openLogin(tester);
-        await tester.ensureVisible(
-          find.byKey(ValueKey('demo-${account.role}')),
+        await tester.enterText(
+          find.byKey(const ValueKey('demo-email')),
+          account.email,
         );
-        await tester.tap(find.byKey(ValueKey('demo-${account.role}')));
+        await tester.enterText(
+          find.byKey(const ValueKey('demo-password')),
+          DemoAuth.password,
+        );
         await submit(tester);
         expect(find.byType(BrandGuardShell), findsOneWidget);
         expect(session.userId, account.userId);
